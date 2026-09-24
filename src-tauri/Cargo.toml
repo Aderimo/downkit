@@ -1,0 +1,45 @@
+[package]
+name = "downkit"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "downkit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-dialog = "2.7.3"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["process", "io-util", "macros", "rt-multi-thread", "time", "sync"] }
+sha2 = "0.11.0"
+zip = "8.6.0"
+windows = { version = "0.62.2", features = ["Win32_System_JobObjects", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_UI_WindowsAndMessaging"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
+url = "2.5.8"
+uuid = { version = "1.26.1", features = ["v4"] }
+tauri-plugin-clipboard-manager = "2.3.3"
+tauri-plugin-notification = "2.4.0"
+tauri-plugin-single-instance = "2.4.5"
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
