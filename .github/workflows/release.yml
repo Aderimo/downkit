@@ -1,0 +1,52 @@
+# "v0.1.0" gibi bir etiket gönderilince kurulum dosyası ve kurulumsuz exe derlenip
+# GitHub Releases'e eklenir. Sürüm numarasının tek kaynağı src-tauri/tauri.conf.json.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Derle ve sürüm taslağı oluştur
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: DownKit ${{ github.ref_name }}
+          releaseBody: See the assets below. / Dosyalar aşağıda.
+          releaseDraft: true
+          prerelease: false
+
+      - name: Dosyaları anlaşılır adlarla ekle
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Copy-Item $setup.FullName DownKit-Setup.exe
+          Copy-Item src-tauri/target/release/downkit.exe DownKit.exe
+          gh release upload "${{ github.ref_name }}" DownKit-Setup.exe DownKit.exe --clobber

@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* Marka yazısı ("DownKit", "aderimo"): Nunito, OFL lisanslı, uygulamayla birlikte gelir. */
+@theme {
+  --font-brand: "Nunito", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+
+  --dk-bg: #0a0e1f;
+  --dk-sidebar: #0c1124;
+  --dk-surface: #10162f;
+  --dk-surface-2: #151c3b;
+  --dk-border: #212a50;
+  --dk-border-strong: #313d73;
+  --dk-text: #e9edff;
+  --dk-text-muted: #8a93bb;
+  --dk-accent: #5b7cff;
+  --dk-accent-2: #8b5cf6;
+  --dk-accent-hover: #7b95ff;
+  --dk-success: #34d399;
+  --dk-error: #f87171;
+  --dk-warning: #fbbf24;
+  --dk-gradient: linear-gradient(135deg, #4f7bff 0%, #7c5cff 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--dk-bg);
+  color: var(--dk-text);
+  font-family:
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    "Inter",
+    -apple-system,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Temel kart yüzeyi (mockup'taki lacivert paneller). */
+.dk-card {
+  background: var(--dk-surface);
+  border: 1px solid var(--dk-border);
+  border-radius: 16px;
+}
+
+.dk-gradient {
+  background: var(--dk-gradient);
+}
+
+/* Seçili kart/hap: vurgu kenarı + hafif parlama. */
+.dk-selected {
+  border-color: var(--dk-accent) !important;
+  box-shadow:
+    0 0 0 1px var(--dk-accent),
+    0 0 24px -8px rgb(91 124 255 / 55%);
+}
+
+.dk-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dk-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--dk-border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes dk-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.dk-indeterminate {
+  animation: dk-indeterminate 1.4s ease-in-out infinite;
+}
+
+/* Çift tutamaçlı aralık kaydırıcısı (bölüm seçimi): iki range input üst üste,
+   yalnızca tutamaçlar tıklanabilir; ray ve seçili bant ayrı çizilir. */
+.dk-range input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+.dk-range input[type="range"]::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.dk-range input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 5px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid var(--dk-accent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+  cursor: grab;
+}
+.dk-range input[type="range"]:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+.dk-range input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--dk-accent-hover);
+  outline-offset: 2px;
+}
