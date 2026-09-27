@@ -79,6 +79,17 @@ export async function chooseLocalMediaFile(): Promise<string | null> {
   return typeof selected === "string" ? selected : null;
 }
 
+/** Birden çok medya dosyası seçtirir (medya panelindeki toplu içe aktarma). */
+export async function chooseLocalMediaFiles(): Promise<string[]> {
+  const selected = await open({
+    directory: false,
+    multiple: true,
+    filters: [{ name: "Video / Ses", extensions: MEDIA_EXTENSIONS }],
+  });
+  if (Array.isArray(selected)) return selected;
+  return typeof selected === "string" ? [selected] : [];
+}
+
 /** Altyazı (.srt) ya da hazır ayar (.json) dosyası seçtirir. */
 export async function chooseTextFile(kind: "srt" | "json"): Promise<string | null> {
   const selected = await open({

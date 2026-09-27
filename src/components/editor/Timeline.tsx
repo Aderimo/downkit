@@ -82,11 +82,13 @@ import {
   dropTransition,
   deleteSelected,
   duplicateSelected,
+  dropSourceClip,
   keepOnlySelected,
   playClip,
   redo,
   setClipSpeed,
   splitAtPlayhead,
+  SOURCE_DRAG_MIME,
   addText,
   stepSeconds,
   toggleMuteSelected,
@@ -414,6 +416,20 @@ export function Timeline() {
           style={{ height: RULER_H + tracksHeight }}
           onPointerDown={onAreaPointerDown}
           onContextMenu={(e) => e.preventDefault()}
+          onDragOver={(e) => {
+            // Medya panelinden sürüklenen kaynak: bırakılabilir olduğunu göster.
+            if (e.dataTransfer.types.includes(SOURCE_DRAG_MIME)) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }
+          }}
+          onDrop={(e) => {
+            const sourceId = e.dataTransfer.getData(SOURCE_DRAG_MIME);
+            if (!sourceId) return;
+            e.preventDefault();
+            const areaTop = areaRef.current?.getBoundingClientRect().top ?? 0;
+            dropSourceClip(sourceId, timeAt(e.clientX), trackAtY(rows, e.clientY - areaTop));
+          }}
         >
           {width > 0 ? (
             <>

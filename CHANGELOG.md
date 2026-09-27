@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.1
+
+**Clip editor**
+
+- Clipchamp-style "My media" panel on the left: every added video/link shows up as a thumbnail card with its duration and source number
+- Import many files at once — multi-select in the file dialog or drop several files onto the panel
+- Drag a media card onto the timeline to drop the whole source right where you release it, or use the + button to append it at the end; clicking a card previews that source
+- The panel opens by default; the old add-source dialog and the source strip above the timeline were merged into it
+
 ## v0.2.0
 
 **Clip editor**

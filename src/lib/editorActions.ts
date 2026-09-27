@@ -15,6 +15,7 @@ import {
   deleteClips,
   duplicateClip,
   keepOnly,
+  moveClip,
   sequenceEnd,
   setFade,
   setSpeed,
@@ -204,17 +205,17 @@ export function closeAllGaps() {
 }
 
 /** Kaynağın tamamını ana izin sonuna yeniden ekler (silinen kısımları geri almak için). */
-export function appendWholeSource() {
+export function appendWholeSource(sourceId?: string) {
   const st = editor();
-  const sourceId = st.activeSourceId ?? st.sources[0]?.id;
-  const duration = sourceDurationOf(st.sources, sourceId);
+  const targetId = sourceId ?? st.activeSourceId ?? st.sources[0]?.id;
+  const duration = sourceDurationOf(st.sources, targetId);
   change((clips) => {
     const end = clips.filter((c) => c.track === 0).reduce((m, c) => Math.max(m, clipEnd(c)), 0);
     return [
       ...clips,
       {
         id: newClipId(),
-        sourceId,
+        sourceId: targetId,
         track: 0,
         start: end,
         srcStart: 0,
@@ -224,6 +225,32 @@ export function appendWholeSource() {
       },
     ];
   });
+}
+
+/** Medya paneli kartından zaman çizelgesine sürüklenen kaynağın MIME türü. */
+export const SOURCE_DRAG_MIME = "application/x-downkit-source";
+
+/** Panelden zaman çizelgesine bırakılan kaynağın tamamını bırakılan yere ekler;
+ * doluysa en yakın boşluğa yerleşir (klip taşımayla aynı kurallar). */
+export function dropSourceClip(sourceId: string, at: number, track: number) {
+  const st = editor();
+  const duration = sourceDurationOf(st.sources, sourceId);
+  if (!(duration > 0)) return;
+  change((clips) => {
+    const id = newClipId();
+    const clip: SeqClip = {
+      id,
+      sourceId,
+      track,
+      start: Math.max(0, at),
+      srcStart: 0,
+      srcEnd: duration,
+      speed: 1,
+      name: "",
+    };
+    return moveClip([...clips, clip], id, Math.max(0, at), track);
+  });
+  seekTimeline(Math.max(0, at));
 }
 
 export function playClip(id: string) {

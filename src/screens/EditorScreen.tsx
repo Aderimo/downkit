@@ -5,6 +5,7 @@ import {
   Download,
   ExternalLink,
   FileOutput,
+  Film,
   History,
   Keyboard,
   Loader2,
@@ -37,7 +38,6 @@ import {
   onSourceTime,
   playerReady,
   refreshPlayback,
-  seekTimeline,
   setPreviewRate,
   togglePlayback,
 } from "../lib/sequencePlayer";
@@ -55,6 +55,7 @@ import { formatDuration } from "../lib/format";
 import { PLATFORM_LABEL } from "../lib/platforms";
 import { formatTimecode } from "../lib/timeline";
 import { MediaPlayer } from "../components/editor/MediaPlayer";
+import { MediaPanel } from "../components/editor/MediaPanel";
 import { Timeline } from "../components/editor/Timeline";
 import { ClipPanel } from "../components/editor/ClipPanel";
 import { CropOverlay } from "../components/editor/CropOverlay";
@@ -195,7 +196,8 @@ function EditorStart() {
 function EditorWorkspace() {
   const { t } = useTranslation();
   const [editTool, setEditTool] = useState<EditTool>("clip");
-  const [addTool, setAddTool] = useState<AddTool | null>(null);
+  // Medya paneli Clipchamp'taki gibi varsayılan olarak açık başlar.
+  const [addTool, setAddTool] = useState<AddTool | null>("media");
   const editItems: RailItem<EditTool>[] = [
     { id: "clip", label: t("editor.toolClip"), icon: <SlidersHorizontal size={18} /> },
     { id: "filters", label: t("editor.toolFilters"), icon: <Sparkles size={18} /> },
@@ -203,6 +205,7 @@ function EditorWorkspace() {
     { id: "effects", label: t("editor.toolEffects"), icon: <Wand2 size={18} /> },
   ];
   const addItems: RailItem<AddTool>[] = [
+    { id: "media", label: t("editor.toolMedia"), icon: <Film size={18} /> },
     { id: "text", label: t("editor.toolText"), icon: <Type size={18} /> },
     { id: "transitions", label: t("editor.toolTransitions"), icon: <Blend size={18} /> },
     { id: "subtitles", label: t("editor.toolSubtitles"), icon: <Captions size={18} /> },
@@ -218,7 +221,6 @@ function EditorWorkspace() {
   const setPanelTab = useEditorStore((s) => s.setPanelTab);
   const [showKeys, setShowKeys] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
 
   const fps = source?.kind === "local" ? source.info.fps : (source?.metadata.fps ?? null);
   useEditorShortcuts(fps);
@@ -267,7 +269,8 @@ function EditorWorkspace() {
             variant="secondary"
             size="sm"
             icon={<Plus size={15} />}
-            onClick={() => setShowAdd(true)}
+            // Medya paneli açılır (Clipchamp'taki Medyam); oradan dosya/link eklenir.
+            onClick={() => setAddTool(addTool === "media" ? null : "media")}
           >
             {t("editor.addSource")}
           </Button>
@@ -313,10 +316,8 @@ function EditorWorkspace() {
         </span>
       </div>
 
-      <SourceStrip onAdd={() => setShowAdd(true)} />
-
       <div className="flex min-h-0 flex-1 gap-3">
-        {/* Sol: ekleme araçları (metin, geçiş, altyazı, hazır ayar). */}
+        {/* Sol: medya kitaplığı ve ekleme araçları (metin, geçiş, altyazı, hazır ayar). */}
         <aside className="dk-card flex shrink-0 overflow-hidden" data-tour="editor-add">
           <ToolRail
             side="left"
@@ -325,7 +326,10 @@ function EditorWorkspace() {
             onChange={(id) => setAddTool(addTool === id ? null : id)}
           />
           {addTool ? (
-            <div className="dk-scroll w-64 overflow-y-auto p-4">
+            <div
+              className={`dk-scroll overflow-y-auto p-4 ${addTool === "media" ? "w-80" : "w-64"}`}
+            >
+              {addTool === "media" ? <MediaPanel /> : null}
               {addTool === "text" ? <TextTemplatesPanel /> : null}
               {addTool === "transitions" ? <TransitionsPanel /> : null}
               {addTool === "subtitles" ? <SubtitlesPanel /> : null}
@@ -362,14 +366,13 @@ function EditorWorkspace() {
       {panelTab === "export" ? (
         <ExportDialog remote={remote} onClose={() => setPanelTab("clip")} />
       ) : null}
-      {showAdd ? <AddSourceDialog onClose={() => setShowAdd(false)} /> : null}
       {showKeys ? <ShortcutsDialog onClose={() => setShowKeys(false)} /> : null}
     </div>
   );
 }
 
 type EditTool = "clip" | "filters" | "color" | "effects";
-type AddTool = "text" | "transitions" | "subtitles" | "presets";
+type AddTool = "media" | "text" | "transitions" | "subtitles" | "presets";
 
 /** Dışa aktarma / indirme ekranın ortasında açılır; ayarlar ve başlatma düğmesi burada. */
 function ExportDialog({ remote, onClose }: { remote: boolean; onClose: () => void }) {
@@ -417,205 +420,6 @@ function ExportDialog({ remote, onClose }: { remote: boolean; onClose: () => voi
           <ExportPanel />
         </div>
       </div>
-    </div>
-  );
-}
-
-/** Projeye ikinci (üçüncü…) video/link ekler: link kutusu ya da dosya bırakma. */
-function AddSourceDialog({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
-  const [url, setUrl] = useState("");
-  const adding = useEditorStore((s) => s.addingSource);
-  const addError = useEditorStore((s) => s.addError);
-  const addSourceUrl = useEditorStore((s) => s.addSourceUrl);
-  const addSourceFile = useEditorStore((s) => s.addSourceFile);
-  const count = useEditorStore((s) => s.sources.length);
-  const check = checkSupportedUrl(url);
-  // Kaynak başarıyla eklenince pencere kendiliğinden kapanır.
-  const startCount = useRef(count);
-  useEffect(() => {
-    if (count > startCount.current) onClose();
-  }, [count, onClose]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !adding) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [adding, onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget && !adding) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("editor.addSourceTitle")}
-        className="dk-card w-full max-w-xl space-y-4 p-5 shadow-2xl"
-      >
-        <div className="flex items-center gap-3">
-          <span className="dk-gradient flex h-8 w-8 items-center justify-center rounded-lg text-white">
-            <Plus size={16} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-white">{t("editor.addSourceTitle")}</h2>
-            <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.addSourceHint")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={adding}
-            aria-label={t("clipboard.dismiss")}
-            className="rounded-md p-1.5 text-[var(--dk-text-muted)] hover:bg-white/5 hover:text-white disabled:opacity-40"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        {addError ? (
-          <ErrorBanner
-            message={addError.message}
-            detail={addError.detail}
-            onDismiss={() => useEditorStore.setState({ addError: null })}
-          />
-        ) : null}
-        <UrlBar
-          value={url}
-          onChange={setUrl}
-          onAnalyze={() => void addSourceUrl(url.trim())}
-          onPaste={async () => {
-            const text = await readClipboardText();
-            if (text) setUrl(text.trim());
-          }}
-          canAnalyze={check.status === "ok"}
-          isAnalyzing={adding}
-          actionLabel={t("editor.addSource")}
-          actionIcon={<Plus size={18} />}
-        />
-        {check.status === "invalid" || check.status === "unsupported" ? (
-          <p className="text-sm text-[var(--dk-warning)]">
-            {check.status === "invalid" ? t("validation.invalid") : t("validation.unsupported")}
-          </p>
-        ) : null}
-        <div className="flex items-center gap-3 text-xs text-[var(--dk-text-muted)] uppercase">
-          <span className="h-px flex-1 bg-[var(--dk-border)]" />
-          {t("editor.or")}
-          <span className="h-px flex-1 bg-[var(--dk-border)]" />
-        </div>
-        <DropZone onFile={(path) => void addSourceFile(path)} busy={adding} />
-      </div>
-    </div>
-  );
-}
-
-/** Projedeki kaynakların şeridi: hangi videodan klip geldiği görünür; tıklayınca
- * önizleme o kaynağa geçer, çarpıyla kaynak (ve klipleri) kaldırılır. */
-function SourceStrip({ onAdd }: { onAdd: () => void }) {
-  const { t } = useTranslation();
-  const sources = useEditorStore((s) => s.sources);
-  const activeId = useEditorStore((s) => s.activeSourceId);
-  const clips = useEditorStore((s) => s.clips);
-  const activateSource = useEditorStore((s) => s.activateSource);
-  const removeSource = useEditorStore((s) => s.removeSource);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  if (sources.length === 0) return null;
-
-  const jumpTo = (id: string) => {
-    const first = clips
-      .filter((c) => (c.sourceId ?? sources[0]?.id) === id)
-      .sort((a, b) => a.start - b.start || a.track - b.track)[0];
-    if (first) {
-      seekTimeline(first.start);
-    } else {
-      // Klibi kalmamış kaynak: yalnızca önizlemeyi ona çevir.
-      activateSource(id);
-      usePlayerStore.getState().patch({ currentTime: 0, inGap: true });
-      usePlayerStore.getState().api?.seek(0);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-0.5" data-tour="editor-sources">
-      <span className="shrink-0 text-xs font-medium text-[var(--dk-text-muted)]">
-        {t("editor.sources")}
-      </span>
-      {sources.map((entry, index) => {
-        const active = entry.id === activeId;
-        const clipCount = clips.filter(
-          (c) => (c.sourceId ?? sources[0]?.id) === entry.id,
-        ).length;
-        return (
-          <span
-            key={entry.id}
-            className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors ${
-              active
-                ? "border-[var(--dk-accent)] bg-[var(--dk-accent)]/15 text-white"
-                : "border-[var(--dk-border)] text-[var(--dk-text-muted)] hover:border-[var(--dk-border-strong)] hover:text-white"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => jumpTo(entry.id)}
-              title={entry.title}
-              className="flex min-w-0 items-center gap-1.5"
-            >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white/10 font-mono text-[10px]">
-                {index + 1}
-              </span>
-              <span className="max-w-40 truncate">{entry.title}</span>
-              <span className="shrink-0 font-mono text-[10px] opacity-70">
-                {formatDuration(entry.duration)}
-              </span>
-            </button>
-            {confirmId === entry.id ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setConfirmId(null)}
-                  className="rounded px-1 hover:bg-white/10"
-                >
-                  {t("history.cancelClear")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmId(null);
-                    removeSource(entry.id);
-                  }}
-                  className="rounded px-1 text-[var(--dk-error)] hover:bg-white/10"
-                >
-                  {t("editor.removeSourceConfirm", { count: clipCount })}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                aria-label={t("editor.removeSource")}
-                title={t("editor.removeSource")}
-                // Klipleri varsa önce sorulur; emek yanlışlıkla kaybolmasın.
-                onClick={() =>
-                  clipCount > 0 ? setConfirmId(entry.id) : removeSource(entry.id)
-                }
-                className="rounded p-0.5 opacity-60 hover:bg-white/10 hover:opacity-100"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </span>
-        );
-      })}
-      <button
-        type="button"
-        onClick={onAdd}
-        title={t("editor.addSource")}
-        className="flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-[var(--dk-border-strong)] px-2 py-1 text-xs text-[var(--dk-text-muted)] hover:border-[var(--dk-accent)] hover:text-white"
-      >
-        <Plus size={12} />
-        {t("editor.addSource")}
-      </button>
     </div>
   );
 }
