@@ -45,7 +45,5 @@ function createLocalFileStore() {
 export const useConvertFile = createLocalFileStore();
 export const useCompressFile = createLocalFileStore();
 export const useResizeFile = createLocalFileStore();
-export const usePrepareFile = createLocalFileStore();
-export const useTrimFile = createLocalFileStore();
 
 export type LocalFileStore = typeof useConvertFile;

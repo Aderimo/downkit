@@ -36,6 +36,14 @@ fn preset_plan(preset: &str) -> PresetPlan {
             audio_kbps: 96,
             max_fps: Some(30),
         },
+        // En küçük dosya: 480p ve 24 fps ile kodlama da en hızlısıdır.
+        "tiny" => PresetPlan {
+            crf: 32,
+            x264_preset: "veryfast",
+            max_short_side: 480,
+            audio_kbps: 64,
+            max_fps: Some(24),
+        },
         // "balanced" ve tanınmayan değerler
         _ => PresetPlan {
             crf: 26,
@@ -45,6 +53,15 @@ fn preset_plan(preset: &str) -> PresetPlan {
             max_fps: None,
         },
     }
+}
+
+/// Kullanıcının "Gelişmiş" bölümünde seçtiği sınırlar. Seçildiyse seviyenin ya da
+/// hedef boyut planının otomatik sınırının yerine geçer; video hiçbir zaman büyütülmez.
+/// Çözünürlük ve kare hızını düşürmek dosyayı küçültür, kodlamayı da hızlandırır.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Limits {
+    pub max_short_side: Option<u32>,
+    pub max_fps: Option<u32>,
 }
 
 /// Kısa kenarı `max_short_side`'ı aşan görüntüyü en-boy oranını koruyarak küçültür;
@@ -96,10 +113,11 @@ fn common_tail(audio_kbps: u32) -> Vec<String> {
 }
 
 /// Hazır kalite seviyeleri: CRF (sabit kalite) + çözünürlük/kare hızı sınırı.
-pub fn build_args_for_preset(preset: &str, info: &LocalMediaInfo) -> Vec<String> {
+pub fn build_args_for_preset(preset: &str, info: &LocalMediaInfo, limits: Limits) -> Vec<String> {
     let plan = preset_plan(preset);
     let mut args = Vec::new();
-    if let Some(filter) = video_filter(info, plan.max_short_side, plan.max_fps) {
+    let short_side = limits.max_short_side.unwrap_or(plan.max_short_side);
+    if let Some(filter) = video_filter(info, short_side, limits.max_fps.or(plan.max_fps)) {
         args.extend(["-vf".into(), filter]);
     }
     args.extend([
@@ -155,10 +173,15 @@ pub fn target_plan(target_size_bytes: u64, duration_seconds: f64) -> TargetPlan 
     }
 }
 
-pub fn build_args_for_target_size(target_size_bytes: u64, info: &LocalMediaInfo) -> Vec<String> {
+pub fn build_args_for_target_size(
+    target_size_bytes: u64,
+    info: &LocalMediaInfo,
+    limits: Limits,
+) -> Vec<String> {
     let plan = target_plan(target_size_bytes, info.duration_seconds.unwrap_or(0.0));
     let mut args = Vec::new();
-    if let Some(filter) = video_filter(info, plan.max_short_side, Some(30)) {
+    let short_side = limits.max_short_side.unwrap_or(plan.max_short_side);
+    if let Some(filter) = video_filter(info, short_side, Some(limits.max_fps.unwrap_or(30))) {
         args.extend(["-vf".into(), filter]);
     }
     args.extend([
@@ -183,6 +206,7 @@ mod tests {
 
     fn info(width: u32, height: u32, fps: f64, duration: f64) -> LocalMediaInfo {
         LocalMediaInfo {
+            chapters: Vec::new(),
             file_name: "v.mp4".into(),
             file_path: "C:/v.mp4".into(),
             file_size_bytes: 0,
@@ -216,23 +240,75 @@ mod tests {
 
     #[test]
     fn kucuk_dosya_720p_ve_30fps_ile_hizli_kodlar() {
-        let args = build_args_for_preset("small", &info(3840, 2160, 60.0, 600.0)).join(" ");
+        let args =
+            build_args_for_preset("small", &info(3840, 2160, 60.0, 600.0), Limits::default())
+                .join(" ");
         assert!(args.contains("-vf scale=1280:720,fps=30"), "{args}");
         assert!(args.contains("-preset veryfast"));
         assert!(!args.contains("medium"));
     }
 
     #[test]
+    fn cok_kucuk_dosya_480p_ve_24fps_ile_en_hizli_kodlar() {
+        let args = build_args_for_preset("tiny", &info(3840, 2160, 60.0, 600.0), Limits::default())
+            .join(" ");
+        assert!(args.contains("scale=854:480"), "{args}");
+        assert!(args.contains("fps=24"), "{args}");
+        assert!(args.contains("-crf 32"), "{args}");
+        assert!(args.contains("-b:a 64k"), "{args}");
+    }
+
+    #[test]
     fn zaten_kucuk_videoya_filtre_eklenmez() {
-        let args = build_args_for_preset("balanced", &info(1280, 720, 30.0, 60.0));
+        let args =
+            build_args_for_preset("balanced", &info(1280, 720, 30.0, 60.0), Limits::default());
         assert!(!args.contains(&"-vf".to_string()));
     }
 
     #[test]
     fn yuksek_kalite_1080p_ustunu_kucultur() {
-        let args = build_args_for_preset("high", &info(2560, 1440, 30.0, 60.0)).join(" ");
+        let args = build_args_for_preset("high", &info(2560, 1440, 30.0, 60.0), Limits::default())
+            .join(" ");
         assert!(args.contains("scale=1920:1080"));
         assert!(args.contains("-crf 23"));
+    }
+
+    #[test]
+    fn kullanicinin_sectigi_cozunurluk_ve_fps_seviyenin_yerine_gecer() {
+        let limits = Limits {
+            max_short_side: Some(360),
+            max_fps: Some(15),
+        };
+        let args = build_args_for_preset("high", &info(1920, 1080, 60.0, 60.0), limits).join(" ");
+        assert!(args.contains("-vf scale=640:360,fps=15"), "{args}");
+        assert!(args.contains("-crf 23"), "kalite seviyesi korunur: {args}");
+        // Seçilen değer kaynaktan büyükse büyütülmez.
+        let big = Limits {
+            max_short_side: Some(1080),
+            max_fps: None,
+        };
+        let args = build_args_for_preset("tiny", &info(1280, 720, 30.0, 60.0), big);
+        assert!(!args.join(" ").contains("scale="), "{args:?}");
+    }
+
+    #[test]
+    fn hedef_boyutta_secilen_sinirlar_uygulanir() {
+        let limits = Limits {
+            max_short_side: Some(480),
+            max_fps: Some(24),
+        };
+        let args =
+            build_args_for_target_size(50 * 1024 * 1024, &info(1920, 1080, 60.0, 60.0), limits)
+                .join(" ");
+        assert!(args.contains("-vf scale=854:480,fps=24"), "{args}");
+        // Seçim yoksa hedef boyut modu 30 fps ile sınırlar.
+        let args = build_args_for_target_size(
+            50 * 1024 * 1024,
+            &info(1920, 1080, 60.0, 60.0),
+            Limits::default(),
+        )
+        .join(" ");
+        assert!(args.contains("fps=30"), "{args}");
     }
 
     #[test]

@@ -5,7 +5,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::error::AppError;
-use crate::paths;
+use crate::{paths, tool_download};
 
 const YTDLP_DOWNLOAD_URL: &str =
     "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
@@ -58,16 +58,9 @@ fn download_error(detail: String) -> AppError {
 }
 
 async fn download_ytdlp(exe: &Path) -> Result<(), AppError> {
-    let response = reqwest::get(YTDLP_DOWNLOAD_URL)
+    let bytes = tool_download::fetch("yt-dlp", YTDLP_DOWNLOAD_URL)
         .await
-        .map_err(|e| download_error(e.to_string()))?;
-    if !response.status().is_success() {
-        return Err(download_error(format!("HTTP {}", response.status())));
-    }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| download_error(e.to_string()))?;
+        .map_err(download_error)?;
 
     // Önce geçici dosyaya yazılıp sonra taşınır: indirme yarıda kesilirse bozuk
     // bir yt-dlp.exe "var" sanılıp her analizde hata vermesin.

@@ -83,7 +83,7 @@ export function ActionCards({ selected, onSelect, onRun }: ActionCardsProps) {
             }}
             className={`dk-card flex cursor-pointer flex-col gap-3 p-5 text-left transition-all hover:border-[var(--dk-border-strong)] ${
               active
-                ? "dk-selected bg-[linear-gradient(180deg,rgb(59_91_255/14%),transparent)]"
+                ? "dk-selected bg-[linear-gradient(180deg,color-mix(in_srgb,var(--dk-accent)_14%,transparent),transparent)]"
                 : ""
             }`}
           >
@@ -107,7 +107,7 @@ export function ActionCards({ selected, onSelect, onRun }: ActionCardsProps) {
               }}
               className={`flex h-10 items-center justify-between rounded-xl px-4 text-sm font-medium transition ${
                 active
-                  ? "dk-gradient text-white shadow-[0_8px_24px_-12px_rgb(91_124_255/90%)] hover:brightness-110"
+                  ? "dk-gradient text-white shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--dk-accent)_90%,transparent)] hover:brightness-110"
                   : "border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] text-[var(--dk-accent-hover)] hover:border-[var(--dk-accent)]"
               }`}
             >

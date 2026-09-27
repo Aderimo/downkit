@@ -50,6 +50,21 @@
         "sidebarImage": "../branding/installer-sidebar.bmp",
         "startMenuFolder": "DownKit"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENEOTgyNDQ0QzRENjJCM0UKUldRK0s5YkVSQ1NZelY3UFlSMDgzTzlzTnJEcHRmNGdka1NnRU15Z3R5SjFBdmgzOTFxYU1ydnYK",
+      "endpoints": ["https://github.com/Aderimo/downkit/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["downkit"]
+      }
     }
   }
 }

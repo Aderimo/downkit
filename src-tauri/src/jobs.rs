@@ -31,6 +31,22 @@ pub fn register(app: &AppHandle, job_id: &str, pid: u32) {
     );
 }
 
+/// Birden çok süreçten oluşan işte (ör. önce yt-dlp, sonra ffmpeg) iptalin yeni
+/// sürece de ulaşması için kayıttaki PID'i değiştirir. İş bu arada iptal
+/// edildiyse false döner; çağıran yeni süreci kendisi durdurmalıdır.
+pub fn replace_pid(app: &AppHandle, job_id: &str, pid: u32) -> bool {
+    crate::process_guard::attach(pid);
+    let state = app.state::<AppState>();
+    let mut jobs = state.jobs.lock().unwrap();
+    match jobs.get_mut(job_id) {
+        Some(entry) if !entry.canceled => {
+            entry.pid = pid;
+            true
+        }
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Finished {
     pub canceled: bool,

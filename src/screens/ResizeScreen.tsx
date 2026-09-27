@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Maximize2, Smartphone } from "lucide-react";
-import { usePrepareFile, useResizeFile } from "../store/localFileStore";
+import { Maximize2 } from "lucide-react";
+import { useResizeFile } from "../store/localFileStore";
 import { enqueueLocal } from "../lib/jobEngine";
 import {
   ASPECT_RATIOS,
@@ -18,12 +18,11 @@ import { PlatformIcon } from "../components/PlatformIcon";
 
 const LONG_EDGES = [720, 1080, 1440, 1920, 2160];
 
-/** "resize": oran + çözünürlük serbest; "platform": yalnızca hazır platform ayarları
- * (kenar çubuğundaki "Platforma Hazırla"). */
-export function ResizeScreen({ variant }: { variant: "resize" | "platform" }) {
+/** Boyut Ayarla: hazır platform ayarları (TikTok, Reels…) ile serbest oran +
+ * çözünürlük tek sayfada. Bir platform kartı seçiliyse oran/çözünürlük ondan gelir. */
+export function ResizeScreen() {
   const { t } = useTranslation();
-  const isPlatform = variant === "platform";
-  const [presetId, setPresetId] = useState<string | null>(isPlatform ? "tiktok" : null);
+  const [presetId, setPresetId] = useState<string | null>(null);
   const [ratio, setRatio] = useState<AspectRatio>(ASPECT_RATIOS[0]);
   const [longEdge, setLongEdge] = useState(1080);
   const [fitMode, setFitMode] = useState<FitMode>("crop");
@@ -40,13 +39,13 @@ export function ResizeScreen({ variant }: { variant: "resize" | "platform" }) {
 
   return (
     <LocalToolShell
-      title={isPlatform ? t("prepare.title") : t("resize.title")}
-      subtitle={isPlatform ? t("prepare.subtitle") : t("resize.subtitle")}
-      icon={isPlatform ? <Smartphone size={24} /> : <Maximize2 size={24} />}
-      useFile={isPlatform ? usePrepareFile : useResizeFile}
-      startLabel={isPlatform ? t("prepare.button") : t("resize.resizeButton")}
-      startIcon={isPlatform ? <Smartphone size={18} /> : <Maximize2 size={18} />}
-      canStart={!isPlatform || preset !== undefined}
+      title={t("resize.title")}
+      subtitle={t("resize.subtitle")}
+      icon={<Maximize2 size={24} />}
+      useFile={useResizeFile}
+      startLabel={t("resize.resizeButton")}
+      startIcon={<Maximize2 size={18} />}
+      canStart
       summary={(info) =>
         t("resize.summary", {
           from: info.width && info.height ? `${info.width}×${info.height}` : "—",
@@ -58,8 +57,9 @@ export function ResizeScreen({ variant }: { variant: "resize" | "platform" }) {
           <ChoiceCards
             label={t("resize.presets")}
             value={presetId}
-            onChange={setPresetId}
-            columns={isPlatform ? 5 : 5}
+            // Seçili platforma tekrar tıklamak seçimi kaldırır (serbest orana dönülür).
+            onChange={(id) => setPresetId(id === presetId ? null : id)}
+            columns={5}
             choices={PLATFORM_PRESETS.map((p) => ({
               value: p.id,
               title: t(p.labelKey),
@@ -67,31 +67,29 @@ export function ResizeScreen({ variant }: { variant: "resize" | "platform" }) {
               icon: <PlatformIcon platform={p.brand} size={26} />,
             }))}
           />
-          {!isPlatform ? (
-            <div className="grid gap-4 md:grid-cols-[1fr_200px]">
-              <ChoiceCards
-                label={t("resize.customRatio")}
-                value={presetId ? null : ratio.id}
-                onChange={(id) => {
-                  const next = ASPECT_RATIOS.find((r) => r.id === id);
-                  if (next) setRatio(next);
-                  setPresetId(null);
-                }}
-                columns={5}
-                choices={ASPECT_RATIOS.map((r) => ({ value: r.id, title: t(r.labelKey) }))}
+          <div className="grid gap-4 md:grid-cols-[1fr_200px]">
+            <ChoiceCards
+              label={t("resize.customRatio")}
+              value={presetId ? null : ratio.id}
+              onChange={(id) => {
+                const next = ASPECT_RATIOS.find((r) => r.id === id);
+                if (next) setRatio(next);
+                setPresetId(null);
+              }}
+              columns={5}
+              choices={ASPECT_RATIOS.map((r) => ({ value: r.id, title: t(r.labelKey) }))}
+            />
+            <div>
+              <p className="mb-2 text-sm text-[var(--dk-text-muted)]">{t("resize.resolution")}</p>
+              <Select
+                value={longEdge}
+                disabled={presetId !== null}
+                options={LONG_EDGES.map((edge) => ({ value: edge, label: `${edge}p` }))}
+                onChange={setLongEdge}
+                ariaLabel={t("resize.resolution")}
               />
-              <div>
-                <p className="mb-2 text-sm text-[var(--dk-text-muted)]">{t("resize.resolution")}</p>
-                <Select
-                  value={longEdge}
-                  disabled={presetId !== null}
-                  options={LONG_EDGES.map((edge) => ({ value: edge, label: `${edge}p` }))}
-                  onChange={setLongEdge}
-                  ariaLabel={t("resize.resolution")}
-                />
-              </div>
             </div>
-          ) : null}
+          </div>
           <ChoiceCards
             label={t("resize.fitMode")}
             value={fitMode}

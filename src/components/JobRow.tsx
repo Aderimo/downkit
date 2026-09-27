@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Scissors,
+  Clapperboard,
   Shrink,
   Trash2,
   X,
@@ -23,6 +24,7 @@ import { openMediaFile, revealInFolder } from "../lib/tauri-api";
 import { useJobsStore } from "../store/jobsStore";
 import { IconButton } from "./ui/Button";
 import { PlatformIcon } from "./PlatformIcon";
+import { ReportButton } from "./ReportButton";
 import { isSupportedPlatform } from "../lib/platforms";
 
 const KIND_ICON = {
@@ -31,9 +33,11 @@ const KIND_ICON = {
   compress: Shrink,
   resize: Maximize2,
   trim: Scissors,
+  edit: Clapperboard,
 };
 
-export function JobRow({ job }: { job: Job }) {
+/** `compact`: dar panellerde (düzenleyici) küçük resimsiz, durum başlığın altında. */
+export function JobRow({ job, compact = false }: { job: Job; compact?: boolean }) {
   const { t } = useTranslation();
   const [showDetail, setShowDetail] = useState(false);
   const remove = useJobsStore((s) => s.remove);
@@ -41,7 +45,9 @@ export function JobRow({ job }: { job: Job }) {
   const lastOutput = job.outputs.at(-1) ?? null;
   const KindIcon = KIND_ICON[job.kind];
   const isActive = ["preparing", "running", "postprocessing"].includes(job.status);
-  const canPause = job.kind === "download" && (job.status === "running" || job.status === "queued");
+  const canPause =
+    (job.kind === "download" || job.kind === "edit") &&
+    (job.status === "running" || job.status === "queued");
   const quality =
     job.qualityLabel === "best"
       ? t("jobs.qualityBest")
@@ -55,9 +61,45 @@ export function JobRow({ job }: { job: Job }) {
     job.formatLabel,
   ].filter(Boolean);
 
+  const status = (
+    <>
+      <StatusLine
+        job={job}
+        onToggleDetail={() => setShowDetail((v) => !v)}
+        showDetail={showDetail}
+      />
+      {isActive && job.speedBps ? (
+        <p className="mt-0.5 text-[var(--dk-text)]">{formatSpeed(job.speedBps)}</p>
+      ) : null}
+      {job.downloadedBytes && (isActive || job.status === "paused") ? (
+        <p className="mt-0.5 text-[var(--dk-text-muted)]">
+          {formatBytes(job.downloadedBytes)}
+          {job.totalBytesEstimate ? ` / ~${formatBytes(job.totalBytesEstimate)}` : ""}
+          {isActive && job.etaSeconds
+            ? ` · ${t("jobs.eta", { eta: formatEta(job.etaSeconds) })}`
+            : ""}
+        </p>
+      ) : null}
+      {job.status === "done" && job.fileSizeBytes ? (
+        <p className="mt-0.5 text-[var(--dk-text-muted)]">
+          {formatBytes(job.fileSizeBytes)}
+          {job.outputs.length > 1 ? ` · ${t("jobs.outputs", { count: job.outputs.length })}` : ""}
+        </p>
+      ) : null}
+      {job.status === "done" && job.notice ? (
+        <p className="mt-0.5 flex items-center justify-end gap-1 text-[var(--dk-warning)]">
+          <AlertTriangle size={13} className="shrink-0" />
+          {t(`jobs.notice.${job.notice}`, { defaultValue: job.notice })}
+        </p>
+      ) : null}
+    </>
+  );
+
   return (
-    <div className="flex items-center gap-4 px-4 py-3">
-      <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg bg-[var(--dk-surface-2)]">
+    <div className={`flex items-center px-4 ${compact ? "gap-3 py-2.5" : "gap-4 py-3"}`}>
+      <div
+        className={`relative h-14 w-24 shrink-0 overflow-hidden rounded-lg bg-[var(--dk-surface-2)] ${compact ? "hidden" : ""}`}
+      >
         {job.thumbnailUrl ? (
           <img src={job.thumbnailUrl} alt="" className="h-full w-full object-cover" />
         ) : (
@@ -83,6 +125,7 @@ export function JobRow({ job }: { job: Job }) {
             paused={job.status === "paused"}
           />
         ) : null}
+        {compact ? <div className="mt-1 text-xs [&_p]:text-left">{status}</div> : null}
         {job.status === "error" && showDetail && job.errorDetail ? (
           <pre className="dk-scroll mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-2 text-[11px] text-[var(--dk-text-muted)]">
             {job.errorDetail}
@@ -90,37 +133,7 @@ export function JobRow({ job }: { job: Job }) {
         ) : null}
       </div>
 
-      <div className="w-56 shrink-0 text-right text-xs">
-        <StatusLine
-          job={job}
-          onToggleDetail={() => setShowDetail((v) => !v)}
-          showDetail={showDetail}
-        />
-        {isActive && job.speedBps ? (
-          <p className="mt-0.5 text-[var(--dk-text)]">{formatSpeed(job.speedBps)}</p>
-        ) : null}
-        {job.downloadedBytes && (isActive || job.status === "paused") ? (
-          <p className="mt-0.5 text-[var(--dk-text-muted)]">
-            {formatBytes(job.downloadedBytes)}
-            {job.totalBytesEstimate ? ` / ~${formatBytes(job.totalBytesEstimate)}` : ""}
-            {isActive && job.etaSeconds
-              ? ` · ${t("jobs.eta", { eta: formatEta(job.etaSeconds) })}`
-              : ""}
-          </p>
-        ) : null}
-        {job.status === "done" && job.fileSizeBytes ? (
-          <p className="mt-0.5 text-[var(--dk-text-muted)]">
-            {formatBytes(job.fileSizeBytes)}
-            {job.outputs.length > 1 ? ` · ${t("jobs.outputs", { count: job.outputs.length })}` : ""}
-          </p>
-        ) : null}
-        {job.status === "done" && job.notice ? (
-          <p className="mt-0.5 flex items-center justify-end gap-1 text-[var(--dk-warning)]">
-            <AlertTriangle size={13} className="shrink-0" />
-            {t(`jobs.notice.${job.notice}`, { defaultValue: job.notice })}
-          </p>
-        ) : null}
-      </div>
+      {compact ? null : <div className="w-56 shrink-0 text-right text-xs">{status}</div>}
 
       <div className="flex shrink-0 items-center gap-1.5">
         {canPause ? (
@@ -210,15 +223,26 @@ function StatusLine({
           >
             {job.errorMessage}
           </p>
-          {job.errorDetail ? (
-            <button
-              type="button"
-              onClick={onToggleDetail}
-              className="mt-0.5 text-[var(--dk-accent-hover)] underline"
-            >
-              {showDetail ? t("error.hideDetails") : t("error.showDetails")}
-            </button>
-          ) : null}
+          <span className="mt-0.5 flex items-center justify-end gap-3">
+            {job.errorDetail ? (
+              <button
+                type="button"
+                onClick={onToggleDetail}
+                className="text-[var(--dk-accent-hover)] underline"
+              >
+                {showDetail ? t("error.hideDetails") : t("error.showDetails")}
+              </button>
+            ) : null}
+            <ReportButton
+              input={{
+                message: job.errorMessage ?? t("jobs.statusError"),
+                detail: job.errorDetail,
+                context: [job.kind, job.platform, job.formatLabel, job.qualityLabel]
+                  .filter(Boolean)
+                  .join(" · "),
+              }}
+            />
+          </span>
         </div>
       );
     default: {

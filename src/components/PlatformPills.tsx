@@ -17,7 +17,9 @@ const PRIMARY: SupportedPlatform[] = [
 ];
 const MORE: SupportedPlatform[] = ["vimeo", "dailymotion", "pinterest"];
 
-/** Desteklenen platformları gösterir; yapıştırılan linkin platformu halkayla vurgulanır. */
+/** Desteklenen platformları gösterir; yapıştırılan linkin platformu halkayla vurgulanır.
+ * Eşit sütunlu ızgara: geniş pencerede tek sıra olup satırı doldurur, daraldıkça
+ * raf gibi alt alta dizilir. */
 export function PlatformPills({ detected }: { detected: SupportedPlatform | null }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -34,7 +36,10 @@ export function PlatformPills({ detected }: { detected: SupportedPlatform | null
   }, [open]);
 
   return (
-    <div className="flex flex-wrap gap-1.5" title={t("analyze.supportedPlatforms")}>
+    <div
+      className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-1.5"
+      title={t("analyze.supportedPlatforms")}
+    >
       {PRIMARY.map((p) => (
         <Pill key={p} platform={p} active={detected === p} />
       ))}
@@ -44,7 +49,7 @@ export function PlatformPills({ detected }: { detected: SupportedPlatform | null
           onClick={() => setOpen((v) => !v)}
           aria-label={t("analyze.morePlatforms")}
           title={t("analyze.morePlatforms")}
-          className={`dk-card flex h-10 items-center gap-1 rounded-xl px-2.5 text-[13px] transition-colors hover:border-[var(--dk-border-strong)] ${
+          className={`dk-card flex h-10 w-full items-center justify-center gap-1 rounded-xl px-2.5 text-[13px] transition-colors hover:border-[var(--dk-border-strong)] ${
             moreDetected ? "dk-selected" : ""
           }`}
         >
@@ -73,7 +78,7 @@ export function PlatformPills({ detected }: { detected: SupportedPlatform | null
 function Pill({ platform, active }: { platform: SupportedPlatform; active: boolean }) {
   return (
     <span
-      className={`dk-card flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] transition-colors ${
+      className={`dk-card flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[13px] whitespace-nowrap transition-colors ${
         active ? "dk-selected text-white" : "text-[var(--dk-text)]/90"
       }`}
     >

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { AUDIO_FORMATS, VIDEO_FORMATS, type OutputFormat } from "../types/media";
+import { DEFAULT_THEME, isThemeId, type ThemeId } from "./themes";
 
 const STORAGE_KEY = "downkit.settings";
 const LEGACY_DIR_KEY = "downkit.defaultDownloadDir";
@@ -60,7 +61,23 @@ export interface AppSettings {
   closeBehavior: CloseBehavior;
   /** Açılışta GitHub'da yeni DownKit sürümü var mı bak. */
   checkUpdates: boolean;
+  /** Açılışta tanıtım turunu göster; turdaki "Bir daha gösterme" ile kapanır. */
+  showTutorial: boolean;
+  /** Sol menü yalnızca simgeler (daha geniş çalışma alanı). */
+  sidebarCollapsed: boolean;
+  /** Bir sayfa ilk kez açılınca o sayfanın turunu göster. */
+  pageTours: boolean;
+  /** YouTube indirmelerinde sponsor bölümlerini çıkar (SponsorBlock). */
+  sponsorBlock: boolean;
+  /** Renk teması (bkz. themes.ts). */
+  theme: ThemeId;
+  /** Kayıtlı ayarların biçim sürümü; tek seferlik geçişler için (bkz. normalizeSettings). */
+  settingsVersion: number;
 }
+
+/** 2: "Platforma göre klasörle" varsayılan olarak açık (kullanıcı 2026-09-27'de
+ * YouTube/Twitch/Kick indirmelerinin ayrı klasöre düşmesini istedi). */
+const SETTINGS_VERSION = 2;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultDownloadDir: null,
@@ -77,9 +94,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoUpdateYtdlp: true,
   lastYtdlpUpdateCheck: null,
   keepHistory: true,
-  groupByPlatform: false,
+  groupByPlatform: true,
   closeBehavior: "whileBusy",
   checkUpdates: true,
+  showTutorial: true,
+  sidebarCollapsed: false,
+  pageTours: true,
+  sponsorBlock: false,
+  theme: DEFAULT_THEME,
+  settingsVersion: SETTINGS_VERSION,
 };
 
 const FORMATS: readonly string[] = [...VIDEO_FORMATS, ...AUDIO_FORMATS];
@@ -92,6 +115,8 @@ export function normalizeSettings(raw: unknown, legacyDir: string | null = null)
   >;
   const d = DEFAULT_SETTINGS;
   const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
+  // Sürümü olmayan kayıt 1. sürümdür.
+  const version = typeof r.settingsVersion === "number" ? r.settingsVersion : 1;
   const numOrNull = (v: unknown, allowed: readonly (number | null)[], fallback: number | null) =>
     allowed.includes(v as number | null) ? (v as number | null) : fallback;
   const langs = Array.isArray(r.subtitleLangs)
@@ -126,11 +151,18 @@ export function normalizeSettings(raw: unknown, legacyDir: string | null = null)
     lastYtdlpUpdateCheck:
       typeof r.lastYtdlpUpdateCheck === "number" ? r.lastYtdlpUpdateCheck : null,
     keepHistory: bool(r.keepHistory, d.keepHistory),
-    groupByPlatform: bool(r.groupByPlatform, d.groupByPlatform),
+    // 1. sürümde varsayılan kapalıydı: eski kayıtta bir kez açılır, sonra kullanıcının seçimi.
+    groupByPlatform: version < 2 ? true : bool(r.groupByPlatform, d.groupByPlatform),
     closeBehavior: CLOSE_BEHAVIORS.includes(r.closeBehavior as CloseBehavior)
       ? (r.closeBehavior as CloseBehavior)
       : d.closeBehavior,
     checkUpdates: bool(r.checkUpdates, d.checkUpdates),
+    showTutorial: bool(r.showTutorial, d.showTutorial),
+    sidebarCollapsed: bool(r.sidebarCollapsed, d.sidebarCollapsed),
+    pageTours: bool(r.pageTours, d.pageTours),
+    sponsorBlock: bool(r.sponsorBlock, d.sponsorBlock),
+    theme: isThemeId(r.theme) ? r.theme : d.theme,
+    settingsVersion: SETTINGS_VERSION,
   };
 }
 

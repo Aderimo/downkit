@@ -3,7 +3,7 @@ import { create } from "zustand";
 const STORAGE_KEY = "downkit.history";
 const MAX_ENTRIES = 200;
 
-export type HistoryOperation = "download" | "convert" | "compress" | "resize" | "trim";
+export type HistoryOperation = "download" | "convert" | "compress" | "resize" | "trim" | "edit";
 
 export interface HistoryEntry {
   id: string;

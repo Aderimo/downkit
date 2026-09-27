@@ -29,3 +29,9 @@ export function formatEta(seconds: number | null): string {
   if (seconds === null || Number.isNaN(seconds)) return "—";
   return formatDuration(seconds);
 }
+
+/** Yüzde: Türkçede işaret önde ("%50"), İngilizcede sonda ("50%"). */
+export function formatPercent(ratio: number, language: string): string {
+  const value = Math.round(ratio * 100);
+  return language.startsWith("tr") ? `%${value}` : `${value}%`;
+}

@@ -46,11 +46,44 @@ export interface MediaMetadata {
   viewCount: number | null;
   /** yt-dlp biçimi: YYYYMMDD */
   uploadDate: string | null;
-  previewUrl: string | null;
+  /** İndirmeden izlemek için yerel aktarıcı üzerinden oynatılabilir akış. */
+  preview: PreviewStream | null;
+  /** Zaman çizelgesi kare şeridi (yalnızca YouTube sağlıyor). */
+  storyboard: Storyboard | null;
+  /** Videonun bölümleri (YouTube "chapters"); yoksa boş. */
+  chapters: Chapter[];
   qualityOptions: QualityOption[];
   audioOption: AudioOption | null;
   formats: FormatOption[];
   flacEligible: boolean;
+}
+
+/** Rust `types::PreviewStream`. "file": tek dosya, "hls": HLS listesi (hls.js),
+ * "split": ayrı görüntü + ses dosyası (eşzamanlı oynatılır). */
+export interface PreviewStream {
+  kind: "file" | "hls" | "split";
+  url: string;
+  audioUrl: string | null;
+  /** Kare şeridi gibi sonraki istekler kaynağı bu belirteçle bulur. */
+  token: string;
+  hasVideo: boolean;
+}
+
+export interface StoryboardSheet {
+  url: string;
+  /** Bu sayfadaki ilk karenin zamanı (saniye). */
+  start: number;
+  duration: number;
+}
+
+/** Izgara biçimli kare sayfaları: her sayfada rows × columns kare, kareler arası `interval` sn. */
+export interface Storyboard {
+  width: number;
+  height: number;
+  rows: number;
+  columns: number;
+  interval: number;
+  sheets: StoryboardSheet[];
 }
 
 export interface PlaylistEntry {
@@ -98,4 +131,14 @@ export interface DownloadRequest {
   rateLimitKbps: number | null;
   sectionStart: number | null;
   sectionEnd: number | null;
+  /** YouTube'da sponsor bölümlerini çıkar (SponsorBlock). */
+  sponsorBlock: boolean;
+}
+
+/** Rust `types::Chapter`: kaynak videodaki bölüm (saniye). */
+export interface Chapter {
+  start: number;
+  end: number;
+  /** Başlıksız bölümde boş. */
+  title: string;
 }

@@ -5,11 +5,12 @@ use crate::error::AppError;
 
 // Önyüz yalnızca bizim ürettiğimiz medya dosyalarını açabilsin; geniş bir
 // "her yolu aç" izni vermek, herhangi bir .exe'yi çalıştırmaya kapı açardı.
-const OPENABLE_EXTENSIONS: [&str; 13] = [
+const OPENABLE_EXTENSIONS: [&str; 14] = [
     "mp4", "mkv", "webm", "mov", "avi", "mp3", "m4a", "wav", "aac", "flac", "opus", "ogg", "srt",
+    "gif",
 ];
 
-fn is_openable(path: &std::path::Path) -> bool {
+pub fn is_openable(path: &std::path::Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| OPENABLE_EXTENSIONS.contains(&e.to_lowercase().as_str()))
@@ -47,6 +48,7 @@ mod tests {
     fn yalnizca_medya_uzantilari_acilabilir() {
         assert!(is_openable(std::path::Path::new("C:/a/video.MP4")));
         assert!(is_openable(std::path::Path::new("C:/a/şarkı.mp3")));
+        assert!(is_openable(std::path::Path::new("C:/a/klip.gif")));
         assert!(!is_openable(std::path::Path::new("C:/a/kurulum.exe")));
         assert!(!is_openable(std::path::Path::new("C:/a/betik.bat")));
         assert!(!is_openable(std::path::Path::new("C:/a/uzantisiz")));

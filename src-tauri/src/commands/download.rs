@@ -17,8 +17,12 @@ use crate::template::translate_filename_template;
 use crate::{ffmpeg, ytdlp};
 
 const PROGRESS_PREFIX: &str = "[dk-progress]";
-const FILE_PREFIX: &str = "[dk-file]";
+pub(crate) const FILE_PREFIX: &str = "[dk-file]";
 const TARGET_PREFIX: &str = "[dk-target]";
+const SPONSOR_PREFIX: &str = "[dk-sponsor]";
+/// Çıkarılan SponsorBlock bölümleri: yalnızca atlanması açık olanlar (sponsor,
+/// kendi reklamı, "abone ol" hatırlatması); giriş/bitiş gibi içerik korunur.
+const SPONSOR_CATEGORIES: &str = "sponsor,selfpromo,interaction";
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 const DEFAULT_AUDIO_KBPS: u32 = 192;
 
@@ -55,6 +59,14 @@ pub struct DownloadRequest {
     pub section_start: Option<f64>,
     #[serde(default)]
     pub section_end: Option<f64>,
+    /// YouTube'da SponsorBlock topluluk veritabanındaki sponsor bölümleri çıkarılır.
+    #[serde(default)]
+    pub sponsor_block: bool,
+    /// Başlık, kanal, tarih (ses dosyalarında kapak resmi de) dosyaya yazılır;
+    /// müzik çalarlar "Bilinmeyen sanatçı" göstermez. Düzenleyici, bölümleri
+    /// sonradan birleştirdiği için kapatır.
+    #[serde(default = "default_true")]
+    pub embed_metadata: bool,
 }
 
 /// Geçerli bir bölüm seçildiyse (başlangıç < bitiş) aralığı döner.
@@ -93,10 +105,30 @@ fn subtitle_langs(request: &DownloadRequest) -> String {
 
 const AUDIO_FORMATS: [&str; 5] = ["mp3", "m4a", "wav", "aac", "flac"];
 
+/// Etiket yazılabilen kapsayıcılar (wav/aac/avi'de yt-dlp'nin etiket adımı güvenilir değil).
+const METADATA_FORMATS: [&str; 7] = ["mp4", "mkv", "webm", "mov", "mp3", "m4a", "flac"];
+/// Kapak resmi gömülebilen ses biçimleri; desteklenmeyen biçimde yt-dlp işi hatayla bitirir.
+const COVER_FORMATS: [&str; 3] = ["mp3", "m4a", "flac"];
+
+fn metadata_args(output_format: &str, sectioned: bool) -> Vec<String> {
+    if !METADATA_FORMATS.contains(&output_format) {
+        return Vec::new();
+    }
+    let mut args = vec!["--embed-metadata".to_string()];
+    if COVER_FORMATS.contains(&output_format) {
+        args.push("--embed-thumbnail".into());
+    }
+    if sectioned {
+        // Videonun bölümleri (chapters) kesilen parçaya uymaz.
+        args.push("--no-embed-chapters".into());
+    }
+    args
+}
+
 /// Kullanıcının seçtiği çıktı formatını yt-dlp format seçicisine ve
 /// son-işlem argümanlarına çevirir. Tüm dönüştürmeler yt-dlp'nin kendi
 /// FFmpeg son-işlemcileriyle yapılır (bizim ffmpeg'imiz `--ffmpeg-location` ile).
-fn build_format_args(request: &DownloadRequest) -> Vec<String> {
+pub(crate) fn build_format_args(request: &DownloadRequest) -> Vec<String> {
     let height = request
         .max_height
         .map(|h| format!("[height<={h}]"))
@@ -199,6 +231,23 @@ fn build_format_args(request: &DownloadRequest) -> Vec<String> {
         args.extend(["--limit-rate".into(), format!("{kbps}K")]);
     }
 
+    // Bölüm indirmede kesim zamanları kayardı; SponsorBlock yalnızca tam videoda.
+    if request.sponsor_block && section_range(request).is_none() {
+        args.extend([
+            "--sponsorblock-remove".into(),
+            SPONSOR_CATEGORIES.into(),
+            "--print".into(),
+            format!("after_move:{SPONSOR_PREFIX}%(sponsorblock_chapters)j"),
+        ]);
+    }
+
+    if request.embed_metadata {
+        args.extend(metadata_args(
+            output_format,
+            section_range(request).is_some(),
+        ));
+    }
+
     args
 }
 
@@ -230,6 +279,8 @@ enum StdoutLine {
     File(String),
     /// İndirmeden önce bilinen hedef yol; iptal/duraklatmada yarım dosyaları bulmak için.
     Target(String),
+    /// Çıkarılan SponsorBlock bölümü sayısı.
+    Sponsors(usize),
     Other,
 }
 
@@ -244,6 +295,13 @@ fn parse_stdout_line(line: &str) -> StdoutLine {
         return serde_json::from_str::<String>(rest)
             .map(StdoutLine::File)
             .unwrap_or(StdoutLine::Other);
+    }
+    if let Some(rest) = line.strip_prefix(SPONSOR_PREFIX) {
+        return StdoutLine::Sponsors(
+            serde_json::from_str::<Vec<serde_json::Value>>(rest)
+                .map(|list| list.len())
+                .unwrap_or(0),
+        );
     }
     if let Some(rest) = line.strip_prefix(TARGET_PREFIX) {
         return serde_json::from_str::<String>(rest)
@@ -434,6 +492,7 @@ async fn run_download_job(
     let mut summary = StderrSummary::default();
     let mut final_path: Option<String> = None;
     let mut target: Option<String> = None;
+    let mut sponsors_removed = 0usize;
     let mut tracker = ProgressTracker::default();
     // Bölüm indirmede yt-dlp ara ilerleme vermiyor (yalnızca "bitti"); büyüyen
     // yarım dosyanın boyutu izlenir, yüzdeyi arayüz tahmini boyuta oranlar.
@@ -491,6 +550,7 @@ async fn run_download_job(
                     }
                     StdoutLine::File(path) => final_path = Some(path),
                     StdoutLine::Target(path) => target = Some(path),
+                    StdoutLine::Sponsors(count) => sponsors_removed = count,
                     StdoutLine::Other => {}
                 }
             }
@@ -549,7 +609,11 @@ async fn run_download_job(
                     job_id,
                     file_path: path,
                     file_size_bytes: size,
-                    notice: summary.subtitles_failed.then_some("subtitlesFailed"),
+                    notice: if summary.subtitles_failed {
+                        Some("subtitlesFailed")
+                    } else {
+                        (sponsors_removed > 0).then_some("sponsorsRemoved")
+                    },
                 },
             );
         }
@@ -589,14 +653,14 @@ async fn run_download_job(
 /// çıkarılır; aksi halde "yeniden deneniyor… timed out" gibi zararsız bir uyarı
 /// asıl hatanın yerine açıklama olarak seçilebilirdi.
 #[derive(Default)]
-struct StderrSummary {
-    tail: String,
+pub(crate) struct StderrSummary {
+    pub(crate) tail: String,
     errors: String,
     subtitles_failed: bool,
 }
 
 impl StderrSummary {
-    fn push(&mut self, line: &str) {
+    pub(crate) fn push(&mut self, line: &str) {
         jobs::push_tail(&mut self.tail, line);
         if line.trim_start().starts_with("ERROR:") {
             jobs::push_tail(&mut self.errors, line);
@@ -609,7 +673,7 @@ impl StderrSummary {
         }
     }
 
-    fn error_text(&self) -> &str {
+    pub(crate) fn error_text(&self) -> &str {
         if self.errors.is_empty() {
             &self.tail
         } else {
@@ -727,6 +791,8 @@ mod tests {
             rate_limit_kbps: None,
             section_start: None,
             section_end: None,
+            embed_metadata: true,
+            sponsor_block: false,
         }
     }
 
@@ -755,6 +821,53 @@ mod tests {
         let args = joined(&build_format_args(&req));
         assert!(args.contains("-x --audio-format mp3"));
         assert!(args.contains("--audio-quality 320K"));
+    }
+
+    #[test]
+    fn ses_dosyasina_etiket_ve_kapak_yazilir() {
+        let args = joined(&build_format_args(&request(Some("mp3"), None)));
+        assert!(args.contains("--embed-metadata --embed-thumbnail"));
+        let wav = joined(&build_format_args(&request(Some("wav"), None)));
+        assert!(!wav.contains("--embed"));
+    }
+
+    #[test]
+    fn videoda_kapak_gomulmez_bolumde_chapters_atlanir() {
+        let mut req = request(Some("mp4"), None);
+        let args = joined(&build_format_args(&req));
+        assert!(args.contains("--embed-metadata") && !args.contains("--embed-thumbnail"));
+        assert!(!args.contains("--no-embed-chapters"));
+        req.section_start = Some(10.0);
+        req.section_end = Some(20.0);
+        assert!(joined(&build_format_args(&req)).contains("--no-embed-chapters"));
+        req.embed_metadata = false;
+        assert!(!joined(&build_format_args(&req)).contains("--embed"));
+    }
+
+    #[test]
+    fn sponsorblock_yalnizca_tam_videoda_istenir() {
+        let mut req = request(Some("mp4"), None);
+        req.sponsor_block = true;
+        let args = joined(&build_format_args(&req));
+        assert!(args.contains("--sponsorblock-remove sponsor,selfpromo,interaction"));
+        assert!(args.contains("after_move:[dk-sponsor]%(sponsorblock_chapters)j"));
+        req.section_start = Some(1.0);
+        req.section_end = Some(5.0);
+        assert!(!joined(&build_format_args(&req)).contains("sponsorblock"));
+    }
+
+    #[test]
+    fn cikarilan_sponsor_sayisi_okunur() {
+        match parse_stdout_line(
+            r#"[dk-sponsor][{"category": "sponsor"}, {"category": "selfpromo"}]"#,
+        ) {
+            StdoutLine::Sponsors(n) => assert_eq!(n, 2),
+            other => panic!("sponsor satırı bekleniyordu: {other:?}"),
+        }
+        assert!(matches!(
+            parse_stdout_line("[dk-sponsor]NA"),
+            StdoutLine::Sponsors(0)
+        ));
     }
 
     #[test]

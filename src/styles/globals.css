@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 /* Marka yazısı ("DownKit", "aderimo"): Nunito, OFL lisanslı, uygulamayla birlikte gelir. */
+/* Kısa pencerelerde (en küçük pencere 700 px) kenar çubuğu sıkışır ki alttaki
+   yapımcı/destek kartı kaydırmadan görünsün. */
+@custom-variant short (@media (max-height: 820px));
+
 @theme {
   --font-brand: "Nunito", ui-sans-serif, system-ui, sans-serif;
 }
@@ -23,6 +27,36 @@
   --dk-error: #f87171;
   --dk-warning: #fbbf24;
   --dk-gradient: linear-gradient(135deg, #4f7bff 0%, #7c5cff 100%);
+  --dk-brand: #ffd43b;
+  --dk-pink: #f9a8d4;
+  --dk-dim: rgb(4 7 20 / 76%);
+  --dk-edit: #2563eb;
+  --dk-save: #047857;
+  --dk-save-soft: #6ee7b7;
+  --dk-save-soft-text: #022c22;
+}
+
+/* Açık temalar (Ayarlar > Tema): `text-white`, `bg-white/5` gibi yardımcılar koyu
+   zemine göre yazıldı. Açık zeminde "beyaz" temanın metin rengine döner, hafif
+   kaplamalar da koyulaşır. Renkli ya da koyu zeminlerin içinde gerçek beyaz kalır. */
+:root[data-mode="light"] {
+  --color-white: var(--dk-text);
+}
+
+.dk-gradient,
+.dk-on-dark,
+[class*="bg-black"],
+[class*="bg-[#"],
+[class*="from-["],
+[class~="bg-[var(--dk-accent)]"],
+[class~="bg-[var(--dk-error)]"] {
+  --color-white: #fff;
+}
+
+/* Koyu karartma katmanının (bg-black/70) üstündeki pencere ve kartlar yine
+   temanın zeminini kullanır: içlerinde metin rengi temaya döner. */
+:root[data-mode="light"] :is(.dk-card, [role="dialog"]) {
+  --color-white: var(--dk-text);
 }
 
 * {
@@ -65,7 +99,7 @@ body {
   border-color: var(--dk-accent) !important;
   box-shadow:
     0 0 0 1px var(--dk-accent),
-    0 0 24px -8px rgb(91 124 255 / 55%);
+    0 0 24px -8px color-mix(in srgb, var(--dk-accent) 55%, transparent);
 }
 
 .dk-scroll {
@@ -136,4 +170,43 @@ body {
 .dk-range input[type="range"]:focus-visible::-webkit-slider-thumb {
   outline: 2px solid var(--dk-accent-hover);
   outline-offset: 2px;
+}
+
+/* Köşedeki bilgi penceresinin kartı: sağdan kayarak gelir. */
+@keyframes dk-hud-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.dk-hud-in {
+  animation: dk-hud-in 180ms ease-out;
+}
+
+/* Kayıt sayacında değişen rakam yukarıdan kayarak girer. */
+@keyframes dk-digit-in {
+  from {
+    opacity: 0;
+    transform: translateY(-45%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dk-digit {
+  display: inline-block;
+  animation: dk-digit-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-digit {
+    animation: none;
+  }
 }

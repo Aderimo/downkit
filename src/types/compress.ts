@@ -1,5 +1,5 @@
 export type CompressMode = "targetSize" | "preset";
-export type CompressPreset = "high" | "balanced" | "small";
+export type CompressPreset = "high" | "balanced" | "small" | "tiny";
 
 export interface CompressRequest {
   inputPath: string;
@@ -7,7 +7,16 @@ export interface CompressRequest {
   mode: CompressMode;
   targetSizeMb: number | null;
   preset: CompressPreset | null;
+  /** "Gelişmiş" seçimi (kısa kenar); boşsa seviyenin/planın otomatik sınırı. */
+  maxShortSide?: number | null;
+  /** "Gelişmiş" seçimi; boşsa otomatik (hedef boyutta 30, seviyede seviyeye göre). */
+  maxFps?: number | null;
 }
+
+/** Gelişmiş bölümündeki seçenekler; 0 = otomatik. Düşürmek dosyayı küçültür ve
+ * sıkıştırmayı hızlandırır. */
+export const RESOLUTION_LIMITS = [0, 1080, 720, 480, 360, 240];
+export const FPS_LIMITS = [0, 60, 30, 24, 15];
 
 // Bu dosyadaki hesaplar Rust `ffmpeg::compress` ile aynıdır — burada yalnızca
 // kullanıcıya önizleme (tahmini boyut, çıkacak çözünürlük) göstermek için.
@@ -15,11 +24,12 @@ export interface CompressRequest {
 const MIN_VIDEO_BITRATE_KBPS = 150;
 const TARGET_SAFETY = 0.95;
 
-/** Seviyelerin çözünürlük sınırı (kısa kenar): "Küçük dosya" 720p'ye iner. */
+/** Seviyelerin çözünürlük sınırı (kısa kenar): "Küçük dosya" 720p'ye, "Çok küçük" 480p'ye iner. */
 export const PRESET_MAX_SHORT_SIDE: Record<CompressPreset, number> = {
   high: 1080,
   balanced: 1080,
   small: 720,
+  tiny: 480,
 };
 
 export interface TargetPlan {

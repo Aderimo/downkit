@@ -4,7 +4,6 @@ import {
   ArrowDownToLine,
   Check,
   Info,
-  Link2,
   ListVideo,
   Maximize2,
   RefreshCw,
@@ -16,8 +15,8 @@ import { checkSupportedUrl } from "../lib/validation";
 import { changeDestination, ensureDestination } from "../lib/destination";
 import { enqueueDownload, enqueueMany } from "../lib/jobEngine";
 import { estimateDownloadSize, findDuplicateDownload } from "../lib/jobPlanning";
-import { clampRange } from "../lib/timeRange";
 import { SectionPicker } from "../components/SectionPicker";
+import { useEditorStore } from "../store/editorStore";
 import { useJobsStore } from "../store/jobsStore";
 import { analyzeLink, hasPlaylistParam, openPlaylist } from "../lib/workspaceActions";
 import { PlaylistCard } from "../components/PlaylistCard";
@@ -28,12 +27,12 @@ import type { Route } from "../types/route";
 import { UrlBar } from "../components/UrlBar";
 import { PlatformPills } from "../components/PlatformPills";
 import { MediaCard } from "../components/MediaCard";
-import { PreviewModal } from "../components/PreviewModal";
 import { ActionCards } from "../components/ActionCards";
 import { OptionsPanel } from "../components/OptionsPanel";
 import { PresetsPanel } from "../components/PresetsPanel";
 import { JobQueue } from "../components/JobQueue";
 import { RecentSearches } from "../components/RecentSearches";
+import { useDownloadsView } from "../lib/downloadsView";
 import { ClipboardBanner } from "../components/ClipboardBanner";
 import { ErrorBanner } from "../components/ErrorBanner";
 
@@ -64,7 +63,21 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+
+  /** Analiz edilen linki Klip Düzenleyici'de açar. Aynı link zaten açıksa
+   * eklenen klipler korunur; Ana Sayfa'da bölüm seçildiyse giriş/çıkış olur. */
+  function openInEditor() {
+    const { metadata, analyzedUrl, options } = useWorkspaceStore.getState();
+    if (!metadata || !analyzedUrl) return;
+    const editor = useEditorStore.getState();
+    const alreadyOpen =
+      editor.phase === "ready" &&
+      editor.source?.kind === "remote" &&
+      editor.source.url === analyzedUrl;
+    // Ana Sayfa'da bölüm seçildiyse düzenleyici yalnızca o parçayla açılır.
+    if (!alreadyOpen) editor.openMetadata(analyzedUrl, metadata, options.section);
+    onNavigate("editor");
+  }
   const [feedback, setFeedback] = useState<StartFeedback | null>(null);
   const feedbackTimer = useRef<number | undefined>(undefined);
   const ws = useWorkspaceStore();
@@ -144,22 +157,12 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
     flash(t("options.queued"), true);
   }
 
-  // Önizlemede "Başlangıç/Bitiş = şu an": bölüm kapalıysa açılır.
-  function markSection(edge: "start" | "end", seconds: number, duration: number) {
-    const current = useWorkspaceStore.getState().options.section;
-    const base = current ?? {
-      start: edge === "start" ? seconds : Math.max(0, seconds - 60),
-      end: edge === "end" ? seconds : Math.min(duration, seconds + 60),
-    };
-    ws.setOptions({ section: clampRange({ ...base, [edge]: seconds }, duration, edge) });
-  }
-
   // Klavye kısayolları: Ctrl+V linki yapıştırıp analiz eder, Enter başlatır.
   // Yazı alanındayken (ya da bir düğme odaktayken Enter) karışmaz.
   const shortcutRef = useRef<(e: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     shortcutRef.current = (e) => {
-      if (previewOpen || e.defaultPrevented) return;
+      if (e.defaultPrevented) return;
       const el = e.target instanceof HTMLElement ? e.target : null;
       const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v" && !typing) {
@@ -211,36 +214,42 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
     ? `${actionLabel} (${t("playlist.videoCount", { count: ws.playlistSelection.length })})`
     : actionLabel;
   const presets = (
-    <PresetsPanel
-      tab={ws.presetsTab}
-      onTabChange={ws.setPresetsTab}
-      options={ws.options}
-      onChange={ws.setOptions}
-      onReplace={ws.replaceOptions}
-    />
+    <div data-tour="home-presets">
+      <PresetsPanel
+        tab={ws.presetsTab}
+        onTabChange={ws.setPresetsTab}
+        options={ws.options}
+        onChange={ws.setOptions}
+        onReplace={ws.replaceOptions}
+      />
+    </div>
   );
 
   return (
     <div className="flex min-h-full gap-6 p-6">
       <div className="min-w-0 flex-1 space-y-5">
-        <UrlBar
-          ref={inputRef}
-          value={ws.url}
-          onChange={(url) => {
-            ws.setUrl(url);
-            if (ws.phase === "error") ws.clearError();
-          }}
-          onAnalyze={() => analyze(ws.url)}
-          onPaste={() => void paste()}
-          canAnalyze={check.status === "ok"}
-          isAnalyzing={ws.phase === "analyzing"}
-        />
+        <div data-tour="home-url">
+          <UrlBar
+            ref={inputRef}
+            value={ws.url}
+            onChange={(url) => {
+              ws.setUrl(url);
+              if (ws.phase === "error") ws.clearError();
+            }}
+            onAnalyze={() => analyze(ws.url)}
+            onPaste={() => void paste()}
+            canAnalyze={check.status === "ok"}
+            isAnalyzing={ws.phase === "analyzing"}
+          />
+        </div>
 
         <ClipboardBanner currentUrl={ws.url} onUse={applyUrl} />
 
-        <PlatformPills
-          detected={detected ?? ws.metadata?.platform ?? ws.playlist?.platform ?? null}
-        />
+        <div data-tour="home-platforms">
+          <PlatformPills
+            detected={detected ?? ws.metadata?.platform ?? ws.playlist?.platform ?? null}
+          />
+        </div>
 
         {ws.phase === "error" && ws.errorMessage ? (
           <ErrorBanner
@@ -264,7 +273,7 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
           <>
             <MediaCard
               metadata={ws.metadata}
-              onPreview={() => setPreviewOpen(true)}
+              onOpenEditor={openInEditor}
               onOpenOriginal={() => ws.analyzedUrl && void openOriginalUrl(ws.analyzedUrl)}
               onClear={ws.resetMedia}
             />
@@ -291,30 +300,28 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
                 estimatedBytes={
                   ws.options.section ? estimateDownloadSize(ws.metadata, ws.options) : null
                 }
-                onOpenPreview={ws.metadata.previewUrl ? () => setPreviewOpen(true) : undefined}
+                onOpenEditor={openInEditor}
               />
             ) : null}
           </>
-        ) : (
-          <section className="dk-card flex items-center gap-5 p-6">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--dk-accent)]/15 text-[var(--dk-accent-hover)]">
-              <Link2 size={26} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-lg font-semibold">{t("home.emptyTitle")}</p>
-              <p className="mt-1 text-sm text-[var(--dk-text-muted)]">{t("home.emptySubtitle")}</p>
-            </div>
-          </section>
-        )}
+        ) : null}
 
-        <RecentSearches onSelect={applyUrl} onViewAll={() => onNavigate("history")} />
+        <RecentSearches
+          onSelect={applyUrl}
+          onViewAll={() => {
+            useDownloadsView.getState().setView("history");
+            onNavigate("downloads");
+          }}
+        />
 
-        <ActionCards selected={ws.action} onSelect={select} onRun={run} />
+        <div data-tour="home-actions">
+          <ActionCards selected={ws.action} onSelect={select} onRun={run} />
+        </div>
         {!hasMedia ? (
           <p className="-mt-2 text-xs text-[var(--dk-text-muted)]">{t("home.cardsHint")}</p>
         ) : null}
 
-        <div ref={optionsRef} className="scroll-mt-6">
+        <div ref={optionsRef} className="scroll-mt-6" data-tour="home-options">
           <OptionsPanel
             metadata={ws.metadata}
             playlistCount={ws.playlist ? ws.playlistSelection.length : null}
@@ -355,28 +362,14 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
 
         <div className="min-[1360px]:hidden">{presets}</div>
 
-        <JobQueue limit={4} onViewAll={() => onNavigate("downloads")} />
+        <div data-tour="home-queue">
+          <JobQueue limit={4} onViewAll={() => onNavigate("downloads")} />
+        </div>
       </div>
 
       <div className="hidden w-80 shrink-0 min-[1360px]:block">
         <div className="sticky top-6">{presets}</div>
       </div>
-
-      {previewOpen && ws.metadata ? (
-        <PreviewModal
-          title={ws.metadata.title}
-          previewUrl={ws.metadata.previewUrl}
-          posterUrl={ws.metadata.thumbnailUrl}
-          onOpenOriginal={() => ws.analyzedUrl && void openOriginalUrl(ws.analyzedUrl)}
-          onClose={() => setPreviewOpen(false)}
-          section={ws.options.section}
-          onMark={
-            ws.metadata.durationSeconds
-              ? (edge, seconds) => markSection(edge, seconds, ws.metadata?.durationSeconds ?? 0)
-              : undefined
-          }
-        />
-      ) : null}
     </div>
   );
 }

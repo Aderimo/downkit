@@ -13,6 +13,11 @@ pub struct CompressRequest {
     pub mode: String, // "targetSize" | "preset"
     pub target_size_mb: Option<f64>,
     pub preset: Option<String>,
+    /// "Gelişmiş" seçimleri; boşsa seviyenin/planın otomatik sınırı kullanılır.
+    #[serde(default)]
+    pub max_short_side: Option<u32>,
+    #[serde(default)]
+    pub max_fps: Option<u32>,
 }
 
 #[tauri::command]
@@ -20,13 +25,18 @@ pub async fn start_compress(app: AppHandle, request: CompressRequest) -> Result<
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
     let info = ffmpeg::convert::probe_file(&ffmpeg_dir, &request.input_path).await?;
 
+    let limits = ffmpeg::compress::Limits {
+        max_short_side: request.max_short_side,
+        max_fps: request.max_fps,
+    };
     let codec_args = if request.mode == "targetSize" {
         let target_bytes = (request.target_size_mb.unwrap_or(0.0) * 1024.0 * 1024.0) as u64;
-        ffmpeg::compress::build_args_for_target_size(target_bytes, &info)
+        ffmpeg::compress::build_args_for_target_size(target_bytes, &info, limits)
     } else {
         ffmpeg::compress::build_args_for_preset(
             request.preset.as_deref().unwrap_or("balanced"),
             &info,
+            limits,
         )
     };
 

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Play, X } from "lucide-react";
+import { Clapperboard, ExternalLink, Play, X } from "lucide-react";
 import type { MediaMetadata } from "../types/media";
 import { formatDuration } from "../lib/format";
 import { PlatformIcon } from "./PlatformIcon";
@@ -7,7 +7,8 @@ import { PLATFORM_LABEL } from "../lib/platforms";
 
 interface MediaCardProps {
   metadata: MediaMetadata;
-  onPreview: () => void;
+  /** Klip Düzenleyici'de aç: indirmeden izle, sahneleri seç, yalnızca onları indir. */
+  onOpenEditor: () => void;
   onOpenOriginal: () => void;
   onClear: () => void;
 }
@@ -22,7 +23,7 @@ function formatUploadDate(raw: string | null, locale: string): string | null {
   return date.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function MediaCard({ metadata, onPreview, onOpenOriginal, onClear }: MediaCardProps) {
+export function MediaCard({ metadata, onOpenEditor, onOpenOriginal, onClear }: MediaCardProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const views =
@@ -43,11 +44,11 @@ export function MediaCard({ metadata, onPreview, onOpenOriginal, onClear }: Medi
   ].filter(Boolean);
 
   return (
-    <section className="dk-card relative flex gap-5 p-4">
+    <section className="dk-card relative flex gap-5 p-4" data-tour="home-media">
       <button
         type="button"
-        onClick={onPreview}
-        title={t("media.preview")}
+        onClick={onOpenEditor}
+        title={t("media.openInEditor")}
         className="group relative h-36 w-64 shrink-0 overflow-hidden rounded-xl bg-black/40"
       >
         {metadata.thumbnailUrl ? (
@@ -65,7 +66,7 @@ export function MediaCard({ metadata, onPreview, onOpenOriginal, onClear }: Medi
         ) : null}
       </button>
 
-      <div className="min-w-0 flex-1 py-1 pr-32">
+      <div className="min-w-0 flex-1 py-1 pr-10">
         <div className="mb-1.5 flex items-center gap-2 text-sm text-[var(--dk-text-muted)]">
           <PlatformIcon platform={metadata.platform} size={20} />
           {PLATFORM_LABEL[metadata.platform]}
@@ -90,17 +91,20 @@ export function MediaCard({ metadata, onPreview, onOpenOriginal, onClear }: Medi
             {metadata.description}
           </p>
         ) : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenEditor}
+            className="dk-gradient flex h-9 items-center gap-2 rounded-xl px-3.5 text-sm font-medium text-white shadow hover:brightness-110"
+          >
+            <Clapperboard size={15} />
+            {t("media.openInEditor")}
+          </button>
+          <span className="text-xs text-[var(--dk-text-muted)]">{t("media.editorHint")}</span>
+        </div>
       </div>
 
       <div className="absolute right-4 top-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onPreview}
-          className="flex h-9 items-center gap-2 rounded-xl border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] px-3.5 text-sm hover:border-[var(--dk-accent)]"
-        >
-          <Play size={15} />
-          {t("media.preview")}
-        </button>
         <button
           type="button"
           onClick={onClear}

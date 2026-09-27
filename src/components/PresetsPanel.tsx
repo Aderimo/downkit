@@ -136,7 +136,7 @@ export function PresetsPanel({
         <button
           type="button"
           onClick={() => onTabChange("quick")}
-          className="mt-auto flex items-center gap-3 rounded-xl border border-[var(--dk-border)] bg-[linear-gradient(135deg,rgb(79_123_255/18%),rgb(124_92_255/12%))] p-3.5 text-left transition hover:border-[var(--dk-accent)]"
+          className="mt-auto flex items-center gap-3 rounded-xl border border-[var(--dk-border)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--dk-accent)_18%,transparent),color-mix(in_srgb,var(--dk-accent-2)_12%,transparent))] p-3.5 text-left transition hover:border-[var(--dk-accent)]"
         >
           <Rocket size={22} className="text-[var(--dk-accent-hover)]" />
           <span className="min-w-0 flex-1">

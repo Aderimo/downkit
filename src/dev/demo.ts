@@ -7,14 +7,18 @@
 import i18n from "../i18n";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useJobsStore } from "../store/jobsStore";
-import { useTrimFile } from "../store/localFileStore";
+import { useEditorStore } from "../store/editorStore";
+import { usePlayerStore } from "../store/playerStore";
+import { useRecorderStore } from "../store/recorderStore";
+import { useTutorialStore } from "../lib/tutorial";
 import { useHistoryStore } from "../lib/downloadHistory";
 import { useSearchStore } from "../lib/recentSearches";
 import { useSettingsStore } from "../lib/appSettings";
 import { defaultDownloadOptions } from "../lib/jobPlanning";
 import { useUpdateStore } from "../lib/updateCheck";
+import { setLevels } from "../lib/levels";
 import type { Job } from "../types/jobs";
-import type { MediaMetadata, PlaylistInfo } from "../types/media";
+import type { MediaMetadata, PlaylistInfo, Storyboard } from "../types/media";
 
 const MB = 1024 * 1024;
 const thumb = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
@@ -50,7 +54,15 @@ const bunny: MediaMetadata = {
     "Big Buck Bunny tells the story of a giant rabbit with a heart bigger than himself. Licensed under Creative Commons Attribution 3.0.",
   viewCount: 16_400_000,
   uploadDate: "20140310",
-  previewUrl: "https://example.invalid/preview.mp4",
+  preview: null,
+  storyboard: null,
+  chapters: [
+    { start: 0, end: 84, title: "Opening" },
+    { start: 84, end: 262, title: "Meet Bunny" },
+    { start: 262, end: 488, title: "The bullies" },
+    { start: 488, end: 610, title: "The plan" },
+    { start: 610, end: 634, title: "Credits" },
+  ],
   qualityOptions: [
     { height: 2160, container: "mp4", estimatedSizeBytes: 1920 * MB },
     { height: 1440, container: "mp4", estimatedSizeBytes: 960 * MB },
@@ -90,6 +102,47 @@ const bunny: MediaMetadata = {
     },
   ],
   flacEligible: false,
+};
+
+// YouTube'un bu video için verdiği gerçek kare sayfaları (zaman çizelgesi şeridi).
+const BUNNY_STORYBOARD: Storyboard = {
+  width: 160,
+  height: 90,
+  rows: 5,
+  columns: 5,
+  interval: 4.9609375,
+  sheets: [
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M0.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 0,
+      duration: 124.0234375,
+    },
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M1.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 124.023,
+      duration: 124.0234375,
+    },
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M2.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 248.047,
+      duration: 124.0234375,
+    },
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M3.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 372.07,
+      duration: 124.0234375,
+    },
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M4.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 496.094,
+      duration: 124.0234375,
+    },
+    {
+      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M5.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
+      start: 620.117,
+      duration: 14.8828125,
+    },
+  ],
 };
 
 function job(partial: Partial<Job> & Pick<Job, "id" | "title" | "status">): Job {
@@ -230,7 +283,7 @@ export function applyDemo(scene: string, lang: string | null): void {
       title: m.title,
       thumbnailUrl: thumb(m.id),
       platform: "youtube",
-      operation: i === 2 ? "compress" : i === 4 ? "trim" : "download",
+      operation: i === 2 ? "compress" : i === 4 ? "edit" : "download",
       formatLabel: i === 1 ? "MP3" : "MP4",
       sourceUrl: watch(m.id),
       completedAt: new Date(Date.now() - i * 3_600_000).toISOString(),
@@ -252,21 +305,160 @@ export function applyDemo(scene: string, lang: string | null): void {
     ws.playlistLoaded("https://www.youtube.com/playlist?list=PL-blender-open-movies", playlist);
     ws.togglePlaylistEntry(watch(MOVIES[4].id));
   }
-  if (scene === "trim") {
-    useTrimFile.setState({
-      phase: "ready",
-      info: {
-        fileName: "Big Buck Bunny.mp4",
-        filePath: "C:\\Users\\aderimo\\Videos\\Big Buck Bunny.mp4",
-        fileSizeBytes: 540 * MB,
-        durationSeconds: 634,
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        videoCodec: "h264",
-        audioCodec: "aac",
-        container: "mp4",
+  if (scene === "tutorial") {
+    // &step=0…6: turun hangi adımı gösterilsin.
+    const step = Number(new URLSearchParams(window.location.search).get("step") ?? 0);
+    useTutorialStore.setState({ open: true, step, dontShowAgain: false });
+  }
+  if (scene === "record") {
+    // Kayıt sürüyor, anlık tekrar açık; Kayıtlarım'da Blender filmlerinden örnekler.
+    const dir = `C:\\Users\\aderimo\\Videos\\DownKit\\${lang === "en" ? "Recordings" : "Kayıtlar"}`;
+    const names =
+      lang === "en"
+        ? ["Instant replay", "Recording", "Recording", "Instant replay", "Recording"]
+        : ["Anlık tekrar", "Kayıt", "Kayıt", "Anlık tekrar", "Kayıt"];
+    const recordings = MOVIES.slice(0, 5).map((_m, i) => ({
+      path: `${dir}\\${names[i]} 2026-09-2${5 - i} 2${i}.1${i}.0${i}.mp4`,
+      name: `${names[i]} 2026-09-2${5 - i} 2${i}.1${i}.0${i}`,
+      extension: "mp4",
+      sizeBytes: [18, 412, 96, 24, 250][i] * MB,
+      modifiedMs: Date.now() - i * 86_400_000 - i * 3_600_000,
+      createdMs: Date.now() - i * 86_400_000 - i * 3_600_000,
+      folder: ["League of Legends", null, "VALORANT", "League of Legends", null][i],
+      durationSeconds: [30, 754, 188, 30, 402][i],
+      width: 1920,
+      height: 1080,
+      needsRepair: false,
+    }));
+    useRecorderStore.setState({
+      sources: {
+        monitors: [
+          { hmonitor: 65537, ddaIndex: 0, width: 2560, height: 1440, primary: true, number: 1 },
+          { hmonitor: 65539, ddaIndex: 1, width: 1920, height: 1080, primary: false, number: 2 },
+        ],
+        windows: [
+          {
+            hwnd: 1,
+            title: "League of Legends (TM) Client",
+            exe: "League of Legends.exe",
+            width: 1920,
+            height: 1080,
+            minimized: false,
+            own: false,
+          },
+          {
+            hwnd: 2,
+            title: "Discord",
+            exe: "Discord.exe",
+            width: 1280,
+            height: 800,
+            minimized: false,
+            own: false,
+          },
+          {
+            hwnd: 3,
+            title: "YouTube - Google Chrome",
+            exe: "chrome.exe",
+            width: 1600,
+            height: 900,
+            minimized: false,
+            own: false,
+          },
+          {
+            hwnd: 4,
+            title: "Spotify Premium",
+            exe: "Spotify.exe",
+            width: 1200,
+            height: 700,
+            minimized: true,
+            own: false,
+          },
+        ],
+        microphones: [{ id: "mic", name: "Mikrofon (USB Audio)", isDefault: true }],
+        speakers: [
+          { id: "spk", name: "Hoparlör (Realtek Audio)", isDefault: true },
+          { id: "hs", name: "Kulaklık (HyperX Cloud II)", isDefault: false },
+        ],
       },
+      encoder: { encoder: "nvenc", label: "NVIDIA NVENC", hardware: true },
+      outputDir: dir,
+      status: {
+        recording: { seconds: 754, bytes: 412 * MB, path: dir, hasAudio: true },
+        replay: { bufferedSeconds: 30, seconds: 30, encoder: "NVIDIA NVENC" },
+      },
+      recordings,
+      recordingsLoaded: true,
+      thumbs: Object.fromEntries(recordings.map((r, i) => [r.path, thumb(MOVIES[i].id)])),
     });
+    // Göstergeler canlı görünsün: gerçek uygulamadaki gibi saniyede 20 seviye.
+    window.setInterval(
+      () => setLevels([0.3 + Math.random() * 0.25, 0.1 + Math.random() * 0.12]),
+      50,
+    );
+  }
+  if (scene === "editor") {
+    // Önizleme dosyası yalnızca yerelde (.demo/, git dışı); yoksa oynatıcı uyarı gösterir.
+    // Elle deneme: &clip=/.demo/uzun.mp4 ya da &hls=<aktarıcı adresi>.
+    const editor = useEditorStore.getState();
+    editor.openMetadata(watch(MOVIES[0].id), {
+      ...bunny,
+      preview: {
+        kind: new URLSearchParams(window.location.search).get("hls") ? "hls" : "file",
+        url:
+          new URLSearchParams(window.location.search).get("hls") ??
+          new URLSearchParams(window.location.search).get("clip") ??
+          "/.demo/preview.mp4",
+        audioUrl: null,
+        token: "demo",
+        hasVideo: true,
+      },
+      storyboard: BUNNY_STORYBOARD,
+    });
+    // Bölünmüş, bir kısmı silinmiş, biri hızlandırılmış ve üst katmanda bir ara
+    // görüntü olan örnek bir zaman çizelgesi.
+    const clip = (
+      id: string,
+      track: number,
+      start: number,
+      srcStart: number,
+      srcEnd: number,
+      speed = 1,
+      name = "",
+    ) => ({ id, track, start, srcStart, srcEnd, speed, name });
+    const store = useEditorStore.getState();
+    store.apply(() => [
+      { ...clip("c1", 0, 0, 84, 196), fadeIn: 3 },
+      clip("c2", 0, 112, 262, 301.5),
+      { ...clip("c3", 0, 170, 488, 560, 1.5, "Final"), fadeOut: 4 },
+      { ...clip("c4", 1, 60, 610, 622), volume: 0 },
+    ]);
+    // &select=none: klip seçilmez (sağ panelde özet ve bölümler görünür).
+    if (new URLSearchParams(window.location.search).get("select") !== "none") store.select(["c2"]);
+    // Örnek yazı: imlecin olduğu yerde görünür (&text=0 ile kapatılır).
+    if (new URLSearchParams(window.location.search).get("text") !== "0") {
+      store.applyTexts(() => [
+        {
+          id: "t1",
+          text: lang === "en" ? "The giant rabbit wakes up" : "Dev tavşan uyanıyor",
+          start: 118,
+          end: 150,
+          x: 0.5,
+          y: 0.85,
+          size: 0.07,
+          color: "#ffffff",
+          box: true,
+          bold: true,
+        },
+      ]);
+    }
+    store.setView({ start: 0, end: 240 });
+    usePlayerStore.getState().patch({ currentTime: 130.4 });
+    // &tab=export&frame=9:16: dışa aktarma sekmesi ve dikey çerçeve.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "export") store.setPanelTab("export");
+    const frame = params.get("frame");
+    if (frame === "9:16" || frame === "1:1" || frame === "4:5" || frame === "16:9") {
+      store.setExportOptions({ frame, framePosition: 0.35 });
+    }
   }
 }

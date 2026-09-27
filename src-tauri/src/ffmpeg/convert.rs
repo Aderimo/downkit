@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tokio::process::Command;
 
 use crate::error::AppError;
-use crate::types::LocalMediaInfo;
+use crate::types::{Chapter, LocalMediaInfo};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -38,6 +38,34 @@ struct ProbeOutput {
     format: ProbeFormat,
     #[serde(default)]
     streams: Vec<ProbeStream>,
+    #[serde(default)]
+    chapters: Vec<ProbeChapter>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProbeChapter {
+    start_time: Option<String>,
+    end_time: Option<String>,
+    #[serde(default)]
+    tags: ProbeTags,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ProbeTags {
+    title: Option<String>,
+}
+
+fn probe_chapters(chapters: Vec<ProbeChapter>, duration: Option<f64>) -> Vec<Chapter> {
+    Chapter::normalize(
+        chapters.into_iter().filter_map(|c| {
+            Some((
+                c.start_time?.parse().ok()?,
+                c.end_time?.parse().ok()?,
+                c.tags.title,
+            ))
+        }),
+        duration,
+    )
 }
 
 pub async fn probe_file(ffmpeg_dir: &Path, input: &str) -> Result<LocalMediaInfo, AppError> {
@@ -51,6 +79,7 @@ pub async fn probe_file(ffmpeg_dir: &Path, input: &str) -> Result<LocalMediaInfo
             "json",
             "-show_format",
             "-show_streams",
+            "-show_chapters",
             input,
         ])
         .creation_flags(CREATE_NO_WINDOW);
@@ -95,11 +124,12 @@ pub async fn probe_file(ffmpeg_dir: &Path, input: &str) -> Result<LocalMediaInfo
         .iter()
         .find(|s| s.codec_type.as_deref() == Some("audio"));
 
+    let duration_seconds = probe.format.duration.and_then(|d| d.parse::<f64>().ok());
     Ok(LocalMediaInfo {
         file_name,
         file_path: input.to_string(),
         file_size_bytes,
-        duration_seconds: probe.format.duration.and_then(|d| d.parse::<f64>().ok()),
+        duration_seconds,
         width: video_stream.and_then(|s| s.width),
         height: video_stream.and_then(|s| s.height),
         fps: video_stream.and_then(|s| {
@@ -111,6 +141,7 @@ pub async fn probe_file(ffmpeg_dir: &Path, input: &str) -> Result<LocalMediaInfo
         video_codec: video_stream.and_then(|s| s.codec_name.clone()),
         audio_codec: audio_stream.and_then(|s| s.codec_name.clone()),
         container,
+        chapters: probe_chapters(probe.chapters, duration_seconds),
     })
 }
 
@@ -181,6 +212,15 @@ pub fn build_codec_args(target_container: &str) -> Vec<String> {
             "-b:a",
             "128k",
         ]),
+        // Paylaşmalık hareketli resim: 480 px, 12 fps. Palet klibin kendisinden
+        // çıkarılır (düzenleyicinin GIF dışa aktarmasıyla aynı), yoksa renkler bantlanır.
+        "gif" => args(&[
+            "-vf",
+            "fps=12,scale=w='min(480,iw)':h=-1:flags=lanczos,split[s0][s1];             [s0]palettegen=stats_mode=diff[p];             [s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle",
+            "-an",
+            "-loop",
+            "0",
+        ]),
         // "Eski cihazlar" için klasik AVI: MPEG-4 Part 2 + MP3.
         "avi" => args(&[
             "-c:v",
@@ -201,6 +241,14 @@ pub fn build_codec_args(target_container: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gif_paletle_ve_sessiz_uretilir() {
+        let a = build_codec_args("gif").join(" ");
+        assert!(a.contains("palettegen") && a.contains("paletteuse"), "{a}");
+        assert!(a.contains("-an") && a.contains("-loop 0"), "{a}");
+        assert!(!can_copy_streams("gif", Some("h264"), Some("aac")));
+    }
 
     #[test]
     fn webm_vp9_ve_opus_kullanir() {

@@ -2,8 +2,11 @@ import type { OutputFormat } from "./media";
 import type { FitMode } from "./resize";
 import type { CompressPreset } from "./compress";
 import type { TimeRange } from "../lib/timeRange";
+import type { EditRequest } from "./edit";
 
-export type JobKind = "download" | "convert" | "compress" | "resize" | "trim";
+/** "trim": eski "Video Kes" aracı; kayıtlı işler okunabilsin diye duruyor.
+ * Yeni kesimler Klip Düzenleyici üzerinden "edit" olarak gelir. */
+export type JobKind = "download" | "convert" | "compress" | "resize" | "trim" | "edit";
 
 export type JobStatus =
   "queued" | "preparing" | "running" | "postprocessing" | "paused" | "done" | "error" | "canceled";
@@ -61,6 +64,8 @@ export type JobRequest =
       mode: "preset" | "targetSize";
       targetSizeMb: number | null;
       preset: CompressPreset | null;
+      maxShortSide?: number | null;
+      maxFps?: number | null;
     }
   | {
       kind: "resize";
@@ -78,7 +83,8 @@ export type JobRequest =
       endSeconds: number;
       /** Tam karede kes (yeniden kodla); false ise kopyalayarak hızlı kes. */
       precise: boolean;
-    };
+    }
+  | ({ kind: "edit" } & Omit<EditRequest, "rateLimitKbps">);
 
 /** Kuyrukta bir satır. `id` yereldir ve duraklat/devam boyunca sabit kalır;
  * `backendJobId` o an çalışan Rust işinin kimliğidir. */
@@ -137,6 +143,17 @@ export interface FfmpegProgressPayload {
   jobId: string;
   percent: number | null;
   speed: number | null;
+}
+
+/** "edit-progress": yerel dışa aktarımda FFmpeg yüzdesi; linkten klip
+ * birleştirmede önce indirilen bayt ("downloading"), sonra "merging". */
+export interface EditProgressPayload {
+  jobId: string;
+  percent: number | null;
+  speed?: number | null;
+  stage?: "downloading" | "merging";
+  downloadedBytes?: number | null;
+  speedBps?: number | null;
 }
 
 export interface JobCompletePayload {

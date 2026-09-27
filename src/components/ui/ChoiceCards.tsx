@@ -13,10 +13,17 @@ interface ChoiceCardsProps<T extends string> {
   value: T | null;
   choices: Choice<T>[];
   onChange: (value: T) => void;
-  columns?: 2 | 3 | 4 | 5;
+  columns?: 2 | 3 | 4 | 5 | 6;
 }
 
-const COLS = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5" };
+const COLS = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  // Altı kart dar pencerede iki sıra üçlü olur.
+  6: "grid-cols-3 xl:grid-cols-6",
+};
 
 /** Tek seçimli kart grubu — seçili kart belirgin kenar ve onay işaretiyle görünür. */
 export function ChoiceCards<T extends string>({

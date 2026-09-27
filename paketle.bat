@@ -39,8 +39,19 @@ if errorlevel 1 (
 )
 echo         tamam
 
+rem Guncelleme dosyalari bu bilgisayardaki anahtarla imzalanir (depoda degil).
+if exist "%USERPROFILE%\.tauri\downkit.key" (
+  set "TAURI_SIGNING_PRIVATE_KEY=%USERPROFILE%\.tauri\downkit.key"
+  set "TAURI_SIGNING_PRIVATE_KEY_PASSWORD="
+) else (
+  echo  [UYARI] %USERPROFILE%\.tauri\downkit.key yok; guncelleme imzasi olmadan derlenemez.
+  echo          Anahtari olusturmak icin: pnpm tauri signer generate -w "%USERPROFILE%\.tauri\downkit.key" --ci
+  goto :hata
+)
+
 echo  [2/3] Derleniyor (birkac dakika surer)...
-call pnpm tauri build
+rem --ci: parolasiz anahtar icin parola sorulmaz.
+call pnpm tauri build --ci
 if errorlevel 1 goto :hata
 
 echo  [3/3] Dosyalar bu klasore kopyalaniyor...

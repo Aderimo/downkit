@@ -1,4 +1,5 @@
 import i18n from "../i18n";
+import { logEvent } from "./log";
 import { findJobByBackendId, getJob, useJobsStore } from "../store/jobsStore";
 import { useHistoryStore, type HistoryOperation } from "./downloadHistory";
 import { getSettings, useSettingsStore } from "./appSettings";
@@ -15,6 +16,7 @@ import {
 import {
   analyzeUrl,
   cancelBackendJob,
+  discardEditWork,
   discardPartialDownload,
   isWindowFocused,
   listenJobEvents,
@@ -24,6 +26,7 @@ import {
   startCompress,
   startConvert,
   startDownload,
+  startEdit,
   startResize,
   startTrim,
   updateYtdlp,
@@ -32,6 +35,7 @@ import { isAudioFormat, type MediaMetadata } from "../types/media";
 import { formatClock, rangeLabel, type TimeRange } from "./timeRange";
 import { PLATFORM_LABEL, isSupportedPlatform } from "./platforms";
 import type { LocalMediaInfo } from "../types/convert";
+import type { EditClip } from "../types/edit";
 import {
   ACTIVE_STATUSES,
   FINISHED_STATUSES,
@@ -163,8 +167,34 @@ export function enqueueMany(
   return { added, skipped };
 }
 
+/** Klip Düzenleyici dışa aktarımı (yerel dosya ya da linkten birleştirilmiş klipler). */
+export function enqueueEdit(
+  request: Extract<JobRequest, { kind: "edit" }>,
+  display: {
+    title: string;
+    thumbnailUrl: string | null;
+    platform: string;
+    formatLabel: string;
+    qualityLabel: string | null;
+    totalBytesEstimate: number | null;
+  },
+): string {
+  const job = baseJob(request, {
+    ...display,
+    durationSeconds: totalClipSeconds(request.clips),
+  });
+  useJobsStore.getState().add(job);
+  pump();
+  return job.id;
+}
+
+/** Çıktının süresi: hızlandırılan klip daha kısa sürer. */
+function totalClipSeconds(clips: EditClip[]): number {
+  return clips.reduce((sum, c) => sum + Math.max(0, c.end - c.start) / (c.speed || 1), 0);
+}
+
 export function enqueueLocal(
-  request: Exclude<JobRequest, { kind: "download" }>,
+  request: Exclude<JobRequest, { kind: "download" | "edit" }>,
   info: LocalMediaInfo,
 ): string {
   const format =
@@ -281,6 +311,7 @@ async function startJob(id: string) {
           rateLimitKbps: settings.rateLimitKbps,
           sectionStart: options.section?.start ?? null,
           sectionEnd: options.section?.end ?? null,
+          sponsorBlock: settings.sponsorBlock,
         });
         break;
       }
@@ -296,6 +327,14 @@ async function startJob(id: string) {
       case "trim":
         backendJobId = await startTrim(request);
         break;
+      case "edit":
+        // Arka uç bilinmeyen "kind" alanını yok sayar.
+        backendJobId = await startEdit({
+          ...request,
+          rateLimitKbps: getSettings().rateLimitKbps,
+          workKey: id,
+        });
+        break;
     }
     // Süreç başlatılırken İptal/Duraklat'a basıldıysa arka uçtaki işi de durdur.
     if (isStale(id, attempt)) {
@@ -304,7 +343,7 @@ async function startJob(id: string) {
     }
     assignBackendId(id, backendJobId, {
       status: "running",
-      stageKey: stageKeyForKind(request.kind),
+      stageKey: stageKeyFor(request),
       partialTarget: null,
     });
   } catch (err) {
@@ -328,17 +367,36 @@ function downloadTemplate(
   return `${folder}${name}.{ext}`;
 }
 
-function stageKeyForKind(kind: Job["kind"]): string {
+function stageKeyFor(request: JobRequest): string {
+  if (request.kind === "edit") return request.url ? "jobs.stageClips" : "jobs.stageExporting";
   return {
     download: "jobs.stageStarting",
     convert: "jobs.stageConverting",
     compress: "jobs.stageCompressing",
     resize: "jobs.stageResizing",
     trim: "jobs.stageTrimming",
-  }[kind];
+  }[request.kind];
+}
+
+// Geçici olabilecek hatalar (YouTube'un anlık 403'ü, kopan bağlantı): iş bir kez
+// kendiliğinden yeniden denenir; yt-dlp yeni akış adresleri alır. İkinci hatada
+// hata kullanıcıya gösterilir.
+const AUTO_RETRY_CODES = new Set(["streamInterrupted", "forbidden", "network"]);
+const autoRetried = new Set<string>();
+
+function tryAutoRetry(job: Job, code: string | null | undefined): boolean {
+  if (!code || !AUTO_RETRY_CODES.has(code) || autoRetried.has(job.id)) return false;
+  if (job.kind !== "download" && job.kind !== "edit") return false;
+  autoRetried.add(job.id);
+  requeue(job.id);
+  return true;
 }
 
 function failJob(id: string, error: { message: string; detail: string | null }) {
+  const failed = getJob(id);
+  if (failed) {
+    logEvent("error", `${failed.kind} · ${failed.title}: ${error.message}`, error.detail);
+  }
   update(id, {
     status: "error",
     stageKey: null,
@@ -490,13 +548,44 @@ export async function initJobEngine() {
       update(job.id, { percent: p.percent, speedBps: null, etaSeconds: null });
       refreshTaskbar();
     },
+    onEditProgress: (p) => {
+      const job = findJobByBackendId(p.jobId);
+      if (!job) return;
+      if (p.stage === "merging") {
+        update(job.id, {
+          stageKey: "jobs.stageMergingClips",
+          percent: null,
+          speedBps: null,
+          etaSeconds: null,
+        });
+      } else if (p.stage === "downloading" && typeof p.downloadedBytes === "number") {
+        // Bölüm indirmede yt-dlp ara ilerleme vermiyor; tahmini boyuta oranlanır
+        // ve bitene kadar %99 sınırında tutulur.
+        const total = job.totalBytesEstimate;
+        const speed = p.speedBps ?? null;
+        update(job.id, {
+          stageKey: "jobs.stageClips",
+          downloadedBytes: p.downloadedBytes,
+          percent: total ? Math.min(99, (p.downloadedBytes / total) * 100) : null,
+          speedBps: speed,
+          etaSeconds:
+            total && speed && total > p.downloadedBytes
+              ? (total - p.downloadedBytes) / speed
+              : null,
+        });
+      } else {
+        update(job.id, { percent: p.percent, speedBps: null, etaSeconds: null });
+      }
+      refreshTaskbar();
+    },
     onComplete: (p) =>
       onTerminal(p.jobId, (job) => {
         const runningStep = job.status === "postprocessing" ? job.pendingSteps[0] : null;
         const remaining = runningStep ? job.pendingSteps.slice(1) : job.pendingSteps;
 
         if (getSettings().keepHistory) {
-          const sourceUrl = job.request.kind === "download" ? job.request.url : null;
+          const sourceUrl =
+            job.request.kind === "download" || job.request.kind === "edit" ? job.request.url : null;
           useHistoryStore.getState().add({
             filePath: p.filePath,
             fileName: p.filePath.split(/[\\/]/).pop() ?? p.filePath,
@@ -539,7 +628,10 @@ export async function initJobEngine() {
         pump();
       }),
     onError: (p) =>
-      onTerminal(p.jobId, (job) => failJob(job.id, localizeError(p, "error.downloadFailed"))),
+      onTerminal(p.jobId, (job) => {
+        if (tryAutoRetry(job, p.code)) return;
+        failJob(job.id, localizeError(p, "error.downloadFailed"));
+      }),
     onCanceled: (p) =>
       onTerminal(p.jobId, (job) => {
         update(job.id, {
@@ -567,10 +659,15 @@ export function pauseJob(id: string) {
     refreshTaskbar();
     return;
   }
-  // Yalnızca indirme aşaması duraklatılabilir: yt-dlp yarım `.part` dosyasından sürdürür.
-  if (job.kind === "download" && job.status === "running" && job.backendJobId) {
+  // İndirme yarım `.part` dosyasından, düzenleyici dışa aktarımı biten bölümlerden
+  // sürdürülür (yerel dosyada baştan başlar).
+  if (
+    (job.kind === "download" || job.kind === "edit") &&
+    job.status === "running" &&
+    job.backendJobId
+  ) {
     update(id, { pauseRequested: true });
-    void cancelBackendJob("download", job.backendJobId, false);
+    void cancelBackendJob(job.kind, job.backendJobId, false);
   }
 }
 
@@ -599,6 +696,7 @@ export function cancelJob(id: string) {
   if (job.status === "queued" || job.status === "paused" || !job.backendJobId) {
     // Duraklatılmış indirmenin yarım dosyaları artık işe yaramaz.
     if (job.partialTarget) void discardPartialDownload(job.partialTarget);
+    if (job.kind === "edit" && job.status === "paused") void discardEditWork(job.id);
     update(id, {
       status: "canceled",
       stageKey: null,
@@ -618,13 +716,23 @@ export function cancelJob(id: string) {
 export function retryJob(id: string) {
   const job = getJob(id);
   if (!job || (job.status !== "error" && job.status !== "canceled")) return;
+  requeue(id);
+}
+
+/** İşi baştan kuyruğa alır (zincir adımları dahil). */
+function requeue(id: string) {
+  const job = getJob(id);
+  if (!job) return;
   const pendingSteps = job.request.kind === "download" ? buildChainSteps(job.request.options) : [];
   update(id, {
     status: "queued",
+    backendJobId: null,
     outputs: [],
     pendingSteps,
     percent: null,
     downloadedBytes: null,
+    speedBps: null,
+    etaSeconds: null,
     errorMessage: null,
     errorDetail: null,
     notice: null,

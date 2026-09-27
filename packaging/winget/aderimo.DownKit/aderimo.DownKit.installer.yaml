@@ -1,0 +1,16 @@
+# Kurulum dosyası: GitHub sürümündeki DownKit-Setup.exe (NSIS, kullanıcıya kurulum).
+# InstallerSha256, yayınlanan dosyadan hesaplanıp yazılır (bkz. docs/RELEASING.md).
+PackageIdentifier: aderimo.DownKit
+PackageVersion: 0.1.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/Aderimo/downkit/releases/download/v0.1.0/DownKit-Setup.exe
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+ManifestType: installer
+ManifestVersion: 1.6.0

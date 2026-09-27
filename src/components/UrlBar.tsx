@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ClipboardPaste, Link2, Loader2, Sparkles, X } from "lucide-react";
 
@@ -9,10 +9,13 @@ interface UrlBarProps {
   onPaste: () => void;
   canAnalyze: boolean;
   isAnalyzing: boolean;
+  /** Düğme yazısı; verilmezse "Analiz Et". */
+  actionLabel?: string;
+  actionIcon?: ReactNode;
 }
 
 export const UrlBar = forwardRef<HTMLInputElement, UrlBarProps>(function UrlBar(
-  { value, onChange, onAnalyze, onPaste, canAnalyze, isAnalyzing },
+  { value, onChange, onAnalyze, onPaste, canAnalyze, isAnalyzing, actionLabel, actionIcon },
   ref,
 ) {
   const { t } = useTranslation();
@@ -56,10 +59,14 @@ export const UrlBar = forwardRef<HTMLInputElement, UrlBarProps>(function UrlBar(
         type="button"
         onClick={onAnalyze}
         disabled={!canAnalyze || isAnalyzing}
-        className="dk-gradient flex h-12 shrink-0 items-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgb(91_124_255/90%)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+        className="dk-gradient flex h-12 shrink-0 items-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_color-mix(in_srgb,var(--dk-accent)_90%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-        {isAnalyzing ? t("analyze.analyzing") : t("analyze.analyzeButton")}
+        {isAnalyzing ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : (
+          (actionIcon ?? <Sparkles size={18} />)
+        )}
+        {isAnalyzing ? t("analyze.analyzing") : (actionLabel ?? t("analyze.analyzeButton"))}
       </button>
     </div>
   );
