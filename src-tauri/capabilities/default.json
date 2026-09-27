@@ -22,8 +22,6 @@
     "core:window:allow-destroy",
     "core:window:allow-set-theme",
     "deep-link:default",
-    "updater:default",
-    "process:allow-restart",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-unregister-all",

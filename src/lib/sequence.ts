@@ -9,6 +9,8 @@ import { isDefaultLook, normalizeLook, type ClipLook } from "./clipLook";
 
 export interface SeqClip {
   id: string;
+  /** Klibin geldiği kaynak (editorStore.sources kimliği); yoksa ilk kaynak. */
+  sourceId?: string;
   /** 0 = ana iz; üstteki izler alttakinin üzerini örter. */
   track: number;
   /** Zaman çizelgesindeki başlangıç (saniye). */
@@ -42,6 +44,8 @@ export type TrackStates = Record<number, TrackState>;
 /** Dışa aktarılacak / oynatılacak kesintisiz parça. */
 export interface Segment {
   clipId: string;
+  /** Parçanın geldiği kaynak; yoksa ilk kaynak. */
+  sourceId?: string;
   tStart: number;
   tEnd: number;
   srcStart: number;
@@ -99,8 +103,8 @@ export function clampSpeed(speed: number): number {
 }
 
 /** Kaynağın tamamı ana izde tek klip. */
-export function initialClips(duration: number, id: string): SeqClip[] {
-  return [{ id, track: 0, start: 0, srcStart: 0, srcEnd: duration, speed: 1, name: "" }];
+export function initialClips(duration: number, id: string, sourceId?: string): SeqClip[] {
+  return [{ id, sourceId, track: 0, start: 0, srcStart: 0, srcEnd: duration, speed: 1, name: "" }];
 }
 
 export function sequenceEnd(clips: readonly SeqClip[]): number {
@@ -168,24 +172,35 @@ export function chapterAt(chapters: readonly Chapter[], sourceTime: number): Cha
 }
 
 /** Kaynak anının zaman çizelgesindeki yeri: onu içeren en soldaki klipte.
- * Kaynağın o kısmı silindiyse null. */
-export function timelineTimeOfSource(clips: readonly SeqClip[], sourceTime: number): number | null {
+ * Kaynağın o kısmı silindiyse null. `sourceId` verilirse yalnızca o kaynağın
+ * klipleri aranır (çoklu kaynakta aynı anlar çakışmasın). */
+export function timelineTimeOfSource(
+  clips: readonly SeqClip[],
+  sourceTime: number,
+  sourceId?: string,
+): number | null {
   const holder = [...clips]
+    .filter((c) => sourceId === undefined || c.sourceId === undefined || c.sourceId === sourceId)
     .sort((a, b) => a.start - b.start || a.track - b.track)
     .find((c) => sourceTime >= c.srcStart - 1e-3 && sourceTime < c.srcEnd - EPS);
   return holder ? holder.start + Math.max(0, sourceTime - holder.srcStart) / holder.speed : null;
 }
 
 /** Klipleri bölüm başlangıçlarından böler; adı olmayan parçalar başladıkları
- * bölümün adını alır. Sonra istenmeyen bölümler tek tıkla silinebilir. */
+ * bölümün adını alır. Sonra istenmeyen bölümler tek tıkla silinebilir.
+ * `sourceId` verilirse yalnızca o kaynağın klipleri bölünür. */
 export function splitAtChapters(
   clips: readonly SeqClip[],
   chapters: readonly Chapter[],
   makeId: () => string,
+  sourceId?: string,
 ): SeqClip[] {
+  const ofSource = (c: SeqClip) =>
+    sourceId === undefined || c.sourceId === undefined || c.sourceId === sourceId;
   let result = [...clips];
   for (const chapter of chapters) {
     for (const clip of [...result]) {
+      if (!ofSource(clip)) continue;
       if (chapter.start > clip.srcStart + EPS && chapter.start < clip.srcEnd - EPS) {
         const t = clip.start + (chapter.start - clip.srcStart) / clip.speed;
         result = splitClip(result, clip.id, t, makeId());
@@ -193,7 +208,7 @@ export function splitAtChapters(
     }
   }
   return result.map((clip) => {
-    if (clip.name.trim()) return clip;
+    if (clip.name.trim() || !ofSource(clip)) return clip;
     const title = chapterAt(chapters, clip.srcStart)?.title.trim();
     return title ? { ...clip, name: title } : clip;
   });
@@ -459,6 +474,7 @@ export function flatten(allClips: readonly SeqClip[], tracks: TrackStates = {}):
     } else {
       segments.push({
         clipId: clip.id,
+        sourceId: clip.sourceId,
         tStart: a,
         tEnd: b,
         srcStart,

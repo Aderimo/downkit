@@ -4,10 +4,13 @@ export interface MonitorInfo {
   hmonitor: number;
   /** ddagrab çıkış sırası; monitör başka ekran kartındaysa yok. */
   ddaIndex: number | null;
+  /** Masaüstü koordinatı (sanal ekranın sol üstü); çoklu ekran dizilimi bununla yapılır. */
+  x: number;
+  y: number;
   width: number;
   height: number;
   primary: boolean;
-  /** Soldan sağa sıra (1'den): "Ekran 2". */
+  /** Soldan sağa sıra (1'den): "2. ekran". */
   number: number;
 }
 
@@ -44,8 +47,19 @@ export interface EncoderInfo {
   hardware: boolean;
 }
 
+/** Çoklu ekran kaydında tek ekranın bölgesi (Rust `MonitorRegion`). */
+export interface MonitorRegion {
+  hmonitor: number;
+  ddaIndex: number | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export type CaptureTarget =
   | { kind: "monitor"; hmonitor: number; ddaIndex: number | null; width: number; height: number }
+  | { kind: "monitors"; monitors: MonitorRegion[] }
   | { kind: "window"; hwnd: number; width: number; height: number };
 
 export type RecordQuality = "high" | "balanced" | "small";

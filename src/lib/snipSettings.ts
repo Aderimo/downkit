@@ -26,6 +26,9 @@ export interface SnipSettings {
   /** Sayfadaki düğmelerle yakalamadan önce beklenecek saniye (menü açmak için). */
   delaySeconds: number;
   translateDirection: TranslateDirection;
+  /** Açıksa hızlı çeviri DownKit'in düzenleyicisinde açılır; kapalıysa program
+   * öne gelmeden çeviri okunur ve panoya kopyalanır. */
+  translateOpensEditor: boolean;
 }
 
 export const DEFAULT_SNIP_SETTINGS: SnipSettings = {
@@ -36,6 +39,7 @@ export const DEFAULT_SNIP_SETTINGS: SnipSettings = {
   copyOnSave: true,
   delaySeconds: 0,
   translateDirection: "auto",
+  translateOpensEditor: false,
 };
 
 function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -57,6 +61,10 @@ export function normalizeSnipSettings(raw: unknown): SnipSettings {
     copyOnSave: typeof r.copyOnSave === "boolean" ? r.copyOnSave : d.copyOnSave,
     delaySeconds: pick<number>(r.delaySeconds, CAPTURE_DELAYS, d.delaySeconds),
     translateDirection: pick(r.translateDirection, TRANSLATE_DIRECTIONS, d.translateDirection),
+    translateOpensEditor:
+      typeof r.translateOpensEditor === "boolean"
+        ? r.translateOpensEditor
+        : d.translateOpensEditor,
   };
 }
 

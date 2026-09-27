@@ -4,6 +4,8 @@ import type { TextOverlay } from "../lib/textItems";
 
 /** Kaynaktan alınacak parça ve hızı (Rust `ffmpeg::edit::Clip`). */
 export interface EditClip {
+  /** `inputs` dizisindeki kaynağın sırası (yoksa 0 = ilk kaynak). */
+  source?: number;
   start: number;
   end: number;
   speed: number;
@@ -31,6 +33,9 @@ export interface GifOptions {
 export interface EditRequest {
   inputPath: string | null;
   url: string | null;
+  /** Çoklu kaynak: her girdi için dosya ya da link (sıra = kliplerdeki `source`).
+   * Boşsa `inputPath`/`url` tek kaynak sayılır. */
+  inputs?: { inputPath: string | null; url: string | null }[];
   /** Çıktıdaki sırayla. */
   clips: EditClip[];
   destinationDir: string;

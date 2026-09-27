@@ -29,6 +29,8 @@ const WAVEFORM_TIMEOUT: Duration = Duration::from_secs(180);
 const REMOTE_WAVEFORM_TIMEOUT: Duration = Duration::from_secs(420);
 const MAX_WAVEFORM_BUCKETS: usize = 24_000;
 const PREVIEW_CACHE_DAYS: u64 = 3;
+/// Uzak akışta arama yavaş olabilir; kare alma bu süreyi aşmasın.
+const FRAME_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Yeni bir kare şeridi isteği başlayınca eskisinin kalan kareleri üretilmez.
 static THUMB_GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -351,4 +353,86 @@ async fn remove_old_copies(dir: &Path) {
             let _ = tokio::fs::remove_file(entry.path()).await;
         }
     }
+}
+
+/// İmleçteki kareyi tam çözünürlükte PNG olarak kaydeder. `input` verilirse
+/// (bilgisayardaki dosya ya da önizleme aktarıcısının adresi) o kullanılır;
+/// verilmezse belirteçteki kare akışına düşülür (HLS listeleri aktarıcı
+/// üzerinden okunamadığı için). Çıktı Resimler\DownKit'e yazılır: Ekran
+/// Görüntüsü kitaplığında görünür.
+#[tauri::command]
+pub async fn editor_save_frame(
+    app: AppHandle,
+    token: String,
+    input: Option<String>,
+    seconds: f64,
+    name: String,
+) -> Result<String, AppError> {
+    let (input, headers) = match input.filter(|i| !i.is_empty()) {
+        Some(direct) => {
+            // Yalnızca bilgisayardaki bir dosya ya da kendi aktarıcımız kabul
+            // edilir; rastgele bir internet adresi FFmpeg'e verilmez.
+            let proxied = direct.starts_with("http://127.0.0.1:");
+            if !proxied && !Path::new(&direct).is_file() {
+                return Err(AppError::new("Kare kaydedilemedi.", Some(direct)));
+            }
+            (direct, Vec::new())
+        }
+        None => match preview::lookup(&token).ok_or_else(expired)? {
+            PreviewSource::Local { path } => (path.to_string_lossy().into_owned(), Vec::new()),
+            PreviewSource::Remote {
+                headers, thumb_url, ..
+            } => (
+                thumb_url.ok_or_else(|| {
+                    AppError::coded("noThumbnails", "Bu kaynak için kare alınamıyor.", None)
+                })?,
+                headers,
+            ),
+        },
+    };
+    let ffmpeg_exe = ffmpeg::binary::ensure_ffmpeg(&app)
+        .await?
+        .join("ffmpeg.exe");
+    let dir = PathBuf::from(crate::snip::snip_default_dir(app.clone())?);
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| AppError::new("Klasör oluşturulamadı.", Some(e.to_string())))?;
+    let output = jobs::unique_output_path(&dir, &super::edit::sanitize_name(&name), "png");
+
+    let mut command = Command::new(&ffmpeg_exe);
+    command
+        .args(args::frame_file_args(
+            &input,
+            &headers,
+            seconds.max(0.0),
+            &output.to_string_lossy(),
+        ))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    jobs::hide_console(&mut command);
+    let mut child = command
+        .spawn()
+        .map_err(|e| AppError::new("Kare kaydedilemedi.", Some(e.to_string())))?;
+    if let Some(pid) = child.id() {
+        crate::process_guard::attach(pid);
+    }
+
+    let mut detail = String::new();
+    let mut stderr_pipe = child.stderr.take().expect("stderr piped");
+    let read = stderr_pipe.read_to_string(&mut detail);
+    if tokio::time::timeout(FRAME_TIMEOUT, read).await.is_err() {
+        let _ = child.kill().await;
+        let _ = tokio::fs::remove_file(&output).await;
+        return Err(AppError::new("Kare alma çok uzun sürdü.", None));
+    }
+    let ok = matches!(child.wait().await, Ok(s) if s.success());
+    if !ok {
+        let _ = tokio::fs::remove_file(&output).await;
+        return Err(AppError::new(
+            "Kare kaydedilemedi.",
+            Some(detail.trim().chars().take(300).collect()),
+        ));
+    }
+    Ok(output.to_string_lossy().into_owned())
 }

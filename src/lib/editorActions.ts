@@ -2,6 +2,7 @@ import {
   fitView,
   newClipId,
   sourceChapters,
+  sourceDurationOf,
   timelineExtent,
   useEditorStore,
 } from "../store/editorStore";
@@ -72,16 +73,22 @@ export function setClipFade(id: string, edge: "in" | "out", seconds: number) {
   change((clips) => setFade(clips, id, edge, seconds));
 }
 
-/** Tüm klipleri videonun bölümlerinden böler (parçalar bölüm adını alır). */
+/** Tüm klipleri videonun bölümlerinden böler (parçalar bölüm adını alır).
+ * Çoklu kaynakta yalnızca önizlenen kaynağın klipleri bölünür. */
 export function splitByChapters() {
   const chapters = sourceChapters(editor().source);
   if (chapters.length === 0) return;
-  change((clips) => splitAtChapters(clips, chapters, newClipId));
+  const sourceId = editor().activeSourceId ?? undefined;
+  change((clips) => splitAtChapters(clips, chapters, newClipId, sourceId));
 }
 
 /** İmleci, kaynaktaki bu anın zaman çizelgesindeki yerine götürür. */
 export function jumpToSource(sourceTime: number): boolean {
-  const t = timelineTimeOfSource(editor().clips, sourceTime);
+  const t = timelineTimeOfSource(
+    editor().clips,
+    sourceTime,
+    editor().activeSourceId ?? undefined,
+  );
   if (t === null) return false;
   seekTimeline(t);
   return true;
@@ -181,7 +188,10 @@ export function trimStartToPlayhead() {
 export function trimEndToPlayhead() {
   const t = playhead();
   const [clip] = targets().filter((c) => t > c.start && t < clipEnd(c));
-  if (clip) change((clips) => trimEnd(clips, clip.id, t, editor().duration));
+  if (clip)
+    change((clips) =>
+      trimEnd(clips, clip.id, t, sourceDurationOf(editor().sources, clip.sourceId)),
+    );
 }
 
 export function setClipSpeed(id: string, speed: number) {
@@ -195,12 +205,23 @@ export function closeAllGaps() {
 
 /** Kaynağın tamamını ana izin sonuna yeniden ekler (silinen kısımları geri almak için). */
 export function appendWholeSource() {
-  const { duration } = editor();
+  const st = editor();
+  const sourceId = st.activeSourceId ?? st.sources[0]?.id;
+  const duration = sourceDurationOf(st.sources, sourceId);
   change((clips) => {
     const end = clips.filter((c) => c.track === 0).reduce((m, c) => Math.max(m, clipEnd(c)), 0);
     return [
       ...clips,
-      { id: newClipId(), track: 0, start: end, srcStart: 0, srcEnd: duration, speed: 1, name: "" },
+      {
+        id: newClipId(),
+        sourceId,
+        track: 0,
+        start: end,
+        srcStart: 0,
+        srcEnd: duration,
+        speed: 1,
+        name: "",
+      },
     ];
   });
 }
@@ -411,8 +432,9 @@ export function applyTransition(kind: TransitionKind, seconds = 0.8) {
  * klipler taşındıysa zaman çizelgesindeki yerine çevrilir. Eklenen sayı döner. */
 export function importSubtitleCues(cues: SubtitleCue[], style: TextStyle): number {
   const { clips } = editor();
+  const sourceId = editor().activeSourceId ?? undefined;
   const items = cues.flatMap((cue) => {
-    const start = timelineTimeOfSource(clips, cue.start) ?? cue.start;
+    const start = timelineTimeOfSource(clips, cue.start, sourceId) ?? cue.start;
     const length = Math.max(0.3, cue.end - cue.start);
     const base = newText(newClipId(), start, cue.text);
     return [{ ...base, ...style, end: start + length }];

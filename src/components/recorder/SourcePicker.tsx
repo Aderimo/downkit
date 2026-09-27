@@ -4,9 +4,10 @@ import { AppWindow, Check, Minimize2, Monitor, RefreshCw, X } from "lucide-react
 import { useRecorderStore } from "../../store/recorderStore";
 import { useRecorderSettings, type RecorderSource } from "../../lib/recorderSettings";
 import { refreshSources } from "../../lib/recorder";
-import { resolveSource } from "../../lib/recorderLogic";
+import { monitorLabel, resolveMonitors, resolveSource } from "../../lib/recorderLogic";
 import { recorderSourceThumbs } from "../../lib/tauri-api";
 import type { MonitorInfo, WindowInfo } from "../../types/recorder";
+import { Button } from "../ui/Button";
 
 type Tab = "screens" | "windows";
 
@@ -26,7 +27,30 @@ function sameSource(a: RecorderSource, b: RecorderSource): boolean {
   return false;
 }
 
-/** Discord'un ekran paylaşımındaki gibi: ekranlar ve pencereler küçük önizlemeleriyle. */
+/** Şu anki kaynaktan seçili ekran numaraları (çoklu seçimin başlangıcı). */
+function currentNumbers(source: RecorderSource, monitors: MonitorInfo[]): number[] {
+  if (source.kind === "monitors") {
+    return resolveMonitors(source.numbers, {
+      monitors,
+      windows: [],
+      microphones: [],
+      speakers: [],
+    }).map((m) => m.number);
+  }
+  if (source.kind === "monitor") {
+    const item = resolveSource(source, {
+      monitors,
+      windows: [],
+      microphones: [],
+      speakers: [],
+    });
+    return item && "hmonitor" in item ? [item.number] : [];
+  }
+  return [];
+}
+
+/** Discord'un ekran paylaşımındaki gibi: ekranlar ve pencereler küçük önizlemeleriyle.
+ * Ekranlar sekmesinde birden çok ekran seçilebilir (yan yana tek kayıt olur). */
 export function SourcePicker({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const sources = useRecorderStore((s) => s.sources);
@@ -35,6 +59,8 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>(current.kind === "window" ? "windows" : "screens");
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  // Ekranlar sekmesindeki taslak seçim (numaralar); null: kayıtlı kaynaktan türetilir.
+  const [draft, setDraft] = useState<number[] | null>(null);
 
   // Kaynaklar yenilenir, sonra önizlemeler alınır. Tauri dışında (tarayıcı
   // önizlemesi) önizleme yok; simgeler gösterilir.
@@ -64,30 +90,19 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [load]);
 
+  const monitors = sources?.monitors ?? [];
+  const picked = draft ?? currentNumbers(current, monitors);
   const resolved = sources ? resolveSource(current, sources) : null;
-  const monitorCard = (m: MonitorInfo, source: RecorderSource, title: string): Card => ({
-    key: `m:${source.kind === "monitor" ? source.number : 0}:${m.hmonitor}`,
-    source,
-    title,
+
+  // Her ekran bir kez: birincil "Ana ekran", ötekiler masaüstü sırasıyla "2. ekran"…
+  const screens: Card[] = monitors.map((m) => ({
+    key: `m:${m.hmonitor}`,
+    source: { kind: "monitor", number: m.number },
+    title: monitorLabel(m, t),
     subtitle: `${m.width}×${m.height}`,
     thumb: thumbs[`m:${m.hmonitor}`] ?? null,
-    selected: sameSource(current, source),
-  });
-  const primary = sources?.monitors.find((m) => m.primary) ?? sources?.monitors[0];
-  const screens: Card[] = [
-    ...(primary
-      ? [monitorCard(primary, { kind: "monitor", number: 0 }, t("recorder.primaryScreen"))]
-      : []),
-    ...((sources?.monitors.length ?? 0) > 1
-      ? (sources?.monitors ?? []).map((m) =>
-          monitorCard(
-            m,
-            { kind: "monitor", number: m.number },
-            t("recorder.screenN", { n: m.number }),
-          ),
-        )
-      : []),
-  ];
+    selected: picked.includes(m.number),
+  }));
   const windows: Card[] = (sources?.windows ?? [])
     .filter((w: WindowInfo) => !w.own)
     .map((w) => {
@@ -105,6 +120,25 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
       };
     });
   const cards = tab === "screens" ? screens : windows;
+
+  function toggleScreen(number: number) {
+    const next = picked.includes(number)
+      ? picked.filter((n) => n !== number)
+      : [...picked, number];
+    setDraft(next);
+  }
+
+  function applyScreens() {
+    const numbers = monitors.map((m) => m.number).filter((n) => picked.includes(n));
+    if (numbers.length === 0) return;
+    update({
+      source:
+        numbers.length === 1
+          ? { kind: "monitor", number: numbers[0] }
+          : { kind: "monitors", numbers },
+    });
+    onClose();
+  }
 
   return (
     <div
@@ -181,8 +215,14 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
               type="button"
               aria-pressed={card.selected}
               onClick={() => {
-                update({ source: card.source });
-                onClose();
+                // Ekranlar seçim biriktirir (birden çok seçilebilir); pencere
+                // tek seçilir ve pencere kapanır.
+                if (tab === "screens" && card.source.kind === "monitor") {
+                  toggleScreen(card.source.number);
+                } else {
+                  update({ source: card.source });
+                  onClose();
+                }
               }}
               className={`group relative flex flex-col gap-2 rounded-xl border bg-[var(--dk-surface-2)] p-2 text-left transition hover:border-[var(--dk-accent)] ${
                 card.selected ? "dk-selected" : "border-[var(--dk-border)]"
@@ -220,6 +260,19 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </div>
+
+        {tab === "screens" && monitors.length > 1 ? (
+          <div className="flex items-center gap-3 border-t border-[var(--dk-border)] pt-3">
+            <p className="min-w-0 flex-1 text-xs text-[var(--dk-text-muted)]">
+              {picked.length > 1
+                ? t("recorder.screensSelected", { count: picked.length })
+                : t("recorder.screensPickHint")}
+            </p>
+            <Button size="sm" disabled={picked.length === 0} onClick={applyScreens}>
+              {t("recorder.applySource")}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

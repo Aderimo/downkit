@@ -18,6 +18,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  ImageDown,
   Magnet,
   Maximize,
   Pause,
@@ -37,6 +38,7 @@ import {
 import {
   contentEnd,
   sourceChapters,
+  sourceDurationOf,
   timelineExtent,
   useEditorStore,
 } from "../../store/editorStore";
@@ -73,6 +75,8 @@ import {
 } from "../../lib/timeline";
 import { nearestFromEntries, requestThumbs, useThumbStore } from "../../lib/thumbCache";
 import { getEditorWaveform } from "../../lib/tauri-api";
+import { savePlayheadFrame } from "../../lib/frameSave";
+import { localizeError } from "../../lib/errors";
 import { refreshPlayback, seekTimeline } from "../../lib/sequencePlayer";
 import {
   dropTransition,
@@ -189,6 +193,8 @@ type TileSource =
 export function Timeline() {
   const { t } = useTranslation();
   const clips = useEditorStore((s) => s.clips);
+  const sources = useEditorStore((s) => s.sources);
+  const activeSourceId = useEditorStore((s) => s.activeSourceId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const view = useEditorStore((s) => s.view);
   const duration = useEditorStore((s) => s.duration);
@@ -248,6 +254,9 @@ export function Timeline() {
     const tileWidth = Math.max(24, (TRACK_H - 4) * aspect);
     const times: number[] = [];
     for (const clip of clips) {
+      // Kare önbelleği yalnızca önizlenen kaynağı tanır; başka kaynakların
+      // kliplerine kare istenmez.
+      if ((clip.sourceId ?? sources[0]?.id) !== activeSourceId) continue;
       const left = timeToX(clip.start, view, width);
       const right = timeToX(clipEnd(clip), view, width);
       if (right < 0 || left > width) continue;
@@ -259,7 +268,7 @@ export function Timeline() {
       }
     }
     requestThumbs(tiles.token, times);
-  }, [tiles, clips, view, width, aspect, secondsPerPx]);
+  }, [tiles, clips, view, width, aspect, secondsPerPx, sources, activeSourceId]);
 
   function timeAt(clientX: number): number {
     const rect = areaRef.current?.getBoundingClientRect();
@@ -325,7 +334,12 @@ export function Timeline() {
           const next =
             mode === "start"
               ? trimStart(origin, clip.id, snapped)
-              : trimEnd(origin, clip.id, snapped, useEditorStore.getState().duration);
+              : trimEnd(
+                  origin,
+                  clip.id,
+                  snapped,
+                  sourceDurationOf(useEditorStore.getState().sources, clip.sourceId),
+                );
           useEditorStore.getState().dragTo(next);
           // Kenarı sürüklerken o karedeki görüntü gösterilir.
           const edited = next.find((c) => c.id === clip.id);
@@ -477,6 +491,7 @@ export function Timeline() {
                 const left = timeToX(clip.start, view, width);
                 const right = timeToX(clipEnd(clip), view, width);
                 if (right < -4 || left > width + 4) return null;
+                const clipSourceId = clip.sourceId ?? sources[0]?.id;
                 return (
                   <ClipBlock
                     key={clip.id}
@@ -490,10 +505,16 @@ export function Timeline() {
                     selected={selectedIds.includes(clip.id)}
                     secondsPerPx={secondsPerPx}
                     aspect={aspect}
+                    ownSource={clipSourceId === activeSourceId}
+                    sourceBadge={
+                      sources.length > 1
+                        ? sources.findIndex((s) => s.id === clipSourceId) + 1
+                        : null
+                    }
                     tiles={tiles}
                     waveform={waveform}
                     chapters={chapters}
-                    duration={duration}
+                    duration={sourceDurationOf(sources, clip.sourceId)}
                     onDrag={startClipDrag}
                     onMenu={openMenu}
                   />
@@ -585,6 +606,10 @@ interface ClipBlockProps {
   selected: boolean;
   secondsPerPx: number;
   aspect: number;
+  /** Kareler/dalga formu/bölümler yalnızca önizlenen kaynağın kliplerinde. */
+  ownSource: boolean;
+  /** Birden çok kaynakta klibin kaynak numarası (1'den başlar); tek kaynakta null. */
+  sourceBadge: number | null;
   tiles: TileSource;
   waveform: number[] | null;
   chapters: Chapter[];
@@ -604,6 +629,8 @@ function ClipBlock({
   selected,
   secondsPerPx,
   aspect,
+  ownSource,
+  sourceBadge,
   tiles,
   waveform,
   chapters,
@@ -614,7 +641,10 @@ function ClipBlock({
   const color = TRACK_COLORS[clip.track % TRACK_COLORS.length];
   // Geçiş sürüklenirken bırakılacak uç: kenara yakınsa o uç (ve oradaki kesim), ortadaysa iki uç.
   const [dropEdge, setDropEdge] = useState<TransitionEdge | null>(null);
-  const waveHeight = waveform ? 14 : 0;
+  // Başka kaynağın klibinde kare/dalga formu gösterilmez (önizleme önbelleği
+  // yalnızca önizlenen kaynağı tanır).
+  const showTiles = ownSource;
+  const waveHeight = waveform && ownSource ? 14 : 0;
   const tileHeight = height - 4 - waveHeight;
   const tileWidth = Math.max(24, tileHeight * aspect);
   const first = Math.max(0, Math.floor(-left / tileWidth));
@@ -700,9 +730,9 @@ function ClipBlock({
       title={`${label} · ${formatTimecode(clip.srcStart, 1)} → ${formatTimecode(clip.srcEnd, 1)}`}
     >
       <div className="absolute inset-x-0 top-0 overflow-hidden" style={{ height: tileHeight }}>
-        {tileNodes}
+        {showTiles ? tileNodes : null}
       </div>
-      {waveform ? (
+      {waveform && ownSource ? (
         <ClipWave
           clip={clip}
           peaks={waveform}
@@ -725,13 +755,18 @@ function ClipBlock({
       ) : null}
       <ChapterMarks
         clip={clip}
-        chapters={chapters}
+        chapters={ownSource ? chapters : []}
         secondsPerPx={secondsPerPx}
         width={width}
         bottom={waveHeight + 4}
       />
       {width > 34 ? (
         <span className="pointer-events-none absolute top-1 left-2 flex max-w-[calc(100%-16px)] items-center gap-1 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white">
+          {sourceBadge !== null ? (
+            <span className="shrink-0 rounded bg-white/20 px-1 font-mono text-[10px]">
+              {sourceBadge}
+            </span>
+          ) : null}
           <span className="truncate">{label}</span>
           {clip.speed !== 1 ? (
             <span className="shrink-0 rounded bg-[#FFD43B] px-1 text-[10px] font-bold text-black">
@@ -900,6 +935,23 @@ function Toolbar() {
   const playing = usePlayerStore((s) => s.playing || s.gapPlaying);
   const currentTime = usePlayerStore((s) => s.currentTime);
   const end = sequenceEnd(clips);
+  // Kare kaydetme: "busy" sırasında düğme kilitli; sonra kısa durum yazısı.
+  const [frameMsg, setFrameMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [frameBusy, setFrameBusy] = useState(false);
+
+  const saveFrame = async () => {
+    if (frameBusy) return;
+    setFrameBusy(true);
+    try {
+      const path = await savePlayheadFrame();
+      setFrameMsg({ text: `${t("editor.frameSaved")} · ${path.split(/[\\/]/).pop()}`, ok: true });
+    } catch (err) {
+      setFrameMsg({ text: localizeError(err, "editor.frameFailed").message, ok: false });
+    } finally {
+      setFrameBusy(false);
+      setTimeout(() => setFrameMsg(null), 3500);
+    }
+  };
 
   return (
     <div className="flex items-center gap-1 border-b border-[var(--dk-border)] px-2 py-1.5">
@@ -972,10 +1024,24 @@ function Toolbar() {
         <ToolButton label={hint(t("editor.toEnd"), "toEnd")} onClick={toEnd}>
           <SkipForward size={16} />
         </ToolButton>
+        <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
+        <ToolButton label={t("editor.saveFrame")} onClick={() => void saveFrame()} disabled={frameBusy}>
+          <ImageDown size={16} />
+        </ToolButton>
         <p className="ml-2 font-mono text-xs whitespace-nowrap tabular-nums">
           <span className="text-[var(--dk-text)]">{formatTimecode(currentTime)}</span>
           <span className="text-[var(--dk-text-muted)]"> / {formatTimecode(end)}</span>
         </p>
+        {frameMsg ? (
+          <p
+            className={`ml-2 max-w-56 truncate text-xs ${
+              frameMsg.ok ? "text-[var(--dk-success)]" : "text-[var(--dk-error)]"
+            }`}
+            title={frameMsg.text}
+          >
+            {frameMsg.text}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-0.5" data-tour="editor-zoom">

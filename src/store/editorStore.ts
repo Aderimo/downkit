@@ -21,6 +21,21 @@ export type EditorSource =
   | { kind: "remote"; url: string; metadata: MediaMetadata }
   | { kind: "local"; path: string; info: LocalMediaInfo };
 
+/** Düzenleyiciye eklenmiş bir video/link. `source`/`stream` alanları store'daki
+ * aynı adlı "aktif kaynak" alanlarının sahibidir; önizleme aktif olanı oynatır. */
+export interface EditorSourceEntry {
+  /** Oturum içinde tekil: s1, s2… (kaynaklar eklenme sırasıyla numaralanır). */
+  id: string;
+  source: EditorSource;
+  /** Önizleme akışı; kimi linkte önizleme açılamaz (null). */
+  stream: EditorStream | null;
+  title: string;
+  duration: number;
+  thumbnailUrl: string | null;
+  /** "local" ya da platform kimliği ("youtube"…). */
+  platform: string;
+}
+
 export type EditorStream = Omit<PreviewStream, "audioUrl"> & { audioUrl: string | null };
 
 export type VideoExportFormat = "mp4" | "mkv" | "webm";
@@ -73,6 +88,12 @@ interface EditorState {
   phase: Phase;
   source: EditorSource | null;
   stream: EditorStream | null;
+  /** Eklenen tüm kaynaklar; `source`/`stream` aktif (önizlenen) olanı gösterir. */
+  sources: EditorSourceEntry[];
+  activeSourceId: string | null;
+  /** Kaynak ekleme sürüyor / eklerken hata oldu. */
+  addingSource: boolean;
+  addError: LocalizedError | null;
   error: LocalizedError | null;
   /** Kaynak videonun süresi. */
   duration: number;
@@ -98,6 +119,13 @@ interface EditorState {
   openUrl: (url: string) => Promise<void>;
   openMetadata: (url: string, metadata: MediaMetadata, section?: TimeRange | null) => void;
   openFile: (path: string) => Promise<void>;
+  /** Açık projeye ikinci (üçüncü…) video/link ekler; sona tek klip olarak konur. */
+  addSourceUrl: (url: string) => Promise<void>;
+  addSourceFile: (path: string) => Promise<void>;
+  /** Kaynağı ve ona ait klipleri kaldırır; son kaynaksa düzenleyici kapanır. */
+  removeSource: (id: string) => void;
+  /** Önizlemenin oynatacağı kaynağı değiştirir. */
+  activateSource: (id: string) => void;
   replaceStream: (stream: EditorStream) => void;
   close: () => void;
   /** Klipleri değiştirir ve geri alınabilir bir adım kaydeder. */
@@ -126,32 +154,31 @@ interface EditorState {
 // Aynı anda iki kaynak açılırsa (ör. analiz sürerken dosya bırakıldı) geç dönen
 // eski sonuç yenisinin üzerine yazmasın.
 let loadToken = 0;
-// Kaldığı yerden devam ederken kaynak açılınca uygulanacak klipler.
-let pendingRestore: {
-  clips: SeqClip[];
-  texts?: TextItem[];
-  tracks?: TrackStates;
-  duration: number;
-} | null = null;
-// Kaldığı yerden devam ederken kliplerle birlikte geri gelen yazılar.
-let restoredTexts: TextItem[] = [];
-
-// Kaldığı yerden devam ederken geri gelen iz durumları (sessiz / gizli).
-let restoredTracks: TrackStates = {};
-
-function takeRestoredTracks(): TrackStates {
-  const tracks = restoredTracks;
-  restoredTracks = {};
-  return tracks;
-}
-
-function takeRestoredTexts(): TextItem[] {
-  const texts = restoredTexts;
-  restoredTexts = [];
-  return texts;
-}
+// Kaynak kimlikleri eklenme sırasıyla s1, s2… diye verilir: ilk kaynak açılırken
+// sayaç sıfırlanır, böylece kaydedilen oturum geri yüklenince kliplerin
+// sourceId'leri aynı kimliklerle yeniden eşleşir.
+let sourceCounter = 0;
 
 export const newClipId = () => crypto.randomUUID();
+
+function newSourceId(): string {
+  sourceCounter += 1;
+  return `s${sourceCounter}`;
+}
+
+/** Klibin kaynağı: açık kimliği, yoksa ilk kaynak (eski oturumlar). */
+export function clipSourceId(clip: SeqClip, sources: EditorSourceEntry[]): string | null {
+  return clip.sourceId ?? sources[0]?.id ?? null;
+}
+
+/** Kaynağın süresi; bilinmiyorsa 0. */
+export function sourceDurationOf(
+  sources: EditorSourceEntry[],
+  sourceId: string | undefined,
+): number {
+  const entry = sourceId ? sources.find((s) => s.id === sourceId) : sources[0];
+  return entry?.duration ?? 0;
+}
 
 function initialExport(name: string): ExportOptions {
   const settings = getSettings();
@@ -182,6 +209,10 @@ function stem(fileName: string): string {
 const emptyState = {
   source: null,
   stream: null,
+  sources: [] as EditorSourceEntry[],
+  activeSourceId: null as string | null,
+  addingSource: false,
+  addError: null as LocalizedError | null,
   error: null,
   duration: 0,
   clips: [] as SeqClip[],
@@ -203,22 +234,13 @@ function resetPlayer() {
     .patch({ currentTime: 0, playing: false, stopAt: null, waiting: false, inGap: false });
 }
 
-/** Kaynak açılınca başlangıç klipleri: kaldığı yerden devam, Ana Sayfa'daki
- * bölüm ya da videonun tamamı. */
-function startingClips(duration: number, section?: TimeRange | null): SeqClip[] {
-  const restore = pendingRestore;
-  pendingRestore = null;
-  restoredTexts = [];
-  restoredTracks = {};
-  if (restore && Math.abs(restore.duration - duration) < 2 && restore.clips.length > 0) {
-    restoredTexts = restore.texts ?? [];
-    restoredTracks = restore.tracks ?? {};
-    return restore.clips;
-  }
+/** Kaynak açılınca başlangıç klipleri: Ana Sayfa'daki bölüm ya da videonun tamamı. */
+function startingClips(duration: number, sourceId: string, section?: TimeRange | null): SeqClip[] {
   if (section && section.end - section.start > 0.2) {
     return [
       {
         id: newClipId(),
+        sourceId,
         track: 0,
         start: 0,
         srcStart: section.start,
@@ -228,7 +250,7 @@ function startingClips(duration: number, section?: TimeRange | null): SeqClip[] 
       },
     ];
   }
-  return initialClips(duration, newClipId());
+  return initialClips(duration, newClipId(), sourceId);
 }
 
 /** Kaynağın bölümleri (link ya da dosya); yoksa boş. */
@@ -258,6 +280,33 @@ export function fitView(clips: SeqClip[], duration: number): TimelineView {
 
 function sameClips(a: SeqClip[], b: SeqClip[]): boolean {
   return a.length === b.length && a.every((c, i) => c === b[i]);
+}
+
+/** Eklenen kaynağı listeye ve zaman çizelgesinin sonuna (tek parça klip) koyar. */
+function appendSource(entry: EditorSourceEntry) {
+  const st = useEditorStore.getState();
+  const start = sequenceEnd(st.clips);
+  const clip: SeqClip = {
+    id: newClipId(),
+    sourceId: entry.id,
+    track: 0,
+    start,
+    srcStart: 0,
+    srcEnd: entry.duration,
+    speed: 1,
+    name: "",
+  };
+  const clips = [...st.clips, clip];
+  const first = st.sources.length === 0;
+  useEditorStore.setState({
+    sources: [...st.sources, entry],
+    addingSource: false,
+    clips,
+    view: clampView(st.view, timelineExtent(clips, st.duration)),
+    ...(first
+      ? { source: entry.source, stream: entry.stream, activeSourceId: entry.id, duration: entry.duration }
+      : {}),
+  });
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -294,16 +343,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
     resetPlayer();
-    const clips = startingClips(duration, section);
+    sourceCounter = 0;
+    const entry: EditorSourceEntry = {
+      id: newSourceId(),
+      source: { kind: "remote", url, metadata },
+      stream: metadata.preview,
+      title: metadata.title,
+      duration,
+      thumbnailUrl: metadata.thumbnailUrl,
+      platform: metadata.platform,
+    };
+    const clips = startingClips(duration, entry.id, section);
     set({
       ...emptyState,
       phase: "ready",
-      source: { kind: "remote", url, metadata },
-      stream: metadata.preview,
+      sources: [entry],
+      activeSourceId: entry.id,
+      source: entry.source,
+      stream: entry.stream,
       duration,
       clips,
-      texts: takeRestoredTexts(),
-      tracks: takeRestoredTracks(),
       view: fitView(clips, duration),
       exportOptions: initialExport(metadata.title),
     });
@@ -321,10 +380,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return;
       }
       resetPlayer();
-      const clips = startingClips(duration);
-      set({
-        ...emptyState,
-        phase: "ready",
+      sourceCounter = 0;
+      const entry: EditorSourceEntry = {
+        id: newSourceId(),
         source: { kind: "local", path, info: preview.info },
         stream: {
           kind: "file",
@@ -333,10 +391,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           token: preview.token,
           hasVideo: preview.info.videoCodec !== null,
         },
+        title: preview.info.fileName,
+        duration,
+        thumbnailUrl: null,
+        platform: "local",
+      };
+      const clips = startingClips(duration, entry.id);
+      set({
+        ...emptyState,
+        phase: "ready",
+        sources: [entry],
+        activeSourceId: entry.id,
+        source: entry.source,
+        stream: entry.stream,
         duration,
         clips,
-        texts: takeRestoredTexts(),
-        tracks: takeRestoredTracks(),
         view: fitView(clips, duration),
         exportOptions: {
           ...initialExport(stem(preview.info.fileName)),
@@ -349,10 +418,129 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  replaceStream: (stream) => set({ stream }),
+  addSourceUrl: async (url) => {
+    if (get().addingSource) return;
+    const token = ++loadToken;
+    set({ addingSource: true, addError: null });
+    try {
+      const result = await analyzeUrl(url);
+      if (token !== loadToken) return;
+      if (result.kind === "playlist") {
+        set({
+          addingSource: false,
+          addError: { message: i18n.t("editor.playlistNotSupported"), detail: null },
+        });
+        return;
+      }
+      const duration = result.durationSeconds ?? 0;
+      if (duration <= 0) {
+        set({
+          addingSource: false,
+          addError: { message: i18n.t("editor.noDuration"), detail: null },
+        });
+        return;
+      }
+      appendSource({
+        id: newSourceId(),
+        source: { kind: "remote", url, metadata: result },
+        stream: result.preview,
+        title: result.title,
+        duration,
+        thumbnailUrl: result.thumbnailUrl,
+        platform: result.platform,
+      });
+    } catch (err) {
+      if (token !== loadToken) return;
+      set({ addingSource: false, addError: localizeError(err, "error.analyzeFailed") });
+    }
+  },
+
+  addSourceFile: async (path) => {
+    if (get().addingSource) return;
+    const token = ++loadToken;
+    set({ addingSource: true, addError: null });
+    try {
+      const preview = await openLocalPreview(path);
+      if (token !== loadToken) return;
+      const duration = preview.info.durationSeconds ?? 0;
+      if (duration <= 0) {
+        set({
+          addingSource: false,
+          addError: { message: i18n.t("editor.noDuration"), detail: null },
+        });
+        return;
+      }
+      appendSource({
+        id: newSourceId(),
+        source: { kind: "local", path, info: preview.info },
+        stream: {
+          kind: "file",
+          url: preview.url,
+          audioUrl: null,
+          token: preview.token,
+          hasVideo: preview.info.videoCodec !== null,
+        },
+        title: preview.info.fileName,
+        duration,
+        thumbnailUrl: null,
+        platform: "local",
+      });
+    } catch (err) {
+      if (token !== loadToken) return;
+      set({ addingSource: false, addError: localizeError(err, "error.probeFailed") });
+    }
+  },
+
+  removeSource: (id) => {
+    const st = get();
+    const sources = st.sources.filter((s) => s.id !== id);
+    if (sources.length === st.sources.length) return;
+    if (sources.length === 0) {
+      get().close();
+      return;
+    }
+    const firstId = st.sources[0]?.id;
+    const clips = st.clips.filter((c) => (c.sourceId ?? firstId) !== id);
+    // Yapısal değişiklik: geri alma geçmişi kaldırılan kaynağa işaret eden
+    // klipleri geri getirmesin diye temizlenir.
+    const patch: Partial<EditorState> = {
+      sources,
+      clips,
+      selectedIds: [],
+      past: [],
+      future: [],
+    };
+    if (st.activeSourceId === id) {
+      const active = sources[0];
+      patch.source = active.source;
+      patch.stream = active.stream;
+      patch.activeSourceId = active.id;
+      patch.duration = active.duration;
+    }
+    set(patch);
+  },
+
+  activateSource: (id) => {
+    const st = get();
+    const entry = st.sources.find((s) => s.id === id);
+    if (!entry || st.activeSourceId === id) return;
+    set({
+      source: entry.source,
+      stream: entry.stream,
+      activeSourceId: id,
+      duration: entry.duration,
+    });
+  },
+
+  replaceStream: (stream) =>
+    set((st) => ({
+      stream,
+      sources: st.sources.map((s) => (s.id === st.activeSourceId ? { ...s, stream } : s)),
+    })),
 
   close: () => {
     loadToken += 1;
+    sourceCounter = 0;
     resetPlayer();
     set({ phase: "empty", ...emptyState });
   },
@@ -456,22 +644,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
 const SESSION_KEY = "downkit.editorSession";
 
+type SavedSource =
+  | { kind: "remote"; url: string; title: string; thumbnailUrl: string | null }
+  | { kind: "local"; path: string; title: string };
+
 export interface SavedSession {
-  source:
-    | { kind: "remote"; url: string; title: string; thumbnailUrl: string | null }
-    | { kind: "local"; path: string; title: string };
-  duration: number;
+  /** Eklenme sırasıyla; kimlikler geri yüklenince aynı sırayla s1, s2… olur. */
+  sources: SavedSource[];
   clips: SeqClip[];
   texts?: TextItem[];
   tracks?: TrackStates;
   savedAt: string;
 }
 
+/** Eski (tek kaynaklı) oturum kaydını da okur. */
 export function loadSession(): SavedSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    const parsed = raw ? (JSON.parse(raw) as SavedSession) : null;
-    return parsed && Array.isArray(parsed.clips) && parsed.source ? parsed : null;
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+    if (!parsed || !Array.isArray(parsed.clips)) return null;
+    const sources = Array.isArray(parsed.sources)
+      ? (parsed.sources as SavedSource[])
+      : parsed.source
+        ? [parsed.source as SavedSource]
+        : [];
+    if (sources.length === 0) return null;
+    return { ...(parsed as unknown as SavedSession), sources };
   } catch {
     return null;
   }
@@ -485,50 +683,61 @@ export function forgetSession() {
   }
 }
 
-/** Son projeyi açar; kaynak yüklenince klipler geri gelir. */
+/** Son projeyi açar: kaynaklar sırayla yüklenir, sonra klipler geri konur
+ * (kimlikler aynı sırayla üretildiği için sourceId'ler eşleşir). */
 export async function resumeSession(): Promise<void> {
   const session = loadSession();
   if (!session) return;
-  pendingRestore = {
-    clips: session.clips,
-    texts: session.texts,
-    tracks: session.tracks,
-    duration: session.duration,
-  };
   const editor = useEditorStore.getState();
-  if (session.source.kind === "remote") await editor.openUrl(session.source.url);
-  else await editor.openFile(session.source.path);
+  const [first, ...rest] = session.sources;
+  if (first.kind === "remote") await editor.openUrl(first.url);
+  else await editor.openFile(first.path);
+  if (useEditorStore.getState().phase !== "ready") return;
+  for (const source of rest) {
+    const st = useEditorStore.getState();
+    if (source.kind === "remote") await st.addSourceUrl(source.url);
+    else await st.addSourceFile(source.path);
+    if (useEditorStore.getState().addError) return;
+  }
+  useEditorStore.setState({
+    clips: session.clips,
+    texts: session.texts ?? [],
+    tracks: session.tracks ?? {},
+    selectedIds: [],
+    past: [],
+    future: [],
+  });
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Her değişiklikte (sürükleme bitince) son proje kısa bir gecikmeyle kaydedilir.
 useEditorStore.subscribe((state, previous) => {
-  if (state.phase !== "ready" || !state.source || state.dragOrigin) return;
+  if (state.phase !== "ready" || state.sources.length === 0 || state.dragOrigin) return;
   const dragEnded = previous.dragOrigin !== null && state.dragOrigin === null;
   if (
     !dragEnded &&
     state.clips === previous.clips &&
     state.texts === previous.texts &&
     state.tracks === previous.tracks &&
-    state.source === previous.source
+    state.sources === previous.sources
   )
     return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const { source, clips, texts, tracks, duration } = useEditorStore.getState();
-    if (!source) return;
+    const { sources, clips, texts, tracks } = useEditorStore.getState();
+    if (sources.length === 0) return;
     const session: SavedSession = {
-      source:
-        source.kind === "remote"
+      sources: sources.map((entry) =>
+        entry.source.kind === "remote"
           ? {
               kind: "remote",
-              url: source.url,
-              title: source.metadata.title,
-              thumbnailUrl: source.metadata.thumbnailUrl,
+              url: entry.source.url,
+              title: entry.title,
+              thumbnailUrl: entry.thumbnailUrl,
             }
-          : { kind: "local", path: source.path, title: source.info.fileName },
-      duration,
+          : { kind: "local", path: entry.source.path, title: entry.title },
+      ),
       clips,
       texts,
       tracks,
@@ -542,10 +751,24 @@ useEditorStore.subscribe((state, previous) => {
   }, 600);
 });
 
-/** Önizlemeyi yeniler (bağlantı süresi dolduysa); klipler korunur. */
+/** Aktif kaynağın önizlemesini yeniler (bağlantı süresi dolduysa); klipler korunur. */
 export async function reloadSource(): Promise<void> {
-  const { source, clips, texts, tracks, duration } = useEditorStore.getState();
-  if (source?.kind !== "remote") return;
-  pendingRestore = { clips, texts, tracks, duration };
-  await useEditorStore.getState().openUrl(source.url);
+  const st = useEditorStore.getState();
+  const entry = st.sources.find((s) => s.id === st.activeSourceId);
+  if (!entry || entry.source.kind !== "remote") return;
+  const result = await analyzeUrl(entry.source.url);
+  if (result.kind === "playlist") return;
+  const duration = result.durationSeconds ?? entry.duration;
+  const fresh: EditorSourceEntry = {
+    ...entry,
+    source: { kind: "remote", url: entry.source.url, metadata: result },
+    stream: result.preview,
+    duration,
+  };
+  useEditorStore.setState({
+    sources: st.sources.map((s) => (s.id === entry.id ? fresh : s)),
+    source: fresh.source,
+    stream: fresh.stream,
+    duration,
+  });
 }

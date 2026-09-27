@@ -5,7 +5,7 @@ import { ACTIVE_STATUSES } from "../types/jobs";
 import { CircleHelp, Rewind, Sparkles } from "lucide-react";
 import { useRecorderStore } from "../store/recorderStore";
 import { formatDuration } from "../lib/format";
-import { getAppVersion, openExternalLink } from "../lib/tauri-api";
+import { getAppVersion } from "../lib/tauri-api";
 import { useUpdateStore } from "../lib/updateCheck";
 import { formatBytes, formatSpeed } from "../lib/format";
 import { useToolDownloads } from "../lib/toolDownloads";
@@ -26,9 +26,6 @@ export function StatusBar({
   const [version, setVersion] = useState<string | null>(null);
   const jobs = useJobsStore((s) => s.jobs);
   const update = useUpdateStore((s) => s.latest);
-  const updateStatus = useUpdateStore((s) => s.status);
-  const canInstall = useUpdateStore((s) => s.canInstall);
-  const progress = useUpdateStore((s) => s.progress);
   const tools = Object.values(useToolDownloads((s) => s.active));
   const recording = useRecorderStore((s) => s.status.recording);
   const replay = useRecorderStore((s) => s.status.replay);
@@ -126,21 +123,12 @@ export function StatusBar({
         {update ? (
           <button
             type="button"
-            disabled={updateStatus === "installing"}
-            title={canInstall ? t("update.installHint") : undefined}
-            onClick={() =>
-              canInstall
-                ? void useUpdateStore.getState().install()
-                : void openExternalLink(update.url)
-            }
+            title={t("update.clickHint")}
+            onClick={() => useUpdateStore.getState().openDialog()}
             className="dk-gradient flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium text-white hover:brightness-110"
           >
             <Sparkles size={12} />
-            {updateStatus === "installing"
-              ? t("update.installing", { percent: Math.round(progress ?? 0) })
-              : canInstall
-                ? t("update.install", { version: update.version })
-                : t("update.available", { version: update.version })}
+            {t("update.available", { version: update.version })}
           </button>
         ) : null}
         <span>

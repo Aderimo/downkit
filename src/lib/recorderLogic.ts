@@ -9,6 +9,10 @@ export function resolveSource(
   source: RecorderSource,
   sources: RecorderSources,
 ): MonitorInfo | WindowInfo | null {
+  if (source.kind === "monitors") {
+    // Çoklu seçim tek öğeye indirgenmez; ilk ekran döner (etiketler için).
+    return resolveMonitors(source.numbers, sources)[0] ?? null;
+  }
   if (source.kind === "monitor") {
     const primary = sources.monitors.find((m) => m.primary) ?? sources.monitors[0] ?? null;
     if (source.number === 0) return primary;
@@ -23,6 +27,40 @@ export function isMonitor(item: MonitorInfo | WindowInfo): item is MonitorInfo {
   return "hmonitor" in item;
 }
 
+/** Çoklu ekran seçimindeki numaraları o anki ekranlarla eşler. 0 birincil
+ * ekran demektir. Kapalı / çıkarılmış ekranlar atlanır; yinelenenler alınmaz. */
+export function resolveMonitors(numbers: number[], sources: RecorderSources): MonitorInfo[] {
+  const primary = sources.monitors.find((m) => m.primary) ?? sources.monitors[0];
+  const seen = new Set<number>();
+  const out: MonitorInfo[] = [];
+  for (const n of numbers) {
+    const m = n === 0 ? primary : sources.monitors.find((x) => x.number === n);
+    if (m && !seen.has(m.hmonitor)) {
+      seen.add(m.hmonitor);
+      out.push(m);
+    }
+  }
+  return out;
+}
+
+/** Seçili ekranlar masaüstündeki kaplayan kutusu (çoklu ekran etiketi için). */
+export function monitorsBounds(monitors: MonitorInfo[]): { width: number; height: number } {
+  const left = Math.min(...monitors.map((m) => m.x));
+  const top = Math.min(...monitors.map((m) => m.y));
+  const right = Math.max(...monitors.map((m) => m.x + m.width));
+  const bottom = Math.max(...monitors.map((m) => m.y + m.height));
+  return { width: right - left, height: bottom - top };
+}
+
+/** Ekranın görünen adı: birincil "Ana ekran", ötekiler masaüstü sırasıyla
+ * "2. ekran", "3. ekran" (Windows'un soldan sağa numarası). */
+export function monitorLabel(
+  m: MonitorInfo,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  return m.primary ? t("recorder.primaryScreen") : t("recorder.screenN", { n: m.number });
+}
+
 export function captureTarget(item: MonitorInfo | WindowInfo): CaptureTarget {
   return isMonitor(item)
     ? {
@@ -33,6 +71,21 @@ export function captureTarget(item: MonitorInfo | WindowInfo): CaptureTarget {
         height: item.height,
       }
     : { kind: "window", hwnd: item.hwnd, width: item.width, height: item.height };
+}
+
+/** Birden çok ekran tek hedef olarak: Rust tarafı masaüstü konumuyla dizer. */
+export function captureTargetMulti(monitors: MonitorInfo[]): CaptureTarget {
+  return {
+    kind: "monitors",
+    monitors: monitors.map((m) => ({
+      hmonitor: m.hmonitor,
+      ddaIndex: m.ddaIndex,
+      x: m.x,
+      y: m.y,
+      width: m.width,
+      height: m.height,
+    })),
+  };
 }
 
 /** Dosya adı için yerel zaman: "2026-09-25 23.14.05" (Windows ":" kabul etmez). */

@@ -1,7 +1,7 @@
 {
   "name": "downkit",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "author": "aderimo",
   "license": "MIT",
@@ -27,8 +27,6 @@
     "@tauri-apps/plugin-global-shortcut": "^2.3.2",
     "@tauri-apps/plugin-notification": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-updater": "^2.12.0",
     "hls.js": "^1.7.3",
     "i18next": "^26.4.2",
     "lucide-react": "^1.47.0",

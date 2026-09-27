@@ -24,7 +24,7 @@ mod thumbs;
 fn nudge_target(target: &CaptureTarget) -> Option<u64> {
     match target {
         CaptureTarget::Window { hwnd, .. } => Some(*hwnd),
-        CaptureTarget::Monitor { .. } => None,
+        CaptureTarget::Monitor { .. } | CaptureTarget::Monitors { .. } => None,
     }
 }
 
@@ -266,6 +266,8 @@ async fn ensure_encoder(
     ffmpeg_exe: &Path,
     target: &CaptureTarget,
 ) -> Result<Encoder, AppError> {
+    // Çoklu ekranda kareler zaten belleğe iner (xstack): kodlayıcı seçimi
+    // ddagrab yolundan bağımsızdır, tek ekran gibi ele alınır.
     let dda = matches!(
         target,
         CaptureTarget::Monitor {

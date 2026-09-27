@@ -3,14 +3,16 @@ import type { RecordQuality } from "../types/recorder";
 
 const STORAGE_KEY = "downkit.recorder";
 
-/** Kaynak seçimi. Monitör sırayla (0 = birincil ekran), pencere programı ve
- * başlığıyla saklanır: pencere tutamacı her açılışta değişir. */
+/** Kaynak seçimi. Monitör sırayla (0 = birincil ekran), birden çok ekran masaüstü
+ * sıralarıyla, pencere programı ve başlığıyla saklanır: pencere tutamacı her
+ * açılışta değişir. */
 export type RecorderSource =
-  { kind: "monitor"; number: number } | { kind: "window"; exe: string; title: string };
+  | { kind: "monitor"; number: number }
+  | { kind: "monitors"; numbers: number[] }
+  | { kind: "window"; exe: string; title: string };
 
 /** Sistem geneli kısayollar (kayıt ve ekran görüntüsü aynı düzende kaydedilir). */
-export type RecorderHotkey =
-  "record" | "saveReplay" | "toggleReplay" | "screenshot" | "snip" | "snipFull" | "snipTranslate";
+export type RecorderHotkey = "record" | "saveReplay" | "toggleReplay" | "snip" | "snipFull" | "snipTranslate";
 
 /** Anlık tekrar süresi kaydırıcıyla: 10 sn – 10 dk, 5 sn adım. */
 export const REPLAY_MIN_SECONDS = 10;
@@ -72,7 +74,6 @@ export const DEFAULT_HOTKEYS: Record<RecorderHotkey, string | null> = {
   record: "Ctrl+Alt+F9",
   saveReplay: "Ctrl+Alt+F10",
   toggleReplay: "Ctrl+Alt+Shift+F10",
-  screenshot: "Ctrl+Alt+F11",
   snip: "Alt+Shift+S",
   snipFull: null,
   snipTranslate: "Alt+Shift+T",
@@ -108,6 +109,13 @@ function source(v: unknown): RecorderSource {
   const s = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   if (s.kind === "window" && typeof s.exe === "string" && typeof s.title === "string") {
     return { kind: "window", exe: s.exe, title: s.title };
+  }
+  if (s.kind === "monitors" && Array.isArray(s.numbers)) {
+    const numbers = s.numbers.filter(
+      (n): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0,
+    );
+    if (numbers.length > 1) return { kind: "monitors", numbers };
+    if (numbers.length === 1) return { kind: "monitor", number: numbers[0] };
   }
   if (s.kind === "monitor" && typeof s.number === "number" && s.number >= 0) {
     return { kind: "monitor", number: Math.round(s.number) };
@@ -159,7 +167,6 @@ export function normalizeRecorderSettings(raw: unknown): RecorderSettings {
       record: hotkey("record"),
       saveReplay: hotkey("saveReplay"),
       toggleReplay: hotkey("toggleReplay"),
-      screenshot: hotkey("screenshot"),
       snip: hotkey("snip"),
       snipFull: hotkey("snipFull"),
       snipTranslate: hotkey("snipTranslate"),

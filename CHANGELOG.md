@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.2.0
+
+**Clip editor**
+
+- Multiple sources: add more videos — files and links mixed — with "Add video", keep them as chips above the timeline, switch between them, and merge clips from all of them into one export; only the kept parts of each link are downloaded, and sources are normalized to a common size / frame rate / audio format while merging
+- Save the frame at the playhead as a PNG (saved to Pictures\DownKit)
+
+**Screen recorder**
+
+- Record several monitors at once: pick more than one screen in the source list and they are stacked side by side in the recording
+- Monitors are listed by their position and number ("1. ekran") instead of duplicated names
+- If the chosen microphone or desktop audio device can't be opened, the recording falls back to the default device instead of failing
+- The stray "Take screenshot" button (and its shortcut) was removed from the recording section — screenshots live in their own section
+
+**Recordings library**
+
+- Trimming no longer sticks while dragging, and the last used range is remembered for the next recording
+
+**Screenshot**
+
+- Quick translate: OCR + translate straight to the clipboard without opening the editor (optional; a switch in settings chooses whether the editor opens)
+
+**Updates**
+
+- The auto-updater is gone: DownKit only checks GitHub for a new version and asks — "update available, do you want it?" with Yes / No, and a second confirmation before the download page opens in your browser. Updating is always your choice
+
 ## v0.1.0 — first release
 
 **Download**

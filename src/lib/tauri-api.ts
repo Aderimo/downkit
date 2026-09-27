@@ -165,6 +165,16 @@ export function createPreviewCopy(token: string): Promise<PreviewCopy> {
   return invoke("create_preview_copy", { token });
 }
 
+/** İmleçteki kareyi tam çözünürlükte PNG olarak Resimler\DownKit'e kaydeder. */
+export function editorSaveFrame(
+  token: string,
+  input: string | null,
+  seconds: number,
+  name: string,
+): Promise<string> {
+  return invoke("editor_save_frame", { token, input, seconds, name });
+}
+
 export function onPreviewCopyProgress(
   handler: (payload: PreviewCopyProgress) => void,
 ): Promise<UnlistenFn> {

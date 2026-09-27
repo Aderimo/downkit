@@ -488,15 +488,9 @@ export function SettingsScreen() {
                 <Button
                   size="sm"
                   icon={<Sparkles size={14} />}
-                  onClick={() =>
-                    update.canInstall
-                      ? void update.install()
-                      : update.latest && void openExternalLink(update.latest.url)
-                  }
+                  onClick={() => update.openDialog()}
                 >
-                  {update.canInstall
-                    ? t("update.install", { version: update.latest.version })
-                    : t("update.download", { version: update.latest.version })}
+                  {t("update.download", { version: update.latest.version })}
                 </Button>
               ) : (
                 <Button

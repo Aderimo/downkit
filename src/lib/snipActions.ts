@@ -8,11 +8,12 @@ import { localizeError } from "./errors";
 import { logEvent } from "./log";
 import { showHud, type HudKind } from "./hud";
 import { encodeImage } from "./imageExport";
-import { snipFileName } from "./snip";
 import { getSnipSettings } from "./snipSettings";
 import {
+  copyText,
   imageWrite,
   isWindowFocused,
+  ocrImage,
   onSnipResult,
   snipCopy,
   snipDefaultDir,
@@ -22,7 +23,9 @@ import {
   snipSave,
   snipStart,
   snipThumbnail,
+  translateText,
 } from "./tauri-api";
+import { groupOcrBlocks, ocrLanguageFor, resolveDirection, snipFileName } from "./snip";
 import { useSnipStore } from "../store/snipStore";
 import type { SnipAction, SnipImage } from "../types/snip";
 
@@ -108,9 +111,37 @@ export function onShotSaved(path: string) {
   void refreshShots();
 }
 
+/** Hızlı çeviri: DownKit'in penceresi öne gelmeden seçimdeki yazı okunur,
+ * çevrilir ve panoya kopyalanır; görüntü Son görüntüler'e kaydedilir. */
+async function quickTranslate(image: SnipImage): Promise<void> {
+  const direction = getSnipSettings().translateDirection;
+  const out = await ocrImage(image.path, ocrLanguageFor(direction));
+  const blocks = groupOcrBlocks(out.lines);
+  const text = blocks.map((b) => b.text).join("\n\n");
+  if (!text.trim()) {
+    patch({ notice: t("snip.noText") });
+    void feedback("info", t("snip.noText"));
+    return;
+  }
+  const { from, to } = resolveDirection(direction, text);
+  const joined = blocks.map((b) => b.text.replace(/\s*\n\s*/g, " ")).join("\n");
+  const translated = (await translateText(joined, from, to)).split("\n").join("\n\n");
+  await copyText(translated);
+  const path = await saveRaw(image);
+  onShotSaved(path);
+  patch({ notice: t("snip.translateCopied") });
+  void feedback(
+    "saved",
+    t("snip.translateCopied"),
+    translated.length > 160 ? `${translated.slice(0, 160)}…` : translated,
+  );
+}
+
 async function handleResult(image: SnipImage, action: SnipAction) {
   try {
-    if (action === "edit" || action === "translate") {
+    if (action === "translate" && !getSnipSettings().translateOpensEditor) {
+      await quickTranslate(image);
+    } else if (action === "edit" || action === "translate") {
       openInEditor(image, action === "translate");
     } else if (action === "copy") {
       await snipCopy(image.path);

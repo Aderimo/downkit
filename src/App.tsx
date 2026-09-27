@@ -13,6 +13,7 @@ import { RecordScreen } from "./screens/RecordScreen";
 import { ScreenshotScreen } from "./screens/ScreenshotScreen";
 import { useSnipStore } from "./store/snipStore";
 import { Tutorial } from "./components/Tutorial";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { tourForRoute, useTutorialStore } from "./lib/tutorial";
 import { initDeepLinks } from "./lib/deepLink";
 import { useEditorStore } from "./store/editorStore";
@@ -105,6 +106,7 @@ function App() {
         <StatusBar pageTour={pageTour} onOpenRecorder={() => setRoute("record")} />
       </div>
       <Tutorial />
+      <UpdateDialog />
     </div>
   );
 }

@@ -8,6 +8,9 @@ use super::trim::seconds_arg;
 #[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Clip {
+    /// Çoklu kaynakta `inputs` dizisindeki sıra (yoksa 0 = ilk kaynak).
+    #[serde(default)]
+    pub source: usize,
     pub start: f64,
     pub end: f64,
     /// 2 = iki kat hızlı. Eski istekler hız göndermez: 1 sayılır.
@@ -293,6 +296,7 @@ impl Clip {
     #[cfg(test)]
     pub fn new(start: f64, end: f64) -> Clip {
         Clip {
+            source: 0,
             start,
             end,
             speed: 1.0,
@@ -550,7 +554,7 @@ pub fn merge_args(
             clip: *c,
         })
         .collect();
-    merge_inputs_args(&inputs, output, streams, audio_format, post)
+    merge_inputs_args(&inputs, output, streams, None, false, audio_format, post)
 }
 
 /// Birleştirilecek tek giriş: dosya, isteğe bağlı başlangıç/süre ve klibin
@@ -577,10 +581,17 @@ fn chain(filter: &mut String, input: &str, steps: &[String], output: &str) -> St
 /// `merge_args`'ın genel hâli: girişler farklı dosyalar olabilir (ör. linkten
 /// indirilmiş bölümler). Hızı 1 olmayan girişlerde görüntü `setpts`, ses `atempo`
 /// ile hızlandırılır.
+///
+/// `normalize_video`: farklı kaynaklar birleştirilirken her giriş önce bu
+/// boyuta sığdırılır (en-boy korunur, kalanı siyah bant) ve ortak kare
+/// hızı/piksel biçimine çekilir; yoksa `concat` farklı boyutlarda çöker.
+/// `normalize_audio`: her ses girişi 48 kHz stereoya çekilir.
 pub fn merge_inputs_args(
     inputs: &[MergeInput],
     output: &str,
     streams: Streams,
+    normalize_video: Option<(u32, u32)>,
+    normalize_audio: bool,
     audio_format: Option<(&str, u32)>,
     post: &VideoPost,
 ) -> Vec<String> {
@@ -603,19 +614,31 @@ pub fn merge_inputs_args(
     let mut labels = String::new();
     for (index, input) in inputs.iter().enumerate() {
         if video {
+            let mut steps: Vec<String> = Vec::new();
+            if let Some((w, h)) = normalize_video {
+                steps.push(format!(
+                    "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p"
+                ));
+            }
+            steps.extend(input.clip.video_steps());
             let label = chain(
                 &mut filter,
                 &format!("[{index}:v:0]"),
-                &input.clip.video_steps(),
+                &steps,
                 &format!("[v{index}]"),
             );
             labels.push_str(&label);
         }
         if audio {
+            let mut steps: Vec<String> = Vec::new();
+            if normalize_audio {
+                steps.push("aresample=48000,aformat=channel_layouts=stereo".into());
+            }
+            steps.extend(input.clip.audio_steps());
             let label = chain(
                 &mut filter,
                 &format!("[{index}:a:0]"),
-                &input.clip.audio_steps(),
+                &steps,
                 &format!("[a{index}]"),
             );
             labels.push_str(&label);
@@ -819,6 +842,29 @@ pub fn thumbnail_args(
 /// Dalga formu için sesin tamamı düşük örnekleme hızında, tek kanal 16 bit ham
 /// PCM olarak stdout'a akıtılır; tepe değerleri akarken hesaplanır.
 pub const WAVEFORM_SAMPLE_RATE: u32 = 4000;
+
+/// Oynatma imlecindeki kareyi tam çözünürlükte PNG dosyasına yazar.
+/// `-ss` girişten önce: uzak akışta aralık isteğiyle hızlıca o ana iner.
+pub fn frame_file_args(
+    input: &str,
+    headers: &[(String, String)],
+    seconds: f64,
+    output: &str,
+) -> Vec<String> {
+    let mut args: Vec<String> = vec!["-v".into(), "error".into(), "-y".into()];
+    args.extend(http_input_args(input, headers));
+    args.extend([
+        "-ss".into(),
+        seconds_arg(seconds),
+        "-i".into(),
+        input.into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-an".into(),
+        output.into(),
+    ]);
+    args
+}
 
 pub fn waveform_args(input: &str, headers: &[(String, String)]) -> Vec<String> {
     let mut args: Vec<String> = vec!["-v".into(), "error".into()];
@@ -1127,6 +1173,18 @@ mod tests {
     }
 
     #[test]
+    fn kare_tam_cozunurlukte_dosyaya_yazilir() {
+        let args = frame_file_args("C:\\v.mp4", &[], 12.5, "C:\\out\\kare.png");
+        let joined = args.join(" ");
+        assert!(joined.contains("-ss 12.5 -i C:\\v.mp4 -frames:v 1 -an C:\\out\\kare.png"));
+        // Ölçekleme yok: kaynak çözünürlüğü korunur; PNG uzantıdan anlaşılır.
+        assert!(!joined.contains("scale") && !joined.contains("image2pipe"));
+        // Uzak aktarıcı adresinde zaman aşımı eklenir.
+        let remote = frame_file_args("http://127.0.0.1:9/p/t?u=x", &[], 0.0, "o.png").join(" ");
+        assert!(remote.contains("-rw_timeout"));
+    }
+
+    #[test]
     fn tepe_degerleri_kovalara_toplanir() {
         // 1 sn = 4000 örnek; 4 kova → her kova 1000 örnek.
         let mut collector = PeakCollector::new(1.0, 4);
@@ -1186,10 +1244,48 @@ mod tests {
             },
         ];
         let args =
-            merge_inputs_args(&inputs, "out.webm", AV, None, &VideoPost::default()).join(" ");
+            merge_inputs_args(&inputs, "out.webm", AV, None, false, None, &VideoPost::default())
+                .join(" ");
         assert!(args.starts_with("-y -i a.webm -i b.webm"));
         assert!(args.contains("setpts=PTS/0.5") && args.contains("libvpx-vp9"));
         assert!(!args.contains("+faststart"));
+    }
+
+    #[test]
+    fn farkli_kaynaklar_ortak_boyut_ve_sese_cekilir() {
+        let inputs = [
+            MergeInput {
+                path: "a.mp4",
+                range: Some((5.0, 10.0)),
+                clip: Clip::new(5.0, 15.0),
+            },
+            MergeInput {
+                path: "b.mkv",
+                range: None,
+                clip: Clip::new(0.0, 8.0),
+            },
+        ];
+        let args = merge_inputs_args(
+            &inputs,
+            "out.mp4",
+            AV,
+            Some((1920, 1080)),
+            true,
+            None,
+            &VideoPost::default(),
+        )
+        .join(" ");
+        // Her girişin zinciri ortak boyut + kare hızıyla başlar.
+        let normalize = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p";
+        assert!(args.contains(&format!("[0:v:0]{normalize}[v0];")));
+        assert!(args.contains(&format!("[1:v:0]{normalize}[v1];")));
+        // Ses girişleri 48 kHz stereoya çekilir.
+        assert!(args.contains("[0:a:0]aresample=48000,aformat=channel_layouts=stereo[a0];"));
+        // Boyut istenmezse zincirler eskisi gibi kalır.
+        let plain = merge_inputs_args(&inputs, "out.mp4", AV, None, false, None, &VideoPost::default())
+            .join(" ");
+        assert!(!plain.contains("force_original_aspect_ratio"));
+        assert!(!plain.contains("aresample"));
     }
 
     #[test]
