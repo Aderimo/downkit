@@ -114,17 +114,13 @@ async fn translate_chunk(
     url.query_pairs_mut()
         .append_pair("q", text)
         .append_pair("langpair", &format!("{from}|{to}"));
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| {
-            AppError::coded(
-                "translateOffline",
-                "Çeviri hizmetine ulaşılamadı. İnternet bağlantını kontrol et.",
-                Some(e.to_string()),
-            )
-        })?;
+    let response = client.get(url).send().await.map_err(|e| {
+        AppError::coded(
+            "translateOffline",
+            "Çeviri hizmetine ulaşılamadı. İnternet bağlantını kontrol et.",
+            Some(e.to_string()),
+        )
+    })?;
     if response.status().as_u16() == 429 {
         return Err(quota_error(None));
     }
@@ -139,7 +135,10 @@ async fn translate_chunk(
     if !status_ok(&body.response_status) {
         return Err(AppError::new(
             "Çeviri yapılamadı.",
-            Some(format!("{} {}", body.response_status, body.response_details)),
+            Some(format!(
+                "{} {}",
+                body.response_status, body.response_details
+            )),
         ));
     }
     Ok(decode_entities(&text))
@@ -157,7 +156,10 @@ fn quota_error(detail: Option<String>) -> AppError {
 #[tauri::command]
 pub async fn translate_text(text: String, from: String, to: String) -> Result<String, AppError> {
     if !LANGUAGES.contains(&from.as_str()) || !LANGUAGES.contains(&to.as_str()) || from == to {
-        return Err(AppError::new("Bu dil çifti desteklenmiyor.", Some(format!("{from}→{to}"))));
+        return Err(AppError::new(
+            "Bu dil çifti desteklenmiyor.",
+            Some(format!("{from}→{to}")),
+        ));
     }
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
@@ -216,7 +218,10 @@ mod tests {
 
     #[test]
     fn html_varliklari_cozulur() {
-        assert_eq!(decode_entities("don&#39;t &amp; &quot;x&quot;"), "don't & \"x\"");
+        assert_eq!(
+            decode_entities("don&#39;t &amp; &quot;x&quot;"),
+            "don't & \"x\""
+        );
     }
 
     #[test]
@@ -226,4 +231,3 @@ mod tests {
         assert!(!status_ok(&serde_json::json!(403)));
     }
 }
-

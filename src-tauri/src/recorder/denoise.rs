@@ -134,7 +134,10 @@ mod tests {
     fn konusma_kapisi_konusmada_acik_sessizlikte_kisik() {
         assert_eq!(gate_gain(0.9), 1.0);
         assert!((gate_gain(0.05) - QUIET_GAIN).abs() < 1e-6);
-        assert!((gate_gain(0.4) - QUIET_GAIN).abs() < 1e-6, "hışırtı düzeyi kapıyı açmaz");
+        assert!(
+            (gate_gain(0.4) - QUIET_GAIN).abs() < 1e-6,
+            "hışırtı düzeyi kapıyı açmaz"
+        );
         assert!(gate_gain(0.6) > QUIET_GAIN && gate_gain(0.6) < 1.0);
     }
 
@@ -220,4 +223,3 @@ mod tests {
         );
     }
 }
-

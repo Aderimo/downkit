@@ -1,0 +1,20 @@
+name: Idea / Öneri
+description: Suggest a feature or an improvement. / Yeni bir özellik ya da iyileştirme öner.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do? / Ne yapmak istiyorsun?
+      description: Describe the task, not only the button. / Yalnızca düğmeyi değil, yapmak istediğin işi anlat.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could DownKit help? / DownKit bunu nasıl kolaylaştırabilir?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else? / Eklemek istediğin?
+      description: Screenshots, other apps that do it well… / Ekran görüntüleri, bunu iyi yapan başka programlar…

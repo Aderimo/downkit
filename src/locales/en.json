@@ -13,7 +13,8 @@
     "batch": "Batch",
     "videoEditor": "Clip editor",
     "settings": "Settings",
-    "record": "Screen recorder"
+    "record": "Screen recorder",
+    "screenshot": "Screenshot"
   },
   "status": {
     "ready": "Ready",
@@ -429,7 +430,8 @@
     "creditRnnoise": "Microphone noise suppression",
     "responsibleTitle": "Responsible use",
     "themesShowAll": "All themes",
-    "themesHide": "Hide"
+    "themesHide": "Hide",
+    "originalAuthor": "Original author"
   },
   "backendError": {
     "botCheck": "The platform wants a bot check. Wait a bit and try again, or update yt-dlp in Settings.",
@@ -481,7 +483,12 @@
     "nameTaken": "A recording with this name already exists.",
     "repairFailed": "The recording couldn't be repaired; the file may be damaged.",
     "recorderSourceMissing": "The chosen window isn't open anymore. Refresh the source list and pick another screen or window.",
-    "replayJustSaved": "Just saved; try again in a few seconds."
+    "replayJustSaved": "Just saved; try again in a few seconds.",
+    "unsupportedImage": "Only PNG, JPEG and WebP images can be opened.",
+    "screenshotFailed": "Couldn't take a screenshot.",
+    "ocrFailed": "Couldn't read the text in the image. The language pack may not be installed in Windows (Settings → Time & language → Language).",
+    "translateOffline": "Couldn't reach the translation service. Check your internet connection.",
+    "translateQuota": "Today's free translation limit is used up (about 5,000 characters). Try again tomorrow."
   },
   "playlist": {
     "badge": "Playlist",
@@ -526,7 +533,8 @@
     "hiddenIdle": "Click the duck in the tray to open it again. To quit completely: right-click > Quit.",
     "record": "Start / stop recording",
     "saveReplay": "Save instant replay",
-    "hiddenRecording": "Recording / instant replay is running. To quit, right-click the duck in the tray > Quit."
+    "hiddenRecording": "Recording / instant replay is running. To quit, right-click the duck in the tray > Quit.",
+    "snip": "Take screenshot"
   },
   "update": {
     "available": "New version: v{{version}}",
@@ -846,6 +854,11 @@
       "title": "Screen recorder",
       "body": "Record your screen or a window with sound. With <b>instant replay</b> on, the last 30 seconds are kept in the background; save a great moment with one key.",
       "tip": "The shortcuts work in games too."
+    },
+    "screenshot": {
+      "title": "Screenshots",
+      "body": "In <b>Screenshot</b>, select part of the screen, add arrows, text and numbers, and blur anything private. It can also read and translate the text in the image.",
+      "tip": "Even with DownKit in the background, <k>Alt</k> + <k>Shift</k> + <k>S</k> lets you select an area."
     }
   },
   "shortcuts": {
@@ -1190,6 +1203,36 @@
         "body": "All your recordings are here. Click one to watch it in the app; from there, <b>Open in editor</b> to cut it, rename it or delete it.",
         "tip": "Deleted recordings go to the Recycle Bin."
       }
+    },
+    "screenshot": {
+      "name": "Screenshot",
+      "capture": {
+        "title": "Capture",
+        "body": "<b>Select area</b> freezes the screen so you can drag over the part you want. <b>Whole screen</b> grabs everything at once. <b>Quick translate</b> reads and translates the text in the area you select.",
+        "tip": "On the selection screen, Enter takes the whole screen, Esc cancels and right-click clears the selection."
+      },
+      "hotkeys": {
+        "title": "Shortcuts",
+        "body": "Do the same from the keyboard — it works even when DownKit is in the tray. Click one and press new keys to change it."
+      },
+      "settings": {
+        "title": "What happens after selecting",
+        "body": "Should Enter open the image in the editor, copy it to the clipboard, or save it straight away? File format (PNG, JPEG, WebP), save folder and delay are here too."
+      },
+      "library": {
+        "title": "My screenshots",
+        "body": "Your saved screenshots live here. Click one to open it in the editor; you can also copy it, show it in its folder or delete it.",
+        "tip": "Deleted images go to the Recycle Bin."
+      },
+      "tools": {
+        "title": "Drawing tools",
+        "body": "Arrow, rectangle, pen, highlighter, text, numbered step, blur, pixelate and crop. Pick the color and thickness next to them.",
+        "tip": "Every tool has a one-letter shortcut (e.g. <k>A</k> arrow, <k>T</k> text); <k>Ctrl</k> + <k>Z</k> undoes."
+      },
+      "actions": {
+        "title": "Copy, save, translate",
+        "body": "<k>Ctrl</k> + <k>C</k> copies to the clipboard, <k>Ctrl</k> + <k>S</k> saves. <b>Read text</b> pulls out the text in the image; <b>Translate</b> places the translation over the original text."
+      }
     }
   },
   "tools": {
@@ -1436,5 +1479,125 @@
       "name": "Cotton Candy",
       "hint": "Light pink"
     }
+  },
+  "snip": {
+    "title": "Screenshot",
+    "subtitle": "Like Lightshot: select part of the screen, add arrows, text and numbers, blur what should stay private, then copy or save. It can also read and translate the text in the image.",
+    "hint": "Drag to select an area · Enter: whole screen · Esc: cancel",
+    "hintTranslate": "Drag over the text you want to translate · Esc: cancel",
+    "edit": "Edit",
+    "translate": "Translate",
+    "copy": "Copy",
+    "save": "Save",
+    "saveAs": "Save as…",
+    "fullScreen": "Whole screen",
+    "cancel": "Cancel",
+    "filePrefix": "Screenshot",
+    "copied": "Copied to clipboard.",
+    "saved": "Saved.",
+    "savedAndCopied": "Saved and copied to clipboard.",
+    "savedTitle": "Screenshot saved",
+    "captureFailed": "Couldn't take a screenshot.",
+    "openFailed": "Couldn't open the image.",
+    "copyFailed": "Couldn't copy to the clipboard.",
+    "saveFailed": "Couldn't save the image.",
+    "deleteFailed": "Couldn't delete the image.",
+    "loadFailed": "Couldn't load the image. It may have been moved or deleted.",
+    "back": "Go back",
+    "tools": "Drawing tools",
+    "tool": {
+      "arrow": "Arrow",
+      "rect": "Rectangle",
+      "ellipse": "Ellipse",
+      "pen": "Pen",
+      "highlight": "Highlighter",
+      "text": "Text",
+      "step": "Numbered step",
+      "blur": "Blur",
+      "pixelate": "Pixelate",
+      "crop": "Crop"
+    },
+    "color": "Color",
+    "thickness": "Thickness",
+    "undo": "Undo",
+    "redo": "Redo",
+    "removeCrop": "Remove crop",
+    "close": "Close editor",
+    "discardConfirm": "You have unsaved changes. Close anyway?",
+    "textPlaceholder": "Type, press Enter to finish",
+    "readText": "Read text",
+    "reading": "Reading…",
+    "translating": "Translating…",
+    "showTranslation": "Show translation on the image",
+    "noText": "No readable text was found in the image.",
+    "ocrFailed": "Couldn't read the text in the image.",
+    "translateFailed": "Couldn't translate.",
+    "recognizedText": "Recognized text",
+    "translatedText": "Translation",
+    "copyText": "Copy text",
+    "textCopied": "Copied",
+    "showInFolder": "Show in folder",
+    "openInEditor": "Open in editor",
+    "openExternal": "Open in viewer",
+    "delete": "Delete",
+    "deleteConfirm": "Move \"{{name}}\" to the Recycle Bin?",
+    "refresh": "Refresh",
+    "libraryTitle": "My screenshots",
+    "libraryEmpty": "No saved screenshots yet. Pick an area above or press the shortcut.",
+    "showMore": "Show {{n}} more",
+    "noHotkey": "No shortcut",
+    "capture": {
+      "region": "Select area",
+      "regionHint": "Freezes the screen so you can drag over the part you want.",
+      "full": "Whole screen",
+      "fullHint": "Captures the entire screen the mouse is on, in one go.",
+      "translate": "Quick translate",
+      "translateHint": "Reads the text in the area you select and translates English ↔ Turkish.",
+      "file": "Open image",
+      "fileHint": "Open a PNG, JPEG or WebP from your computer in the editor."
+    },
+    "settingsTitle": "Screenshot settings",
+    "hotkeys": "Shortcuts",
+    "hotkeysHint": "They work even when DownKit is in the background or in the tray. Click one and press new keys to change it.",
+    "hotkeyRegion": "Select area",
+    "hotkeyFull": "Whole screen",
+    "hotkeyTranslate": "Quick translate",
+    "afterCapture": "After selecting",
+    "enterAction": "When you press Enter (or the shortcut)",
+    "enter": {
+      "edit": "Open in editor",
+      "editHint": "To add arrows, text or blur",
+      "copy": "Copy to clipboard",
+      "copyHint": "To paste right away (Discord, WhatsApp…)",
+      "save": "Save to folder",
+      "saveHint": "Straight to a file"
+    },
+    "copyOnSave": "Also copy to clipboard when saving",
+    "copyOnSaveHint": "The image you save is ready to paste.",
+    "delay": "Delay",
+    "noDelay": "No delay",
+    "delaySeconds": "{{n}} seconds",
+    "delayHint": "Applies to the buttons on this page: gives you time to open a menu or tooltip that disappears when you click.",
+    "fileFormat": "File format",
+    "format": "Format",
+    "formatHint": {
+      "png": "Lossless, sharp text",
+      "jpg": "Small files, good for photos",
+      "webp": "Smallest files, modern"
+    },
+    "quality": "Quality",
+    "pngLossless": "PNG is lossless: no quality setting needed.",
+    "qualityHint": "Lower quality means smaller files; 85–95% is fine for most things.",
+    "translation": "Translation",
+    "translateDirection": "Direction",
+    "direction": {
+      "auto": "Automatic (detects the language)",
+      "en-tr": "English → Turkish",
+      "tr-en": "Turkish → English"
+    },
+    "translationHint": "Text is read on your computer by Windows' own engine. To translate, only the text (never the image) is sent to the free MyMemory service; the daily limit is about 5,000 characters.",
+    "folder": "Save folder",
+    "openFolder": "Open folder",
+    "defaultFolder": "Back to default"
   }
 }

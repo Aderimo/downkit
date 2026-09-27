@@ -8,6 +8,7 @@
 //! `snip-result` olayıyla iletir. Ne yapılacağına (düzenle, kopyala, kaydet,
 //! çevir) ana pencere karar verir: kayıt klasörü gibi ayarlar orada.
 
+pub mod library;
 pub mod ocr;
 pub mod translate;
 
@@ -37,8 +38,16 @@ const LABEL: &str = "snip";
 const TEMP_MAX_AGE: Duration = Duration::from_secs(24 * 3600);
 /// Seçim bundan küçükse (yanlışlıkla tıklama) kırpılmaz.
 const MIN_SIDE: u32 = 4;
-/// Yalnızca bu uzantılar düzenleyicide açılır (OCR da bunları çözebilir).
-const IMAGE_EXTENSIONS: [&str; 3] = ["png", "jpg", "jpeg"];
+/// Seçimden sonra yapılabilecek işler; tanınmayan "edit" sayılır.
+const ACTIONS: [&str; 4] = ["edit", "translate", "copy", "save"];
+
+fn action_or_edit(action: &str) -> String {
+    if ACTIONS.contains(&action) {
+        action.to_string()
+    } else {
+        "edit".to_string()
+    }
+}
 
 /// Seçim penceresinin gösterdiği donmuş ekran.
 struct Frozen {
@@ -61,7 +70,7 @@ pub struct SnipState {
     url: String,
     width: u32,
     height: u32,
-    /// "edit" | "translate": Enter'a basınca yapılacak iş.
+    /// "edit" | "translate" | "copy" | "save": Enter'a basınca yapılacak iş.
     mode: String,
 }
 
@@ -210,17 +219,31 @@ fn show_main(app: &AppHandle, focus: bool) {
 
 /// Bölge seçimini başlatır: imlecin olduğu ekranı dondurur ve seçim penceresini
 /// açar. `hide_main`: DownKit'teki düğmeyle başlatıldıysa önce ana pencere gizlenir
-/// (yoksa görüntüde DownKit'in kendisi olur).
+/// (yoksa görüntüde DownKit'in kendisi olur). `full`: seçim penceresi açılmaz,
+/// ekranın tamamı doğrudan `mode` işine gider. `delay`: saniye (menü açıp
+/// yakalamak için); en fazla 30.
 #[tauri::command]
-pub async fn snip_start(app: AppHandle, mode: String, hide_main: bool) -> Result<(), AppError> {
-    let mode = if mode == "translate" {
-        "translate"
-    } else {
-        "edit"
-    };
+pub async fn snip_start(
+    app: AppHandle,
+    mode: String,
+    hide_main: bool,
+    full: Option<bool>,
+    delay: Option<u64>,
+) -> Result<(), AppError> {
+    // Seçim sürerken kısayola yeniden basılırsa açık seçim öne gelir (seçim
+    // penceresinin kendisi yakalanmasın).
+    if let Some(window) = app.get_webview_window(LABEL) {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.set_focus();
+            return Ok(());
+        }
+    }
+    let mode = action_or_edit(&mode);
     let main = app.get_webview_window("main");
-    let restore_main =
-        hide_main && main.as_ref().is_some_and(|w| w.is_visible().unwrap_or(false));
+    let restore_main = hide_main
+        && main
+            .as_ref()
+            .is_some_and(|w| w.is_visible().unwrap_or(false));
     if restore_main {
         if let Some(window) = &main {
             let _ = window.hide();
@@ -228,11 +251,21 @@ pub async fn snip_start(app: AppHandle, mode: String, hide_main: bool) -> Result
         // Pencerenin kaybolma animasyonu bitsin.
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
+    let delay = delay.unwrap_or(0).min(30);
+    if delay > 0 {
+        tokio::time::sleep(Duration::from_secs(delay)).await;
+    }
 
     let captured = tokio::task::spawn_blocking(|| {
         let (hmonitor, left, top, _, _) = monitor_under_cursor()?;
         let (bgra, w, h) = crate::recorder::screenshot::grab_monitor(hmonitor)?;
-        Some((crate::recorder::screenshot::to_rgba(&bgra), w as u32, h as u32, left, top))
+        Some((
+            crate::recorder::screenshot::to_rgba(&bgra),
+            w as u32,
+            h as u32,
+            left,
+            top,
+        ))
     })
     .await
     .map_err(|e| AppError::new("Ekran görüntüsü alınamadı.", Some(e.to_string())))?;
@@ -250,6 +283,25 @@ pub async fn snip_start(app: AppHandle, mode: String, hide_main: bool) -> Result
     let dir = temp_dir(&app)?;
     clean_temp(&dir);
     let rgba = Arc::new(rgba);
+
+    if full == Some(true) {
+        let frozen = Frozen {
+            rgba,
+            width,
+            height,
+            url: String::new(),
+            mode: mode.clone(),
+            restore_main,
+        };
+        let rect = Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        };
+        return deliver(&app, frozen, rect, mode).await;
+    }
+
     let png = {
         let rgba = rgba.clone();
         tokio::task::spawn_blocking(move || encode_png(&rgba, width, height, true))
@@ -267,7 +319,7 @@ pub async fn snip_start(app: AppHandle, mode: String, hide_main: bool) -> Result
         width,
         height,
         url: image.url,
-        mode: mode.to_string(),
+        mode,
         restore_main,
     });
 
@@ -334,6 +386,16 @@ pub async fn snip_finish(
         }
         return Ok(());
     };
+    deliver(&app, frozen, rect, action_or_edit(&action)).await
+}
+
+/// Seçimi kırpıp kodlar ve ana pencereye `snip-result` olarak iletir.
+async fn deliver(
+    app: &AppHandle,
+    frozen: Frozen,
+    rect: Rect,
+    action: String,
+) -> Result<(), AppError> {
     let rgba = frozen.rgba.clone();
     let width = frozen.width;
     let png = tokio::task::spawn_blocking(move || {
@@ -341,20 +403,16 @@ pub async fn snip_finish(
     })
     .await
     .map_err(|e| AppError::new("Görüntü kırpılamadı.", Some(e.to_string())))??;
-    let path = temp_file(&temp_dir(&app)?, "secim");
+    let path = temp_file(&temp_dir(app)?, "secim");
     tokio::fs::write(&path, &png)
         .await
         .map_err(|e| AppError::new("Görüntü yazılamadı.", Some(e.to_string())))?;
     let image = register(&path, rect.width, rect.height).await?;
 
-    let action = match action.as_str() {
-        "copy" | "save" | "translate" => action,
-        _ => "edit".to_string(),
-    };
     // Düzenle ve çevir DownKit'te açılır; kopyala ve kaydet arka planda biter.
     let opens = action == "edit" || action == "translate";
     if opens || frozen.restore_main {
-        show_main(&app, opens);
+        show_main(app, opens);
     }
     app.emit_to("main", "snip-result", SnipResult { image, action })
         .map_err(|e| AppError::new("Görüntü iletilemedi.", Some(e.to_string())))
@@ -370,25 +428,55 @@ pub fn snip_default_dir(app: AppHandle) -> Result<String, AppError> {
     Ok(pictures.join("DownKit").to_string_lossy().into_owned())
 }
 
-/// Bilgisayardaki bir görüntüyü düzenleyicide açar (yalnız PNG/JPEG).
+/// Bilgisayardaki bir görüntüyü düzenleyicide açar (PNG, JPEG, WebP). WebP'nin
+/// boyutunu Rust okuyamaz (0 döner); arayüz görüntü yüklenince ölçer.
 #[tauri::command]
 pub async fn snip_open_file(path: String) -> Result<SnipImage, AppError> {
     let file = Path::new(&path);
-    let ext = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    if !IMAGE_EXTENSIONS.contains(&ext.as_str()) || !file.is_file() {
+    if !library::is_image(file) || !file.is_file() {
         return Err(AppError::coded(
-            "unsupportedFile",
-            "Yalnızca PNG ve JPEG görüntüler açılabilir.",
+            "unsupportedImage",
+            "Yalnızca PNG, JPEG ve WebP görüntüler açılabilir.",
             Some(path),
         ));
     }
-    let (width, height) = image::image_dimensions(file)
-        .map_err(|e| AppError::new("Görüntü okunamadı.", Some(e.to_string())))?;
+    let (width, height) = image::image_dimensions(file).unwrap_or((0, 0));
     register(file, width, height).await
+}
+
+/// Ekran görüntüsü klasöründeki son görüntüler (en yeni önce).
+#[tauri::command]
+pub async fn snip_list(dir: String) -> Result<Vec<library::ShotFile>, AppError> {
+    tokio::task::spawn_blocking(move || library::list(Path::new(&dir), 200))
+        .await
+        .map_err(|e| AppError::new("Görüntüler listelenemedi.", Some(e.to_string())))
+}
+
+/// Görüntünün küçük resminin adresi (WebP'de özgün dosyanın adresi).
+#[tauri::command]
+pub async fn snip_thumbnail(app: AppHandle, path: String) -> Result<String, AppError> {
+    let cache = crate::paths::cache_dir(&app, "snip-thumbs")?;
+    let file = PathBuf::from(&path);
+    if !library::is_image(&file) || !file.is_file() {
+        return Err(AppError::new("Görüntü bulunamadı.", Some(path)));
+    }
+    let source = file.clone();
+    let thumb = tokio::task::spawn_blocking(move || library::thumbnail(&cache, &source))
+        .await
+        .map_err(|e| AppError::new("Küçük resim oluşturulamadı.", Some(e.to_string())))?;
+    let (_, url) = preview::register_local(thumb.as_deref().unwrap_or(&file)).await?;
+    Ok(url)
+}
+
+/// Görüntüyü Geri Dönüşüm Kutusu'na taşır (yalnızca ekran görüntüsü klasöründen).
+#[tauri::command]
+pub async fn snip_delete(path: String, dir: String) -> Result<(), AppError> {
+    let file = library::check_inside(Path::new(&path), Path::new(&dir))
+        .map_err(|m| AppError::new(&m, None))?;
+    tokio::task::spawn_blocking(move || crate::recorder::library::move_to_trash(&file))
+        .await
+        .map_err(|e| AppError::new("Silinemedi.", Some(e.to_string())))?
+        .map_err(|m| AppError::new("Silinemedi.", Some(m)))
 }
 
 /// Düzenlenmiş görüntünün baytları ham gövdeyle gelir (büyük görüntüyü JSON'a

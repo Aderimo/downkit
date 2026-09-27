@@ -1,3 +1,7 @@
+//! DownKit — © 2026 aderimo. Kaynak kodu MIT lisanslıdır; "DownKit" adı ve ördek
+//! logosu TRADEMARKS.md'deki koşullara tabidir. Resmi kaynak ve sürümler:
+//! https://github.com/Aderimo/downkit
+
 mod applog;
 mod commands;
 mod error;
@@ -23,6 +27,21 @@ mod ytdlp;
 
 use state::AppState;
 use tauri::Manager;
+
+/// Yapımcı imzası. Derlenen exe'nin içinde düz metin olarak durur (her kopyada
+/// dosya içinde aranarak bulunur) ve Ayarlar → Hakkında'da gösterilir. Kodu
+/// kopyalayan biri MIT gereği bu telif bildirimini korumak zorundadır.
+pub const AUTHOR_SIGNATURE: &str = concat!(
+    "DownKit v",
+    env!("CARGO_PKG_VERSION"),
+    " | original author: aderimo | (c) 2026 aderimo | MIT | https://github.com/Aderimo/downkit"
+);
+
+/// Hakkında bölümündeki imza satırı (sabit exe'de kalsın diye arayüz buradan okur).
+#[tauri::command]
+fn app_signature() -> &'static str {
+    AUTHOR_SIGNATURE
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -125,6 +144,9 @@ pub fn run() {
             snip::snip_default_dir,
             snip::snip_copy,
             snip::snip_save,
+            snip::snip_list,
+            snip::snip_thumbnail,
+            snip::snip_delete,
             snip::image_write,
             snip::image_copy,
             snip::ocr::ocr_image,
@@ -135,6 +157,7 @@ pub fn run() {
             commands::textfile::text_file_write,
             prefs::prefs_load,
             prefs::prefs_save,
+            app_signature,
             applog::log_write,
             applog::log_tail,
             applog::open_log_dir,

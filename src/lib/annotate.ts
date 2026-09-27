@@ -2,11 +2,15 @@
 // tutulur; aynı çizim işlevleri hem ekrandaki tuvali hem tam çözünürlüklü dışa
 // aktarımı çizer (ekranda ne görünüyorsa dosyada o çıkar).
 
-export type Tool = "arrow" | "rect" | "ellipse" | "pen" | "highlight" | "text" | "step" | "blur";
+export type Tool =
+  "arrow" | "rect" | "ellipse" | "pen" | "highlight" | "text" | "step" | "blur" | "pixelate";
+
+/** Sürükleyerek iki köşeyle çizilen şekiller. */
+export const BOX_TOOLS: readonly Tool[] = ["arrow", "rect", "ellipse", "blur", "pixelate"];
 
 export type Shape =
   | {
-      kind: "arrow" | "rect" | "ellipse" | "blur";
+      kind: "arrow" | "rect" | "ellipse" | "blur" | "pixelate";
       x1: number;
       y1: number;
       x2: number;
@@ -48,13 +52,36 @@ export function normalizeRect(x1: number, y1: number, x2: number, y2: number) {
   return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
 }
 
+/** Pikselleştirmede kare boyu: seçimin kısa kenarına göre (küçük alanda da
+ * okunmaz olsun), en az 6 piksel. */
+export function pixelBlock(w: number, h: number): number {
+  return Math.max(6, Math.round(Math.min(w, h) / 10));
+}
+
+/** Kırpma dikdörtgeni görüntünün içine sığdırılır; çok küçükse null. */
+export function clampCrop(
+  r: { x: number; y: number; w: number; h: number },
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } | null {
+  const x = Math.round(Math.min(Math.max(r.x, 0), width));
+  const y = Math.round(Math.min(Math.max(r.y, 0), height));
+  const w = Math.round(Math.min(r.x + r.w, width)) - x;
+  const h = Math.round(Math.min(r.y + r.h, height)) - y;
+  return w >= 8 && h >= 8 ? { x, y, w, h } : null;
+}
+
 /** Sıradaki numaralı adım (silinen olursa en büyüğün bir fazlası). */
 export function nextStep(shapes: readonly Shape[]): number {
   return shapes.reduce((n, s) => (s.kind === "step" ? Math.max(n, s.n) : n), 0) + 1;
 }
 
 /** Metni verilen genişliğe sığacak satırlara böler (sözcük sınırından). */
-export function wrapLines(text: string, maxWidth: number, measure: (s: string) => number): string[] {
+export function wrapLines(
+  text: string,
+  maxWidth: number,
+  measure: (s: string) => number,
+): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
     let line = "";
@@ -86,6 +113,19 @@ function drawShape(ctx: CanvasRenderingContext2D, shape: Shape, image: CanvasIma
       // Bulanıklık seçimin boyuna göre: küçük alanda da okunmaz olsun.
       ctx.filter = `blur(${Math.max(6, Math.min(r.w, r.h) / 12)}px)`;
       ctx.drawImage(image, 0, 0);
+      break;
+    }
+    case "pixelate": {
+      const r = normalizeRect(shape.x1, shape.y1, shape.x2, shape.y2);
+      if (r.w < 2 || r.h < 2) break;
+      // Alan küçük bir tuvale küçültülüp kenarları keskin büyütülür (mozaik).
+      const block = pixelBlock(r.w, r.h);
+      const small = document.createElement("canvas");
+      small.width = Math.max(1, Math.ceil(r.w / block));
+      small.height = Math.max(1, Math.ceil(r.h / block));
+      small.getContext("2d")?.drawImage(image, r.x, r.y, r.w, r.h, 0, 0, small.width, small.height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(small, 0, 0, small.width, small.height, r.x, r.y, r.w, r.h);
       break;
     }
     case "rect":

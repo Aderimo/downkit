@@ -10,6 +10,7 @@ import { useJobsStore } from "../store/jobsStore";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useRecorderStore } from "../store/recorderStore";
+import { useSnipStore } from "../store/snipStore";
 import { useTutorialStore } from "../lib/tutorial";
 import { useHistoryStore } from "../lib/downloadHistory";
 import { useSearchStore } from "../lib/recentSearches";
@@ -395,6 +396,56 @@ export function applyDemo(scene: string, lang: string | null): void {
       () => setLevels([0.3 + Math.random() * 0.25, 0.1 + Math.random() * 0.12]),
       50,
     );
+  }
+  if (scene === "screenshot" || scene === "snipEditor") {
+    // Ekran görüntülerim'de Blender filmlerinden kareler; düzenleyicide DownKit'in
+    // kendi ana sayfası üzerinde örnek çizimler.
+    const dir = "C:\\Users\\aderimo\\Pictures\\DownKit";
+    const prefix = lang === "en" ? "Screenshot" : "Ekran görüntüsü";
+    const shots = MOVIES.map((_m, i) => ({
+      path: `${dir}\\${prefix} 2026-09-2${7 - i} 1${i}.2${i}.0${i}.png`,
+      name: `${prefix} 2026-09-2${7 - i} 1${i}.2${i}.0${i}`,
+      bytes: [412, 380, 1260, 96, 744][i % 5] * 1024,
+      modified: Date.now() - i * 26 * 3_600_000,
+    }));
+    useSnipStore.setState({
+      outputDir: dir,
+      shots,
+      shotsLoaded: true,
+      thumbs: Object.fromEntries(shots.map((s, i) => [s.path, thumb(MOVIES[i].id)])),
+    });
+    if (scene === "snipEditor") {
+      const red = "#ef4444";
+      const green = "#22c55e";
+      const amber = "#f59e0b";
+      useSnipStore.setState({
+        demoShapes: [
+          { kind: "rect", x1: 268, y1: 30, x2: 1060, y2: 84, color: red, width: 5 },
+          { kind: "step", x: 236, y: 57, n: 1, color: red, size: 19 },
+          { kind: "rect", x1: 1086, y1: 88, x2: 1424, y2: 318, color: green, width: 5 },
+          { kind: "step", x: 1060, y: 118, n: 2, color: green, size: 19 },
+          { kind: "pixelate", x1: 282, y1: 166, x2: 536, y2: 392, color: red, width: 5 },
+          { kind: "arrow", x1: 1210, y1: 610, x2: 1040, y2: 500, color: amber, width: 7 },
+          {
+            kind: "text",
+            x: 1020,
+            y: 620,
+            text: lang === "en" ? "Download only this part" : "Yalnızca bu kısmı indir",
+            color: amber,
+            size: 30,
+          },
+        ],
+      });
+      useSnipStore.getState().patch({
+        image: {
+          path: `${dir}\\demo.png`,
+          // Geliştirme sunucusu proje kökündeki dosyaları olduğu gibi sunar.
+          url: `/docs/screenshots/${lang === "en" ? "en" : "tr"}/home.png`,
+          width: 1440,
+          height: 900,
+        },
+      });
+    }
   }
   if (scene === "editor") {
     // Önizleme dosyası yalnızca yerelde (.demo/, git dışı); yoksa oynatıcı uyarı gösterir.

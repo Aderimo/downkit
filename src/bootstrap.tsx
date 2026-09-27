@@ -10,6 +10,7 @@ import { initTray } from "./lib/tray";
 import { initUpdateCheck } from "./lib/updateCheck";
 import { initToolDownloads } from "./lib/toolDownloads";
 import { initRecorder } from "./lib/recorder";
+import { initSnip } from "./lib/snipActions";
 import { initLogging } from "./lib/log";
 import { getAppVersion } from "./lib/tauri-api";
 import { installBrowserKeyGuard } from "./lib/browserKeys";
@@ -36,6 +37,8 @@ export function start() {
     void initRecorder().catch(() => {
       // Tauri dışında (tarayıcı önizlemesi) kayıt yok.
     });
+    // Ekran görüntüsü seçim penceresinden gelen sonuçlar (kopyala/kaydet arka planda).
+    void initSnip().catch(() => {});
   }
   void initUpdateCheck();
   if (!(import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo"))) {

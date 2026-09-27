@@ -8,7 +8,9 @@ const STORAGE_KEY = "downkit.recorder";
 export type RecorderSource =
   { kind: "monitor"; number: number } | { kind: "window"; exe: string; title: string };
 
-export type RecorderHotkey = "record" | "saveReplay" | "toggleReplay" | "screenshot";
+/** Sistem geneli kısayollar (kayıt ve ekran görüntüsü aynı düzende kaydedilir). */
+export type RecorderHotkey =
+  "record" | "saveReplay" | "toggleReplay" | "screenshot" | "snip" | "snipFull" | "snipTranslate";
 
 /** Anlık tekrar süresi kaydırıcıyla: 10 sn – 10 dk, 5 sn adım. */
 export const REPLAY_MIN_SECONDS = 10;
@@ -63,12 +65,17 @@ export interface RecorderSettings {
   hotkeys: Record<RecorderHotkey, string | null>;
 }
 
-/** NVIDIA'nın Alt+F9/F10'u çoğu bilgisayarda dolu olduğu için Ctrl eklendi. */
-export const DEFAULT_HOTKEYS: Record<RecorderHotkey, string> = {
+/** NVIDIA'nın Alt+F9/F10'u çoğu bilgisayarda dolu olduğu için Ctrl eklendi.
+ * Tam ekran görüntüsünün varsayılanı yok: sık kullanılan birleşimleri (ör. VS
+ * Code'un Alt+Shift+F'si) başka programlardan çalmasın. */
+export const DEFAULT_HOTKEYS: Record<RecorderHotkey, string | null> = {
   record: "Ctrl+Alt+F9",
   saveReplay: "Ctrl+Alt+F10",
   toggleReplay: "Ctrl+Alt+Shift+F10",
   screenshot: "Ctrl+Alt+F11",
+  snip: "Alt+Shift+S",
+  snipFull: null,
+  snipTranslate: "Alt+Shift+T",
 };
 
 export const DEFAULT_RECORDER_SETTINGS: RecorderSettings = {
@@ -153,6 +160,9 @@ export function normalizeRecorderSettings(raw: unknown): RecorderSettings {
       saveReplay: hotkey("saveReplay"),
       toggleReplay: hotkey("toggleReplay"),
       screenshot: hotkey("screenshot"),
+      snip: hotkey("snip"),
+      snipFull: hotkey("snipFull"),
+      snipTranslate: hotkey("snipTranslate"),
     },
   };
 }

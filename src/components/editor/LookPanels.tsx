@@ -74,7 +74,9 @@ function PanelTitle({
     <div className="space-y-0.5">
       <p className="text-sm font-semibold text-white">{children}</p>
       {hint ? <p className="text-xs text-[var(--dk-text-muted)]">{hint}</p> : null}
-      {target ? <p className="text-[11px] font-medium text-[var(--dk-accent-hover)]">{target}</p> : null}
+      {target ? (
+        <p className="text-[11px] font-medium text-[var(--dk-accent-hover)]">{target}</p>
+      ) : null}
     </div>
   );
 }

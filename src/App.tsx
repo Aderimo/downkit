@@ -10,6 +10,8 @@ import { BatchScreen } from "./screens/BatchScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { EditorScreen } from "./screens/EditorScreen";
 import { RecordScreen } from "./screens/RecordScreen";
+import { ScreenshotScreen } from "./screens/ScreenshotScreen";
+import { useSnipStore } from "./store/snipStore";
 import { Tutorial } from "./components/Tutorial";
 import { tourForRoute, useTutorialStore } from "./lib/tutorial";
 import { initDeepLinks } from "./lib/deepLink";
@@ -54,6 +56,16 @@ function App() {
     void useEditorStore.getState().openFile(path);
   }, []);
 
+  // Ekran görüntüsü düzenlenmek ya da çevrilmek üzere açılınca (kısayol, tepsi,
+  // seçim penceresi) Ekran Görüntüsü sayfasına geçilir.
+  useEffect(
+    () =>
+      useSnipStore.subscribe((next, prev) => {
+        if (next.openSeq !== prev.openSeq) setRoute("screenshot");
+      }),
+    [],
+  );
+
   const analyzeFromHistory = useCallback((url: string) => {
     setRoute("home");
     void analyzeLink(url);
@@ -87,6 +99,7 @@ function App() {
           {route === "batch" ? <BatchScreen /> : null}
           {route === "editor" ? <EditorScreen /> : null}
           {route === "record" ? <RecordScreen onOpenInEditor={openInEditor} /> : null}
+          {route === "screenshot" ? <ScreenshotScreen /> : null}
           {route === "settings" ? <SettingsScreen /> : null}
         </main>
         <StatusBar pageTour={pageTour} onOpenRecorder={() => setRoute("record")} />

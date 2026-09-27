@@ -7,4 +7,5 @@ export type Route =
   | "batch"
   | "editor"
   | "record"
+  | "screenshot"
   | "settings";

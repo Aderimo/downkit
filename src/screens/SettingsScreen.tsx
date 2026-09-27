@@ -35,6 +35,7 @@ import {
 import { useHistoryStore } from "../lib/downloadHistory";
 import { useSearchStore } from "../lib/recentSearches";
 import {
+  getAppSignature,
   getAppVersion,
   getToolVersions,
   openAppDataDir,
@@ -77,6 +78,7 @@ export function SettingsScreen() {
   const clearSearches = useSearchStore((s) => s.clear);
 
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [signature, setSignature] = useState<string | null>(null);
   const [tools, setTools] = useState<ToolVersions | null>(null);
   const [ytdlpStatus, setYtdlpStatus] = useState<"idle" | "updating" | "updated" | "error">("idle");
   const [confirm, setConfirm] = useState<"history" | "searches" | "reset" | null>(null);
@@ -85,6 +87,9 @@ export function SettingsScreen() {
     getAppVersion()
       .then(setAppVersion)
       .catch(() => setAppVersion(null));
+    getAppSignature()
+      .then(setSignature)
+      .catch(() => setSignature(null));
     getToolVersions()
       .then(setTools)
       .catch(() => setTools(null));
@@ -604,6 +609,12 @@ export function SettingsScreen() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--dk-text-muted)]">
                 {t("settings.aboutText")}
+              </p>
+              <p
+                className="mt-2 text-[11px] text-[var(--dk-text-muted)]"
+                title={signature ?? undefined}
+              >
+                © 2026 {AUTHOR_NAME} · MIT · {t("settings.originalAuthor")}
               </p>
             </div>
           </div>

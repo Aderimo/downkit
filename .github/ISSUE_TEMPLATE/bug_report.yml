@@ -1,0 +1,46 @@
+name: Bug report / Hata bildirimi
+description: Something doesn't work as it should. / Bir şey olması gerektiği gibi çalışmıyor.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! English or Turkish is fine. / Bildirdiğin için teşekkürler! Türkçe ya da İngilizce yazabilirsin.
+
+        **Tip:** press **Report this** next to the error in DownKit and paste the copied report below — it has the version and technical details (without your user name).
+        **İpucu:** DownKit'te hatanın yanındaki **Hatayı bildir**'e bas ve kopyalanan raporu aşağıya yapıştır — sürüm ve teknik ayrıntılar içinde (kullanıcı adın olmadan).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Ne oldu?
+      description: What did you do, what did you expect, what happened instead? / Ne yaptın, ne bekliyordun, onun yerine ne oldu?
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Report from the app / Uygulamadaki rapor
+      description: Paste the text copied with "Report this". / "Hatayı bildir" ile kopyalanan metni yapıştır.
+      render: text
+  - type: input
+    id: link
+    attributes:
+      label: Link (if it's about a download) / Link (indirmeyle ilgiliyse)
+      placeholder: https://…
+  - type: input
+    id: version
+    attributes:
+      label: DownKit version / DownKit sürümü
+      description: Settings → About / Ayarlar → Hakkında
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows
+      options:
+        - Windows 11
+        - Windows 10
+    validations:
+      required: true

@@ -79,8 +79,12 @@ fn recognize(path: &Path, language: Option<&str>) -> Result<OcrOutput, String> {
     let _ = unsafe { RoInitialize(RO_INIT_MULTITHREADED) };
     let run = || -> windows::core::Result<OcrOutput> {
         let buffer = CryptographicBuffer::CreateFromByteArray(&bgra)?;
-        let bitmap =
-            SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w as i32, h as i32)?;
+        let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
+            &buffer,
+            BitmapPixelFormat::Bgra8,
+            w as i32,
+            h as i32,
+        )?;
         let engine = engine_for(language)?;
         let result = engine.RecognizeAsync(&bitmap)?.join()?;
         let mut lines = Vec::new();
@@ -144,4 +148,3 @@ mod tests {
         assert!(working_scale(20_000, 1000, 10_000) <= 0.5);
     }
 }
-

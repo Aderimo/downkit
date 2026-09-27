@@ -36,6 +36,14 @@
 - Editable global shortcuts, level meters, recordings library with an in-app player, rename, delete to the Recycle Bin and MKV repair
 - A recording in progress is finished properly when the app quits
 
+**Screenshot**
+
+- Lightshot-style area selection on a frozen screen (Alt+Shift+S, also from the tray menu), whole-screen capture and an optional 3 / 5 / 10 s delay
+- Editor: arrow, rectangle, ellipse, pen, highlighter, text, numbered steps, blur, pixelate and crop, with undo / redo; drawn at full resolution
+- Copy, save or save as PNG / JPEG / WebP; "also copy when saving"; what Enter does is configurable
+- Offline text recognition (Windows OCR) and quick translate (Alt+Shift+T): English ↔ Turkish, drawn over the original text
+- "My screenshots" library with thumbnails: open in editor, copy, show in folder, delete to the Recycle Bin
+
 **Local files**
 
 - Convert (streams are copied instead of re-encoded when the codecs already fit)

@@ -19,6 +19,7 @@ const TRAY_ID: &str = "downkit";
 
 struct Labels<'a> {
     show: &'a str,
+    snip: &'a str,
     record: &'a str,
     replay: &'a str,
     quit: &'a str,
@@ -26,6 +27,7 @@ struct Labels<'a> {
 
 const TR: Labels<'static> = Labels {
     show: "DownKit'i göster",
+    snip: "Ekran görüntüsü al",
     record: "Kaydı başlat / durdur",
     replay: "Anlık tekrarı kaydet",
     quit: "Çıkış",
@@ -33,6 +35,7 @@ const TR: Labels<'static> = Labels {
 
 const EN: Labels<'static> = Labels {
     show: "Show DownKit",
+    snip: "Take screenshot",
     record: "Start / stop recording",
     replay: "Save instant replay",
     quit: "Quit",
@@ -49,10 +52,11 @@ fn current_labels(app: &AppHandle) -> Labels<'static> {
 
 fn build_menu<R: Runtime>(app: &AppHandle<R>, labels: &Labels) -> tauri::Result<Menu<R>> {
     let show = MenuItem::with_id(app, "show", labels.show, true, None::<&str>)?;
+    let snip = MenuItem::with_id(app, "snip", labels.snip, true, None::<&str>)?;
     let record = MenuItem::with_id(app, "record", labels.record, true, None::<&str>)?;
     let replay = MenuItem::with_id(app, "save_replay", labels.replay, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
-    Menu::with_items(app, &[&show, &record, &replay, &quit])
+    Menu::with_items(app, &[&show, &snip, &record, &replay, &quit])
 }
 
 fn show_main<R: Runtime>(app: &AppHandle<R>) {
@@ -87,6 +91,7 @@ pub fn force_quit(app: AppHandle) {
 pub fn tray_set_labels(
     app: AppHandle,
     show: String,
+    snip: String,
     record: String,
     replay: String,
     quit: String,
@@ -96,6 +101,7 @@ pub fn tray_set_labels(
         .ok_or_else(|| AppError::new("Tepsi simgesi bulunamadı.", None))?;
     let labels = Labels {
         show: &show,
+        snip: &snip,
         record: &record,
         replay: &replay,
         quit: &quit,
@@ -116,6 +122,9 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main(app),
+            "snip" => {
+                let _ = app.emit("tray-action", "snip");
+            }
             "record" => {
                 let _ = app.emit("tray-action", "toggle-record");
             }

@@ -12,7 +12,7 @@
 pub mod args;
 pub mod audio;
 mod denoise;
-mod library;
+pub(crate) mod library;
 pub mod mixer;
 mod pipeline;
 mod replay;
