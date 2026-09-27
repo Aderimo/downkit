@@ -46,7 +46,7 @@ describe("normalizeSettings", () => {
   test("pencere kapatma davranışı yalnızca bilinen değerleri kabul eder", () => {
     expect(normalizeSettings({ closeBehavior: "always" }).closeBehavior).toBe("always");
     expect(normalizeSettings({ closeBehavior: "patla" }).closeBehavior).toBe("whileBusy");
-    expect(normalizeSettings({}).groupByPlatform).toBe(false);
+    expect(normalizeSettings({}).groupByPlatform).toBe(true);
     expect(normalizeSettings({}).checkUpdates).toBe(true);
   });
 
