@@ -80,7 +80,9 @@ async fn download_deno(exe: &Path) -> Result<(), AppError> {
     let expected = parse_sha256(&String::from_utf8_lossy(&sums))
         .ok_or_else(|| download_error("sha256 özeti okunamadı".into()))?;
 
-    let zip_bytes = fetch(DENO_ZIP_URL).await?;
+    let zip_bytes = crate::tool_download::fetch("deno", DENO_ZIP_URL)
+        .await
+        .map_err(download_error)?;
     let actual = sha256_hex(&zip_bytes);
     if actual != expected {
         return Err(download_error(format!(

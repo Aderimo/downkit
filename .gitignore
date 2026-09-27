@@ -26,3 +26,8 @@ dist-ssr
 # Derlenmiş uygulama (paketle.bat üretir; GitHub Releases ile dağıtılır)
 /DownKit.exe
 /DownKit-Setup.exe
+/.demo/
+
+# Playwright arayüz testlerinin çıktıları
+/test-results/
+/playwright-report/

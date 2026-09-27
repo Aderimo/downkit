@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "hud",
+  "description": "Köşedeki bilgi penceresi: yalnızca olay dinler.",
+  "windows": ["hud"],
+  "permissions": ["core:default"]
+}

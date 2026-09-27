@@ -4,8 +4,7 @@ export type Route =
   | "convert"
   | "compress"
   | "resize"
-  | "prepare"
-  | "history"
   | "batch"
   | "editor"
+  | "record"
   | "settings";

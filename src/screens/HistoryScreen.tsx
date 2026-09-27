@@ -3,12 +3,12 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowDownToLine,
   FolderOpen,
-  History,
   Maximize2,
   Play,
   RefreshCw,
   RotateCcw,
   Scissors,
+  Clapperboard,
   Search,
   Shrink,
   Trash2,
@@ -30,14 +30,17 @@ const OPERATION_ICON: Record<HistoryOperation, typeof ArrowDownToLine> = {
   compress: Shrink,
   resize: Maximize2,
   trim: Scissors,
+  edit: Clapperboard,
 };
 
-interface HistoryScreenProps {
+interface HistoryPanelProps {
   /** Aramayı ana sayfada yeniden analiz eder. */
   onAnalyze: (url: string) => void;
 }
 
-export function HistoryScreen({ onAnalyze }: HistoryScreenProps) {
+/** Geçmiş listesi (dosyalar + aramalar). İndirme sayfasının "Geçmiş" sekmesinde
+ * kullanılır; kendi sayfa başlığı yoktur. */
+export function HistoryPanel({ onAnalyze }: HistoryPanelProps) {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<Tab>("files");
   const [query, setQuery] = useState("");
@@ -63,33 +66,31 @@ export function HistoryScreen({ onAnalyze }: HistoryScreenProps) {
       : "";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-6">
-      <header className="flex flex-wrap items-center gap-4">
-        <span className="dk-gradient flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-lg">
-          <History size={24} />
-        </span>
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold">{t("history.title")}</h1>
-          <p className="text-sm text-[var(--dk-text-muted)]">{t("history.subtitle")}</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div data-tour="history-tabs">
+          <Tabs
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              setConfirmClear(false);
+            }}
+            items={[
+              { value: "files", label: `${t("history.tabFiles")} (${history.entries.length})` },
+              {
+                value: "searches",
+                label: `${t("history.tabSearches")} (${searches.entries.length})`,
+              },
+            ]}
+          />
         </div>
-        <Tabs
-          value={tab}
-          onChange={(next) => {
-            setTab(next);
-            setConfirmClear(false);
-          }}
-          items={[
-            { value: "files", label: `${t("history.tabFiles")} (${history.entries.length})` },
-            {
-              value: "searches",
-              label: `${t("history.tabSearches")} (${searches.entries.length})`,
-            },
-          ]}
-        />
-      </header>
+      </div>
 
       <div className="flex items-center gap-3">
-        <label className="dk-card flex h-11 flex-1 items-center gap-2 px-3">
+        <label
+          className="dk-card flex h-11 flex-1 items-center gap-2 px-3"
+          data-tour="history-search"
+        >
           <Search size={17} className="text-[var(--dk-text-muted)]" />
           <input
             value={query}
@@ -197,7 +198,7 @@ export function HistoryScreen({ onAnalyze }: HistoryScreenProps) {
 
 function List({ empty, children }: { empty: string; children: ReactNode[] }) {
   return (
-    <section className="dk-card overflow-hidden">
+    <section className="dk-card overflow-hidden" data-tour="history-list">
       {children.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-[var(--dk-text-muted)]">{empty}</p>
       ) : (

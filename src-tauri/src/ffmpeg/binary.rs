@@ -1,7 +1,15 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+use tokio::sync::Mutex;
 
 use crate::error::AppError;
-use crate::paths;
+use crate::{paths, tool_download};
+
+fn download_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 const FFMPEG_ZIP_URL: &str =
     "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip";
@@ -17,25 +25,21 @@ pub async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<PathBuf, AppError> 
     if ffmpeg_exe.exists() && ffprobe_exe.exists() {
         return Ok(dir);
     }
-
-    let response = reqwest::get(FFMPEG_ZIP_URL).await.map_err(|e| {
-        AppError::new(
-            "FFmpeg indirilemedi. İnternet bağlantınızı kontrol edin.",
-            Some(e.to_string()),
-        )
-    })?;
-
-    if !response.status().is_success() {
-        return Err(AppError::new(
-            "FFmpeg indirilemedi. İnternet bağlantınızı kontrol edin.",
-            Some(format!("HTTP {}", response.status())),
-        ));
+    // Birden çok iş aynı anda isterse FFmpeg yalnızca bir kez iner; diğerleri bekler.
+    let _guard = download_lock().lock().await;
+    if ffmpeg_exe.exists() && ffprobe_exe.exists() {
+        return Ok(dir);
     }
 
-    let bytes = response
-        .bytes()
+    let bytes = tool_download::fetch("ffmpeg", FFMPEG_ZIP_URL)
         .await
-        .map_err(|e| AppError::new("FFmpeg indirilemedi.", Some(e.to_string())))?;
+        .map_err(|detail| {
+            AppError::coded(
+                "toolDownloadFailed",
+                "FFmpeg indirilemedi. İnternet bağlantınızı kontrol edin.",
+                Some(detail),
+            )
+        })?;
 
     let dest = dir.clone();
     tokio::task::spawn_blocking(move || extract_ffmpeg_binaries(&bytes, &dest))
@@ -66,9 +70,15 @@ fn extract_ffmpeg_binaries(zip_bytes: &[u8], dest_dir: &Path) -> Result<(), AppE
         };
 
         if let Some(target_name) = target_name {
-            let mut out = std::fs::File::create(dest_dir.join(target_name))
+            // Önce geçici dosyaya: çıkarma yarıda kalırsa bozuk bir ffmpeg.exe
+            // "var" sanılıp her işte hata vermesin.
+            let tmp = dest_dir.join(format!("{target_name}.tmp"));
+            let mut out = std::fs::File::create(&tmp)
                 .map_err(|e| AppError::new("FFmpeg diske yazılamadı.", Some(e.to_string())))?;
             std::io::copy(&mut entry, &mut out)
+                .map_err(|e| AppError::new("FFmpeg diske yazılamadı.", Some(e.to_string())))?;
+            drop(out);
+            std::fs::rename(&tmp, dest_dir.join(target_name))
                 .map_err(|e| AppError::new("FFmpeg diske yazılamadı.", Some(e.to_string())))?;
             found += 1;
         }

@@ -81,8 +81,10 @@ export function LocalToolShell({
 
       {file.phase === "ready" && file.info ? (
         <>
-          <LocalFileCard info={file.info} onChange={() => void changeFile()} />
-          <section className="dk-card space-y-5 p-5">
+          <div data-tour="local-file">
+            <LocalFileCard info={file.info} onChange={() => void changeFile()} />
+          </div>
+          <section className="dk-card space-y-5 p-5" data-tour="local-options">
             {renderOptions(file.info)}
             <div className="flex flex-wrap items-center gap-4 border-t border-[var(--dk-border)] pt-4">
               <div className="min-w-0 flex-1 space-y-1 text-sm">
@@ -105,6 +107,7 @@ export function LocalToolShell({
               </div>
               <Button
                 size="lg"
+                data-tour="local-start"
                 icon={startIcon}
                 disabled={!canStart}
                 onClick={() => file.info && void start(file.info)}
@@ -116,7 +119,9 @@ export function LocalToolShell({
           </section>
         </>
       ) : (
-        <DropZone onFile={file.load} busy={file.phase === "probing"} />
+        <div data-tour="local-drop">
+          <DropZone onFile={file.load} busy={file.phase === "probing"} />
+        </div>
       )}
 
       {lastJob ? (

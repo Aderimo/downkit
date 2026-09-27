@@ -229,7 +229,7 @@ function BasicTab({ metadata, options, onChange }: OptionsPanelProps) {
         {options.shrink && !audio ? (
           <div className="mt-3 space-y-2">
             <div className="flex gap-1.5 text-xs">
-              {(["high", "balanced", "small"] as CompressPreset[]).map((preset) => (
+              {(["high", "balanced", "small", "tiny"] as CompressPreset[]).map((preset) => (
                 <button
                   key={preset}
                   type="button"
@@ -441,6 +441,7 @@ function StartRow({
       </div>
       <Button
         size="lg"
+        data-tour="home-start"
         icon={startIcon}
         disabled={!canStart}
         onClick={onStart}

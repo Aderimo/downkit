@@ -105,6 +105,13 @@ const RULES: &[(&[&str], &str, &str)] = &[
         "network",
         "Platforma bağlanılamadı. İnternet bağlantınızı kontrol edin.",
     ),
+    // Bölüm indirmede yt-dlp akışı ffmpeg'e okutur; ffmpeg'in asıl hatası (çoğunlukla
+    // YouTube'un geçici 403'ü) bize ulaşmaz, yalnızca bu satır gelir.
+    (
+        &["ffmpeg exited with code"],
+        "streamInterrupted",
+        "Platform bağlantıyı yarıda kesti (çoğunlukla geçicidir). Tekrar deneyin.",
+    ),
 ];
 
 /// yt-dlp'nin bilinen hata çıktılarını kullanıcının anlayacağı açıklamalara çevirir.
@@ -124,6 +131,15 @@ mod tests {
 
     fn code(stderr: &str) -> Option<&'static str> {
         friendly(stderr).map(|f| f.code)
+    }
+
+    #[test]
+    fn bolum_indirmede_ffmpeg_kopmasi_gecici_sayilir() {
+        let stderr = "\n\nERROR: ffmpeg exited with code 3436169992\n";
+        assert_eq!(code(stderr), Some("streamInterrupted"));
+        // Sebep görünüyorsa daha özel kural kazanır.
+        let with_cause = "HTTP error 403 Forbidden\nERROR: ffmpeg exited with code 1";
+        assert_eq!(code(with_cause), Some("forbidden"));
     }
 
     #[test]

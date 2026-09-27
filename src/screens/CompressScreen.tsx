@@ -5,7 +5,9 @@ import { useCompressFile } from "../store/localFileStore";
 import { enqueueLocal } from "../lib/jobEngine";
 import { formatBytes } from "../lib/format";
 import {
+  FPS_LIMITS,
   PRESET_MAX_SHORT_SIDE,
+  RESOLUTION_LIMITS,
   estimateOutputSizeBytes,
   resolutionLabel,
   scaledSize,
@@ -17,6 +19,7 @@ import type { LocalMediaInfo } from "../types/convert";
 import { LocalToolShell } from "../components/LocalToolShell";
 import { ChoiceCards } from "../components/ui/ChoiceCards";
 import { Tabs } from "../components/ui/Tabs";
+import { Select } from "../components/ui/Select";
 
 const QUICK_TARGETS = [8, 10, 25, 50, 100];
 
@@ -25,6 +28,9 @@ export function CompressScreen() {
   const [mode, setMode] = useState<CompressMode>("preset");
   const [preset, setPreset] = useState<CompressPreset>("balanced");
   const [targetMb, setTargetMb] = useState<number | null>(null);
+  // Gelişmiş: 0 = otomatik (seviyeye ya da hedef boyuta göre).
+  const [maxShortSide, setMaxShortSide] = useState(0);
+  const [maxFps, setMaxFps] = useState(0);
 
   function estimate(info: LocalMediaInfo): number | null {
     if (mode !== "targetSize" || !targetMb || !info.durationSeconds) return null;
@@ -35,15 +41,17 @@ export function CompressScreen() {
   /** Çıkacak çözünürlük: "1440p → 720p"; küçültme yoksa yalnızca mevcut çözünürlük. */
   function resolutionNote(info: LocalMediaInfo): string | null {
     if (!info.width || !info.height) return null;
-    const maxShortSide =
-      mode === "preset"
-        ? PRESET_MAX_SHORT_SIDE[preset]
-        : targetMb && info.durationSeconds
-          ? targetPlan(targetMb * 1024 * 1024, info.durationSeconds).maxShortSide
-          : null;
-    if (maxShortSide === null) return null;
+    const limit =
+      maxShortSide > 0
+        ? maxShortSide
+        : mode === "preset"
+          ? PRESET_MAX_SHORT_SIDE[preset]
+          : targetMb && info.durationSeconds
+            ? targetPlan(targetMb * 1024 * 1024, info.durationSeconds).maxShortSide
+            : null;
+    if (limit === null) return null;
     const from = resolutionLabel(info.width, info.height);
-    const scaled = scaledSize(info.width, info.height, maxShortSide);
+    const scaled = scaledSize(info.width, info.height, limit);
     return scaled
       ? t("compress.resolutionDown", { from, to: resolutionLabel(scaled.width, scaled.height) })
       : t("compress.resolutionKept", { resolution: from });
@@ -87,7 +95,7 @@ export function CompressScreen() {
               <ChoiceCards
                 value={preset}
                 onChange={setPreset}
-                columns={3}
+                columns={2}
                 choices={[
                   {
                     value: "high",
@@ -103,6 +111,11 @@ export function CompressScreen() {
                     value: "small",
                     title: t("compress.presetSmall"),
                     desc: t("compress.presetSmallDesc"),
+                  },
+                  {
+                    value: "tiny",
+                    title: t("compress.presetTiny"),
+                    desc: t("compress.presetTinyDesc"),
                   },
                 ]}
               />
@@ -154,6 +167,38 @@ export function CompressScreen() {
                 ) : null}
               </div>
             )}
+            <div className="space-y-2 rounded-xl border border-[var(--dk-border)] p-3">
+              <div>
+                <p className="text-sm font-medium text-white">{t("compress.advanced")}</p>
+                <p className="text-xs text-[var(--dk-text-muted)]">{t("compress.advancedHint")}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs text-[var(--dk-text-muted)]">
+                  <span>{t("compress.resolutionLimit")}</span>
+                  <Select
+                    value={maxShortSide}
+                    onChange={setMaxShortSide}
+                    ariaLabel={t("compress.resolutionLimit")}
+                    options={RESOLUTION_LIMITS.map((v) => ({
+                      value: v,
+                      label: v === 0 ? t("compress.auto") : `${v}p`,
+                    }))}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-[var(--dk-text-muted)]">
+                  <span>{t("compress.fpsLimit")}</span>
+                  <Select
+                    value={maxFps}
+                    onChange={setMaxFps}
+                    ariaLabel={t("compress.fpsLimit")}
+                    options={FPS_LIMITS.map((v) => ({
+                      value: v,
+                      label: v === 0 ? t("compress.auto") : `${v} fps`,
+                    }))}
+                  />
+                </label>
+              </div>
+            </div>
           </>
         );
       }}
@@ -166,6 +211,8 @@ export function CompressScreen() {
             mode,
             targetSizeMb: mode === "targetSize" ? targetMb : null,
             preset: mode === "preset" ? preset : null,
+            maxShortSide: maxShortSide || null,
+            maxFps: maxFps || null,
           },
           info,
         )

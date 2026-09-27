@@ -1,3 +1,5 @@
+import type { Chapter } from "./media";
+
 export interface LocalMediaInfo {
   fileName: string;
   filePath: string;
@@ -10,6 +12,8 @@ export interface LocalMediaInfo {
   videoCodec: string | null;
   audioCodec: string | null;
   container: string;
+  /** MKV/MP4 bölüm işaretleri; yoksa boş. */
+  chapters: Chapter[];
 }
 
 export interface ConvertRequest {

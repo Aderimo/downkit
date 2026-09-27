@@ -6,15 +6,14 @@
   "nav": {
     "sectionTools": "Quick tools",
     "home": "Home",
-    "downloads": "Downloads",
+    "downloads": "Downloads & History",
     "convert": "Convert",
     "compress": "Compress",
     "resize": "Resize",
-    "prepareForPlatform": "Prepare for platform",
-    "history": "History",
     "batch": "Batch",
-    "videoEditor": "Trim video",
-    "settings": "Settings"
+    "videoEditor": "Clip editor",
+    "settings": "Settings",
+    "record": "Screen recorder"
   },
   "status": {
     "ready": "Ready",
@@ -46,12 +45,12 @@
     "invalid": "This doesn't look like a valid link."
   },
   "media": {
-    "preview": "Preview",
     "openSource": "Open source",
     "clear": "Clear",
     "close": "Close",
     "views": "{{views}} views",
-    "previewUnavailable": "This video can't be played inside the app (the platform restricts direct playback). You can open it at its source."
+    "openInEditor": "Open in editor",
+    "editorHint": "Watch without downloading, cut scenes, download only those."
   },
   "actions": {
     "downloadTitle": "Download video / audio",
@@ -118,6 +117,7 @@
     "m4aDesc": "Better quality",
     "wavDesc": "Lossless",
     "aacDesc": "Balanced",
+    "gifDesc": "Animated image, no sound; for short clips",
     "flacDesc": "Lossless, smaller",
     "quickTitle": "Quick presets",
     "quickSubtitle": "Pick one and start right away",
@@ -168,19 +168,25 @@
     "notifyFailed": "Failed",
     "notice": {
       "subtitlesFailed": "Some subtitles unavailable (platform limit)",
-      "notSmaller": "The file was already efficiently compressed and did not get smaller"
+      "notSmaller": "The file was already efficiently compressed and did not get smaller",
+      "sponsorsRemoved": "Sponsor segments removed (SponsorBlock)"
     },
     "interrupted": "Stopped because the app was closed. Try again.",
     "resumeAll": "Resume all ({{count}})",
-    "stageTrimming": "Trimming"
+    "stageTrimming": "Trimming",
+    "stageClips": "Downloading scenes",
+    "stageExporting": "Exporting",
+    "stageMergingClips": "Merging clips"
   },
   "downloads": {
-    "title": "Downloads",
-    "subtitle": "Every download and conversion in this session, with live progress.",
+    "title": "Downloads & History",
+    "subtitle": "Running jobs progress live in the queue; finished files and the links you searched are in the History tab.",
+    "tabQueue": "Queue",
+    "tabHistory": "History",
     "filterAll": "All",
     "filterActive": "Active",
     "filterFinished": "Finished",
-    "sessionNote": "Finished files are also saved in History."
+    "sessionNote": "Finished files are also saved in the History tab."
   },
   "batch": {
     "subtitle": "Paste several links and add them all to the queue at once.",
@@ -227,7 +233,9 @@
     "presetBalanced": "Balanced",
     "presetBalancedDesc": "Up to 1080p, good size/quality balance",
     "presetSmall": "Small file",
-    "presetSmallDesc": "720p and at most 30 fps, smallest file",
+    "presetSmallDesc": "720p and at most 30 fps, small file",
+    "presetTiny": "Tiny file",
+    "presetTinyDesc": "480p and 24 fps; smallest and fastest",
     "targetSizeLabel": "Custom (MB)",
     "original": "Original",
     "estimated": "Estimated",
@@ -237,7 +245,12 @@
     "summaryTarget": "{{from}} → ~{{to}} (~{{reduction}}% smaller)",
     "compressButton": "Compress",
     "resolutionDown": "Picture {{from}} → {{to}}",
-    "resolutionKept": "Resolution kept ({{resolution}})"
+    "resolutionKept": "Resolution kept ({{resolution}})",
+    "advanced": "Advanced (optional)",
+    "advancedHint": "Lowering the resolution or frame rate makes the file even smaller and speeds up compression. Videos are never upscaled.",
+    "resolutionLimit": "Maximum resolution",
+    "fpsLimit": "Maximum frame rate",
+    "auto": "Automatic"
   },
   "resize": {
     "title": "Resize",
@@ -263,11 +276,6 @@
     "summary": "{{from}} → {{to}}",
     "resizeButton": "Resize"
   },
-  "prepare": {
-    "title": "Prepare for platform",
-    "subtitle": "Turn a video into the exact size TikTok, Reels, Shorts or Instagram expects.",
-    "button": "Prepare"
-  },
   "history": {
     "title": "History",
     "subtitle": "Everything you've downloaded or processed, and the links you searched.",
@@ -287,7 +295,8 @@
       "convert": "Convert",
       "compress": "Compress",
       "resize": "Resize",
-      "trim": "Trim"
+      "trim": "Trim",
+      "edit": "Clip edit"
     }
   },
   "error": {
@@ -321,7 +330,7 @@
     "updating": "Updating...",
     "updateFailed": "Couldn't reach yt-dlp. Check your internet connection.",
     "ytdlpHint": "If a platform suddenly stops working, updating yt-dlp usually fixes it.",
-    "license": "Free and open source (MIT). Uses yt-dlp and FFmpeg.",
+    "license": "© 2026 aderimo. Free and open source (MIT); the DownKit name and duck logo belong to aderimo. Uses yt-dlp and FFmpeg.",
     "disclaimer": "DownKit doesn't break DRM or bypass access restrictions. Only download content you have the right to download or that the platform's terms allow.",
     "subtitle": "Your preferences are stored on this computer.",
     "reset": "Restore defaults",
@@ -379,7 +388,48 @@
     "checkUpdatesHint": "Lets you know in the status bar; never downloads anything on its own.",
     "donateTitle": "Support DownKit",
     "donateHint": "DownKit is completely free and will stay that way. If you like, a voluntary donation helps its development.",
-    "donateButton": "Donate"
+    "donateButton": "Donate",
+    "tutorial": "Welcome tour",
+    "tutorialHint": "Shows step by step how the app works.",
+    "tutorialStart": "Start the tour",
+    "tutorialOnLaunch": "Show the tour when the app starts",
+    "pageTours": "Show page tours on first visit",
+    "resetTours": "Reset page tours",
+    "resetToursDone": "Done: every page will be explained again the first time you open it.",
+    "browser": "Send from your browser",
+    "browserHint": "Add a bookmark to send a video you're watching in your browser to DownKit in one click.",
+    "bookmark": {
+      "open": "Send to DownKit (analyzes on Home)",
+      "edit": "Open in editor (watch without downloading, cut)"
+    },
+    "copy": "Copy",
+    "copied": "Copied",
+    "bookmarkStep1": "Copy the code; right-click your browser's bookmarks bar → Add page.",
+    "bookmarkStep2": "Name it \"DownKit\", paste the code into the address (URL) field and save.",
+    "bookmarkStep3": "On a video page, click the bookmark; if the browser asks, choose \"Open DownKit\".",
+    "sponsorBlock": "Remove sponsor segments on YouTube",
+    "sponsorBlockHint": "Sponsor, self-promotion and \"subscribe\" parts marked by the SponsorBlock community are cut out. A short hash derived from the video ID is sent to sponsor.ajay.app for this.",
+    "logFolder": "Error log",
+    "logFolderHint": "Useful when reporting a problem; \"Report this\" adds the last lines to the report by itself.",
+    "openLog": "Open log folder",
+    "theme": "Theme",
+    "themeHint": "Pick a color pack; it applies right away.",
+    "themesDark": "Dark themes",
+    "themesLight": "Light themes",
+    "folders": "Folders",
+    "foldersHint": "Where should downloads and recordings go? Pick once, it stays that way.",
+    "recordingsFolder": "Recordings folder (screen recording and instant replay)",
+    "downloadsFolderTitle": "Downloads folder (from links)",
+    "aboutText": "Paste a link and download the video or just the sound; cut only the scene you like, record your screen, turn it into TikTok or Shorts size in one click. No ads, no account, free.",
+    "openSourceTitle": "Open source",
+    "creditDownKit": "This app; the source code is on GitHub",
+    "creditYtdlp": "Downloading video and audio from links",
+    "creditFfmpeg": "Converting, cutting, merging, screen recording",
+    "creditDeno": "JavaScript runtime YouTube requires",
+    "creditRnnoise": "Microphone noise suppression",
+    "responsibleTitle": "Responsible use",
+    "themesShowAll": "All themes",
+    "themesHide": "Hide"
   },
   "backendError": {
     "botCheck": "The platform wants a bot check. Wait a bit and try again, or update yt-dlp in Settings.",
@@ -415,7 +465,23 @@
     "resizeFailed": "Resizing couldn't finish. Try again.",
     "channelOffline": "This channel is not live right now. Try a link to one of its past broadcasts (VODs) or clips.",
     "trimFailed": "Trimming couldn't finish. Try again.",
-    "invalidRange": "The end time must be after the start time."
+    "invalidRange": "The end time must be after the start time.",
+    "editFailed": "The export could not be completed. Try again.",
+    "tooManyClips": "You can export up to 50 clips at once.",
+    "noAudio": "This file has no audio.",
+    "previewExpired": "The preview has expired. Open the source again.",
+    "previewUnavailable": "The preview could not be started.",
+    "previewCopyFailed": "The preview copy could not be created.",
+    "unsupportedFile": "This file cannot be opened in the editor.",
+    "noThumbnails": "Frames cannot be loaded for this source.",
+    "streamInterrupted": "The platform cut the connection midway (usually temporary). Try again.",
+    "recorderFailed": "The recording couldn't be completed.",
+    "captureUnavailable": "The screen couldn't be captured. The chosen screen or window may be closed; Windows 10 (1903) or newer is required.",
+    "replayEmpty": "There's nothing to save yet; try again in a few seconds.",
+    "nameTaken": "A recording with this name already exists.",
+    "repairFailed": "The recording couldn't be repaired; the file may be damaged.",
+    "recorderSourceMissing": "The chosen window isn't open anymore. Refresh the source list and pick another screen or window.",
+    "replayJustSaved": "Just saved; try again in a few seconds."
   },
   "playlist": {
     "badge": "Playlist",
@@ -434,7 +500,9 @@
     "madeBy": "Made by",
     "discord": "Join our Discord",
     "donate": "Support",
-    "donateHint": "DownKit is free; if you like, you can support it with a voluntary donation."
+    "donateHint": "DownKit is free; if you like, you can support it with a voluntary donation.",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu"
   },
   "section": {
     "title": "Download only part of the video",
@@ -442,29 +510,23 @@
     "start": "Start",
     "end": "End",
     "length": "Clip: {{length}}",
-    "pickInPreview": "Pick in preview",
-    "markHint": "Play the video and mark the moment you want.",
-    "markStart": "Start = now",
-    "markEnd": "End = now",
-    "playSection": "Play clip"
+    "pickInEditor": "Pick in editor"
   },
   "trim": {
-    "title": "Trim video",
-    "subtitle": "Cut the part you want out of a video on your computer into a new file. The original is never changed.",
-    "button": "Trim",
-    "summary": "{{from}} – {{to}} · {{length}}",
     "fast": "Fast",
     "fastDesc": "Takes seconds with no quality loss; the cut may shift by a few seconds",
     "precise": "Frame-accurate",
-    "preciseDesc": "Cuts on the exact frame; takes a bit longer",
-    "noDuration": "This file's length couldn't be read, so it can't be trimmed."
+    "preciseDesc": "Cuts on the exact frame; takes a bit longer"
   },
   "tray": {
     "show": "Show DownKit",
     "quit": "Quit",
     "hiddenTitle": "DownKit is still running",
     "hiddenBusy": "Jobs are still running; you'll be notified when they finish. Click the duck in the tray to open it again.",
-    "hiddenIdle": "Click the duck in the tray to open it again. To quit completely: right-click > Quit."
+    "hiddenIdle": "Click the duck in the tray to open it again. To quit completely: right-click > Quit.",
+    "record": "Start / stop recording",
+    "saveReplay": "Save instant replay",
+    "hiddenRecording": "Recording / instant replay is running. To quit, right-click the duck in the tray > Quit."
   },
   "update": {
     "available": "New version: v{{version}}",
@@ -472,9 +534,907 @@
     "checkNow": "Check",
     "checking": "Checking...",
     "upToDate": "Up to date (v{{version}})",
-    "failed": "Couldn't check. Check your internet connection."
+    "failed": "Couldn't check. Check your internet connection.",
+    "install": "Update to v{{version}}",
+    "installing": "Updating… {{percent}}%",
+    "installHint": "Downloads, installs and restarts DownKit."
   },
   "common": {
     "percent": "{{value}}%"
+  },
+  "editor": {
+    "title": "Clip editor",
+    "subtitle": "Watch a video without downloading it, pick the scenes you want and download or cut only those parts.",
+    "fromLink": "Open a link",
+    "or": "or",
+    "feature1Title": "Watch without downloading",
+    "feature1Desc": "Play an hour-long video without downloading it and jump to the scene.",
+    "feature2Title": "Multiple clips",
+    "feature2Desc": "Set in (I) and out (O) points, add clips and reorder them.",
+    "feature3Title": "Only the selected parts",
+    "feature3Desc": "Only the clips are downloaded: video or audio only, separate or one file.",
+    "playlistNotSupported": "This is a playlist. Open the link of a single video in the editor.",
+    "noDuration": "The length of this source is unknown (it may be a live stream), so it cannot be edited.",
+    "localFile": "File on this computer",
+    "notDownloaded": "not downloaded, playing from the internet",
+    "changeSource": "Change source",
+    "shortcuts": "Shortcuts",
+    "localUnplayable": "This file's format cannot be played in the preview. A lightweight preview copy can be created; exports still use the original file.",
+    "makeCopy": "Create preview copy",
+    "copyProgress": "Preparing preview copy… {{percent}}%",
+    "copyFailed": "The preview copy could not be created.",
+    "remoteFailed": "The preview could not be opened (the link may have expired or access may be restricted). You can still pick scenes on the timeline.",
+    "noPreview": "This source cannot be played inside the app. You can still pick scenes on the timeline and download them.",
+    "retryPreview": "Try again",
+    "play": "Play",
+    "pause": "Pause",
+    "toStart": "Go to start",
+    "toEnd": "Go to end",
+    "back5": "Back 5 s",
+    "forward5": "Forward 5 s",
+    "buffering": "loading…",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "volume": "Volume",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomFit": "Show all",
+    "clipName": "Clip {{n}}",
+    "clipNameLabel": "Clip name",
+    "playClip": "Play clip",
+    "export": "Export",
+    "outputVideo": "Video",
+    "outputAudio": "Audio",
+    "bitrate": "Audio quality",
+    "cutMode": "Cut",
+    "mergeClips": "Merge into one file",
+    "mergeOn_one": "One part",
+    "mergeOn_other": "{{count}} parts become one file, in order",
+    "mergeOff_one": "One part",
+    "mergeOff_other": "{{count}} parts become {{count}} separate files",
+    "fileName": "File name",
+    "namePrefix": "File name (for unnamed clips)",
+    "nothingToExport": "No clips left on the timeline. Undo (Ctrl+Z) or use \"Put the video back on the timeline\" on the Clip tab.",
+    "exportSummary_one": "{{count}} part · {{total}}",
+    "exportSummary_other": "{{count}} parts · {{total}} total",
+    "onlySelectedDownloaded": "Only the selected parts are downloaded, not the whole {{full}} video.",
+    "download": "Download selection",
+    "downloadSeparate_one": "Download {{count}} part",
+    "downloadSeparate_other": "Download {{count}} parts separately",
+    "exportButton": "Export",
+    "exportSeparate_one": "Export {{count}} part",
+    "exportSeparate_other": "Export {{count}} parts separately",
+    "jobClips_one": "{{count}} part",
+    "jobClips_other": "{{count}} parts",
+    "changeSourceConfirm_one": "Discard {{count}} clip and change",
+    "changeSourceConfirm_other": "Discard {{count}} clips and change",
+    "openLink": "Open",
+    "newLayerHint": "Drag a clip here: an upper layer plays instead of the one below",
+    "undo": "Undo",
+    "redo": "Redo",
+    "split": "Split",
+    "deleteClip": "Delete",
+    "duplicate": "Duplicate",
+    "magnet": "Magnet: edges snap to the playhead and other clips (hold Alt to bypass)",
+    "keepOnly": "Keep only this",
+    "clipSpeed": "Speed",
+    "speedHint": "Speeding up makes the clip shorter, slowing down makes it longer. Audio follows.",
+    "clipSource": "In the source",
+    "clipOnTimeline": "On the timeline",
+    "clipLength": "Length",
+    "clipLayer": "Layer",
+    "multiSelected": "{{count}} clips selected",
+    "summaryTitle": "Timeline",
+    "summaryText_one": "{{count}} clip · output {{output}}",
+    "summaryText_other": "{{count}} clips · output {{output}}",
+    "gapsSkipped": "Gaps between clips become black screen. Don't want that? Use \"Close gaps\" on the Clip tab.",
+    "closeGaps": "Close gaps",
+    "addWholeSource": "Put the video back on the timeline",
+    "howtoTitle": "How it works",
+    "howtoSplit": "Move the playhead (white line) to the start of the scene and press {{key}}; move it to the end and press {{key}} again. The part in between becomes its own clip.",
+    "howtoDelete": "Click a clip you don't want and press {{key}}. The gap left behind turns into black screen on export; \"Close gaps\" pulls the clips together.",
+    "howtoTrim": "Drag a clip's left or right edge: shorten it, or lengthen it again if the source has more.",
+    "howtoLayers": "Drag a clip by its middle to move it; drop it on the empty row above and it goes to an upper layer, playing instead of what's below.",
+    "howtoMenu": "Right-click: play, split, duplicate, keep only this, speed.",
+    "resumeTitle": "Last project",
+    "resumeMeta_one": "{{count}} clip · {{date}}",
+    "resumeMeta_other": "{{count}} clips · {{date}}",
+    "resumeForget": "Forget",
+    "resumeContinue": "Continue",
+    "tabClip": "Clip",
+    "tabDownload": "Download",
+    "gapPreview": "Gap: no clip here. This part becomes black screen on export.",
+    "previewSpeed": "Preview speed",
+    "fullscreen": "Full screen",
+    "outputGif": "GIF",
+    "gifFps": "Frame rate",
+    "gifWidth": "Width",
+    "gifHint": "GIFs have no sound. Keep it short: under 10 seconds works best for chat apps.",
+    "gifLong": "This GIF is {{seconds}} seconds long and may be a very large file. Try shortening it or lowering the width.",
+    "chapters_one": "Chapters ({{count}})",
+    "chapters_other": "Chapters ({{count}})",
+    "splitChapters": "Split by chapters",
+    "splitChaptersHint": "Every chapter becomes its own clip named after it; select the ones you don't want and delete them.",
+    "chapterUntitled": "Chapter {{n}}",
+    "chapterRemoved": "This chapter was removed from the timeline",
+    "clipVolume": "Volume",
+    "muteClip": "Mute",
+    "unmuteClip": "Unmute",
+    "fades": "Fade (in / out)",
+    "fadeIn": "Fade in from black",
+    "fadeOut": "Fade out to black",
+    "fadeNone": "None",
+    "fadeSeconds": "{{n}} s",
+    "fadeHint": "The picture fades from or to black and the sound fades with it.",
+    "frame": "Frame",
+    "frameOption": {
+      "original": "Original",
+      "vertical": "Vertical (TikTok, Reels, Shorts)",
+      "square": "Square (Instagram post)",
+      "portrait": "Portrait post (Instagram)",
+      "landscape": "Landscape (YouTube)"
+    },
+    "frameCrop": "Crop (fill)",
+    "frameFit": "Fit (bars)",
+    "framePosition": "Crop position",
+    "frameCropHint": "You can also drag the yellow frame in the preview; everything outside it is cut.",
+    "frameFitHint": "The whole picture stays; empty edges become black.",
+    "addText": "Add text",
+    "textDefault": "Your text",
+    "textTitle": "Text",
+    "textContent": "Text",
+    "textSize": "Size",
+    "textColor": "Color",
+    "textBox": "Background",
+    "textBold": "Bold",
+    "textPosition": "Position",
+    "pos": {
+      "top": "Top",
+      "middle": "Middle",
+      "bottom": "Bottom"
+    },
+    "deleteText": "Delete text",
+    "editText": "Edit text",
+    "textHint": "Drag the text in the preview to place it. Set when it shows with the purple block on the timeline: drag its edges to lengthen or shorten it.",
+    "textRow": "Text row",
+    "trackMute": "Mute this layer",
+    "trackUnmute": "Unmute this layer",
+    "trackHide": "Hide this layer (the one below shows)",
+    "trackShow": "Show this layer",
+    "exportDialogHint": "Pick the format and quality; your clips are merged into one file. For a vertical frame, close this and drag the kept area in the preview.",
+    "toolClip": "Clip",
+    "toolFilters": "Filters",
+    "toolColor": "Color",
+    "toolEffects": "Effects",
+    "toolText": "Text",
+    "toolTransitions": "Transitions",
+    "toolSubtitles": "Subtitles",
+    "toolPresets": "Presets",
+    "lookPickClip": "No clip under the playhead. Move the playhead onto a clip or select one on the timeline; select several clips to change them all at once.",
+    "lookTarget": "Applies to: {{name}}",
+    "filtersHint": "One-click color mood: black & white, sepia, cinema… You see it in the preview right away.",
+    "colorHint": "Fine-tune light and color. The middle value is the video as it is.",
+    "effectsHint": "Blur, mirror or darken the edges.",
+    "lookApplyAll": "Apply to all clips",
+    "lookReset": "Reset",
+    "brightness": "Brightness",
+    "contrast": "Contrast",
+    "saturation": "Saturation",
+    "temperature": "Temperature (cool ↔ warm)",
+    "blur": "Blur",
+    "mirror": "Mirror (flip left-right)",
+    "vignette": "Darken the edges",
+    "filter": {
+      "none": "None",
+      "bw": "Black & white",
+      "sepia": "Sepia",
+      "vivid": "Vivid",
+      "cool": "Cool",
+      "warm": "Warm",
+      "cinema": "Cinema",
+      "faded": "Faded"
+    },
+    "templatesHint": "Click a template to add text where the playhead is. Then change its words, position and length.",
+    "template": {
+      "title": {
+        "name": "Big title",
+        "sample": "Title"
+      },
+      "caption": {
+        "name": "Caption",
+        "sample": "Your caption here"
+      },
+      "label": {
+        "name": "Corner label",
+        "sample": "LIVE"
+      },
+      "highlight": {
+        "name": "Highlight",
+        "sample": "That moment!"
+      }
+    },
+    "transitionsHint": "Drag a card onto the timeline. Drop it where two clips meet (e.g. where you split with S) and the transition happens at that cut; drop it in the middle of a clip and it's added to its start and end. Clicking a card applies it to the selected clip. Change the length on the Clip panel.",
+    "transitionsPick": "Select a clip on the timeline first (otherwise it goes on the clip under the playhead).",
+    "transitionsDragHint": "Drag onto a cut or a clip; click to add it to the selected clip",
+    "transition": {
+      "fadeBlack": "Fade (black)",
+      "fadeWhite": "Fade to white",
+      "fadeIn": "Soft start",
+      "fadeOut": "Soft end"
+    },
+    "subtitlesHint": "Have a .srt file? Import it: every line becomes text on the timeline and is burned into the video on export.",
+    "subtitlesBox": "Put a translucent box behind the text",
+    "subtitlesLarge": "Large text",
+    "subtitlesImport": "Choose a .srt file",
+    "subtitlesImported": "{{count}} lines added.",
+    "subtitlesEmpty": "No readable subtitle lines were found in this file.",
+    "subtitlesFailed": "Couldn't open the subtitle file.",
+    "presetsHint": "Save a look or text style you like under a name and reuse it in one click. Export it as a file to share with friends.",
+    "presetFromText": "The selected text's style will be saved.",
+    "presetFromLook": "The selected clip's look (filter, color, effects) will be saved.",
+    "presetNothing": "Select a clip with a changed look, or a text, to save it.",
+    "presetName": "Preset name",
+    "presetSave": "Save",
+    "presetSaved": "Saved.",
+    "presetsEmpty": "No presets yet.",
+    "presetApply": "Apply",
+    "presetDelete": "Delete",
+    "presetKindLook": "look",
+    "presetKindText": "text",
+    "presetsImport": "Import",
+    "presetsExport": "Export",
+    "presetsExported": "Presets saved to a file.",
+    "presetsImported": "{{count}} presets added.",
+    "presetsNone": "No presets were found in the file.",
+    "presetsFailed": "Couldn't process the preset file."
+  },
+  "tutorial": {
+    "label": "Welcome tour",
+    "stepOf": "Step {{step}} of {{total}}",
+    "close": "Close the tour",
+    "skip": "Skip for now",
+    "start": "Start the tour",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Let's go",
+    "dontShowAgain": "Don't show again",
+    "goToStep": "Go to step {{step}}",
+    "welcome": {
+      "title": "Welcome to DownKit",
+      "body": "Download video and audio from a link, cut just the scene you want, convert, shrink and prepare it for any platform — <b>completely free</b>, no ads, no account.",
+      "tip": "Let me show you around in a minute. You can skip now; the tour is always available in Settings."
+    },
+    "link": {
+      "title": "Paste a link, download",
+      "body": "Copy a video link and press <k>Ctrl</k> + <k>V</k> on <b>Home</b>. You'll see the title, length and estimated size; pick a format (MP4, MP3…) and quality, then press <b>Download</b>.",
+      "tip": "Only need part of the video? Turn on <b>Download only part of the video</b>; the rest is never downloaded."
+    },
+    "editor": {
+      "title": "Clip editor",
+      "body": "Open a video link or a file from your computer and <b>watch without downloading</b>. Split out the parts you don't want with <k>S</k>, add filters, text and transitions, then download only what you kept.",
+      "tip": "Take your clips as one file or separately, as video or audio only. Watching and cutting is free; bandwidth is only spent when you actually download."
+    },
+    "local": {
+      "title": "Files on your computer",
+      "body": "Drop a file onto the window: <b>Convert</b> (change the format), <b>Compress</b> (e.g. small enough for Discord), <b>Resize</b> (vertical or square for TikTok, Reels, Shorts).",
+      "tip": "Your original file is never changed; the result is saved as a new file."
+    },
+    "queue": {
+      "title": "Queue and history",
+      "body": "Every job shows live progress in <b>Downloads & History</b>: percent, speed, time left. Pause, resume or cancel. Finished files and the links you searched are in the <b>History</b> tab on the same page.",
+      "tip": "Close the window while a job is running and the app moves to the tray next to the clock; nothing is interrupted."
+    },
+    "settings": {
+      "title": "Batch and settings",
+      "body": "Add dozens of links to the queue at once in <b>Batch</b>. <b>Settings</b> has the save folder, language, subtitle languages and speed limit.",
+      "tip": "You can reopen this tour any time with <b>Settings → Start the tour</b>."
+    },
+    "support": {
+      "title": "One last thing, a small request",
+      "body": "I build DownKit on my own in my free time, and it will <b>always be free</b> — no ads, no account, no hidden fees.",
+      "tip": "If it's useful to you and you'd like to give something back for the work, you can donate with <b>Support</b> at the bottom left. It's completely optional, but it would make me very happy. For bugs or ideas, find me on Discord."
+    },
+    "pageStepOf": "{{page}} · {{step}} / {{total}}",
+    "noPageTours": "Don't show page tours automatically",
+    "pageHelp": "Explain this page",
+    "help": {
+      "title": "Help on every page",
+      "body": "The <b>Explain this page</b> button at the bottom right walks you through everything on the open page. The first time you open a page, its tour starts by itself.",
+      "tip": "The menu button on the left collapses the menu to icons so the workspace gets bigger. Press it again to bring it back."
+    },
+    "record": {
+      "title": "Screen recorder",
+      "body": "Record your screen or a window with sound. With <b>instant replay</b> on, the last 30 seconds are kept in the background; save a great moment with one key.",
+      "tip": "The shortcuts work in games too."
+    }
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "subtitle": "Add a key with + next to an action, remove one with × on the key. Changes are saved right away.",
+    "group": {
+      "playback": "Playback",
+      "editing": "Editing",
+      "view": "View"
+    },
+    "action": {
+      "playPause": "Play / pause",
+      "back1": "Back 1 second",
+      "forward1": "Forward 1 second",
+      "back5": "Back 5 seconds",
+      "forward5": "Forward 5 seconds",
+      "prevFrame": "Previous frame",
+      "nextFrame": "Next frame",
+      "toStart": "Go to start",
+      "toEnd": "Go to end",
+      "split": "Split at playhead",
+      "deleteClip": "Delete selected clip",
+      "duplicate": "Duplicate",
+      "trimStart": "Cut the clip before the playhead",
+      "trimEnd": "Cut the clip after the playhead",
+      "undo": "Undo",
+      "redo": "Redo",
+      "selectAll": "Select all",
+      "deselect": "Clear selection",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomFit": "Show all",
+      "toggleMute": "Mute / unmute clip"
+    },
+    "remove": "Remove {{combo}}",
+    "add": "Add a key",
+    "pressKey": "Press a key… (Esc: cancel)",
+    "resetOne": "Reset to default",
+    "resetAll": "Reset all",
+    "done": "Done",
+    "moved": "{{combo}} is now \"{{to}}\"; it was removed from \"{{from}}\".",
+    "mouseHint": "With the mouse: Ctrl + wheel zooms, the wheel scrolls, double-clicking a clip plays it, right-click opens a menu. Hold Alt while dragging to bypass the magnet."
+  },
+  "tour": {
+    "home": {
+      "name": "Home",
+      "url": {
+        "title": "Paste the link here",
+        "body": "Copy the link from your browser's address bar, paste it here and press <b>Analyze</b>. Faster: press <k>Ctrl</k> + <k>V</k> on this page; the link is pasted and analyzed right away.",
+        "tip": "Analyzing takes a few seconds. Nothing is downloaded; only the title, length and qualities are read."
+      },
+      "platforms": {
+        "title": "Supported sites",
+        "body": "YouTube, TikTok, Instagram, X, Reddit, Facebook, Twitch, Kick and more. The site of the link you paste is highlighted here.",
+        "tip": "Click <b>+3</b> to see more. Many sites that aren't listed work too."
+      },
+      "media": {
+        "title": "Video details",
+        "body": "Title, channel, length and resolution. <b>Open in editor</b> lets you watch without downloading, cut the scenes you want and download only those.",
+        "tip": "Clicking the thumbnail opens the editor too."
+      },
+      "section": {
+        "title": "Download only a part",
+        "body": "Turn it on and two handles appear: drag the start and end or type the times (<k>1:24</k>, <k>1:02:03</k>). Only that part of an hour-long video is downloaded.",
+        "tip": "To pick the scene while watching it, use <b>Pick in editor</b>."
+      },
+      "actions": {
+        "title": "What do you want to do?",
+        "body": "<b>Download</b>: save the video or audio. <b>Convert</b>: change the format. <b>Compress</b>: make it smaller. <b>Resize</b>: make it vertical or square. The selected card is highlighted and the start button changes with it.",
+        "tip": "Without an analyzed link, the cards take you to the matching tool for files on your computer."
+      },
+      "options": {
+        "title": "Format and quality",
+        "body": "The <b>Basic</b> tab has the format (MP4, MP3…), the quality (each with its estimated size) and the audio quality. The <b>Prepare for platform</b> boxes also make a vertical copy for TikTok, Reels and Shorts; subtitles and small file are here too.",
+        "tip": "<b>Advanced</b> lists every format the site offers, <b>Batch</b> adds many links at once."
+      },
+      "start": {
+        "title": "Start",
+        "body": "When you're ready press this button or <k>Enter</k>. The job joins the queue and starts right away; several jobs can run at once.",
+        "tip": "Files go to the save folder shown next to the button. Use <b>Change</b> to pick another folder."
+      },
+      "presets": {
+        "title": "Presets",
+        "body": "One-click setups: best quality MP4, audio-only MP3, small file, Discord-friendly (up to 10 MB), ready for TikTok… Picking one sets the format and quality for you."
+      },
+      "queue": {
+        "title": "Job queue",
+        "body": "Your jobs show live progress here: percent, speed, size and time left. You can pause a download and resume it later, or cancel it. When it's done you get <b>Open file</b> and <b>Show in folder</b>.",
+        "tip": "For all jobs, open <b>Downloads</b> in the menu."
+      }
+    },
+    "editorStart": {
+      "name": "Clip editor",
+      "intro": {
+        "title": "Clip editor",
+        "body": "Here you can watch a video <b>without downloading it</b>, cut the scenes you want and download only those parts. Videos on your computer can be cut the same way.",
+        "tip": "Like Clipchamp or Premiere: timeline, split, layers, speed."
+      },
+      "resume": {
+        "title": "Continue where you left off",
+        "body": "Your last project is saved automatically. <b>Continue</b> opens the video again and brings back your cuts."
+      },
+      "link": {
+        "title": "Open a link",
+        "body": "Paste a video link and press <b>Open</b>. The video is ready to play in a few seconds; it isn't downloaded."
+      },
+      "drop": {
+        "title": "Or open a file",
+        "body": "Drop a video or audio file here, or click to pick one. Your original file is never changed."
+      }
+    },
+    "editor": {
+      "name": "Clip editor",
+      "player": {
+        "title": "Preview",
+        "body": "The video plays here; click to pause, click again to resume. The bar below lets you raise the preview speed (e.g. 2× to skim a long video), set the volume or go full screen.",
+        "tip": "The preview follows your cuts: deleted parts are skipped and gaps go black. The export comes out exactly the same."
+      },
+      "tools": {
+        "title": "Right-hand tools: polish a clip",
+        "body": "With a clip selected, this column belongs to it. <b>Clip</b>: speed, volume, fades at the start and end. <b>Filters</b>: one-click looks (black & white, old film, warm tones…). <b>Color</b>: fine tuning like brightness, contrast and saturation. <b>Effects</b>: touches like vignette and mirroring.",
+        "tip": "Every change shows instantly in the preview; if you don't like it, just undo."
+      },
+      "add": {
+        "title": "Left-hand tools: add to the video",
+        "body": "This column adds things to your video. <b>Text</b>: ready-made title and caption styles. <b>Transitions</b>: smooth joins between two clips. <b>Subtitles</b>: import your own .srt file. <b>Presets</b>: save a look you like and reuse it on another clip with one click.",
+        "tip": "Drag added text into place in the preview; its timing is the purple block on the timeline."
+      },
+      "timeline": {
+        "title": "Timeline",
+        "body": "The video starts here as one piece. The white line is the <b>playhead</b>: click or drag on the ruler and the video jumps there. The thin strip at the bottom is a map of the whole video, with a dot marking where you are.",
+        "tip": "In a long video, drag the playhead to find your scene; the frames show up as you go."
+      },
+      "split": {
+        "title": "Cut: split and delete",
+        "body": "Move the playhead to the start of the scene and press <k>S</k> (or the scissors): the video splits in two. Move to the end of the scene and press <k>S</k> again. The scene is now its own clip; click a part you don't want and press <k>Delete</k>.",
+        "tip": "Deleting leaves a gap, which becomes black screen on export. \"Close gaps\" pulls the clips together if you don't want that."
+      },
+      "clip": {
+        "title": "Clips",
+        "body": "Click a clip to select it (white frame). Drag an <b>edge</b> to shorten or lengthen it. Drag the <b>middle</b> to move it. Double-click plays the clip. Right-click: duplicate, keep only this, speed.",
+        "tip": "With the magnet on, edges snap to the playhead and other clips; hold <k>Alt</k> while dragging to bypass it."
+      },
+      "layers": {
+        "title": "Layers and track buttons",
+        "body": "Drag a clip onto the empty row above and it moves to an upper layer; while it plays it shows <b>instead of</b> what's below. The buttons on the left of each row <b>mute</b> or <b>hide</b> that layer: a hidden layer shows nowhere, a muted one stays silent in preview and export alike.",
+        "tip": "There are up to 3 layers. Use an upper one to cut in another scene."
+      },
+      "undo": {
+        "title": "Undo and magnet",
+        "body": "Cut in the wrong place? <k>Ctrl</k> + <k>Z</k> undoes, <k>Ctrl</k> + <k>Y</k> redoes. The magnet button turns snapping on or off."
+      },
+      "zoom": {
+        "title": "Zoom",
+        "body": "Zoom with <k>Ctrl</k> + mouse wheel or <k>+</k> / <k>-</k> to work second by second. The wheel scrolls sideways, the frame button shows everything."
+      },
+      "panel": {
+        "title": "Clip settings",
+        "body": "The selected clip's <b>speed</b> (0.25×–4×), <b>volume</b> and <b>fades</b> at its start and end live here. With nothing selected you get the project summary and <b>Close gaps</b>. If the video has chapters they're listed here: click one to jump to it, <b>Split by chapters</b> turns each into its own clip.",
+        "tip": "A sped-up clip gets shorter; its audio plays at the same speed."
+      },
+      "export": {
+        "title": "Download / export",
+        "body": "When you're ready press this button; the settings open in a window in the middle. Pick video, <b>audio</b> only or <b>GIF</b>, then the format and quality. With several parts you can merge them into one file or get separate files. From a link, only the parts you kept are downloaded.",
+        "tip": "With a <b>frame</b> selected, the crop area shows in the preview; even after closing the window you can keep dragging its corners."
+      },
+      "shortcuts": {
+        "title": "Shortcuts",
+        "body": "See every keyboard shortcut here and change them as you like: <b>+</b> adds a key, <b>×</b> removes one.",
+        "tip": "Give a key to another action and it's removed from its old place automatically."
+      }
+    },
+    "local": {
+      "drop": {
+        "title": "Pick a file",
+        "body": "Drop a file onto the window or click this area to pick one. MP4, MKV, MOV, WebM, AVI, MP3, WAV… most video and audio files work."
+      },
+      "file": {
+        "title": "Selected file",
+        "body": "The file's length, resolution, codecs and size. <b>Change</b> picks another file."
+      },
+      "start": {
+        "title": "Start",
+        "body": "Press the button; the job joins the queue and its progress appears below.",
+        "tip": "Change the save folder from the line left of the button."
+      },
+      "result": {
+        "title": "The result",
+        "body": "Your original file is never changed; the result is saved as a new file. When it's done: <b>Open file</b> or <b>Show in folder</b>."
+      }
+    },
+    "convert": {
+      "name": "Convert",
+      "intro": {
+        "title": "Convert",
+        "body": "Changes a file's format: MKV to MP4, a video to MP3 and so on.",
+        "tip": "When the codecs already fit it copies instead of re-encoding: seconds, no quality loss."
+      },
+      "options": {
+        "title": "Target format",
+        "body": "Pick the format to convert to. Audio-only formats (MP3, M4A, WAV…) drop the picture."
+      }
+    },
+    "compress": {
+      "name": "Compress",
+      "intro": {
+        "title": "Compress",
+        "body": "Makes a file smaller, for example to fit Discord's 10 MB limit or to save space on your phone."
+      },
+      "options": {
+        "title": "Quality or target size",
+        "body": "<b>Quality level</b>: High, Balanced, Small or Tiny. <b>Target size</b>: type a size in MB and the file is fitted to it. In <b>Advanced</b> you can lower the resolution and frame rate yourself.",
+        "tip": "The lower the resolution and frame rate, the smaller the file and the faster the compression. If the result isn't smaller, you're told."
+      }
+    },
+    "resize": {
+      "name": "Resize",
+      "intro": {
+        "title": "Resize",
+        "body": "Changes a video's resolution or aspect ratio. Ready-made setups for platforms like TikTok, Reels and Shorts are here too: click a card and the right size is picked for you."
+      },
+      "options": {
+        "title": "Size and fit",
+        "body": "Pick a platform card, or work freely: set the aspect ratio and resolution yourself. <b>Fill</b> crops the edges, <b>Fit</b> adds black bars.",
+        "tip": "Click a selected platform card again to clear it and go back to free ratios."
+      }
+    },
+    "downloads": {
+      "name": "Downloads & History",
+      "view": {
+        "title": "Queue and History on one page",
+        "body": "<b>Queue</b>: running and waiting jobs. <b>History</b>: finished files and the links you analyzed. Both live here; no need to look for a separate page."
+      },
+      "list": {
+        "title": "All jobs",
+        "body": "Every download and conversion you started: progress, speed, size, time left and stage (video, audio, merging)."
+      },
+      "filter": {
+        "title": "Filter",
+        "body": "<b>Active</b> shows running, queued and paused jobs; <b>Finished</b> shows completed, failed and canceled ones."
+      },
+      "actions": {
+        "title": "Row buttons",
+        "body": "Pause, resume, cancel, retry. Finished jobs can be opened, shown in their folder or removed. On a failed job <b>Details</b> shows why.",
+        "tip": "Downloads that were running when the app closed come back paused; <b>Resume all</b> continues them."
+      },
+      "history": {
+        "title": "History tab",
+        "body": "The <b>History</b> tab above keeps every finished file and every link you analyzed. Open the file, show it in its folder, or download the same link again with one click.",
+        "tip": "If you don't want a history, turn it off in Settings → Privacy."
+      }
+    },
+    "batch": {
+      "name": "Batch",
+      "input": {
+        "title": "Paste links",
+        "body": "One link per line. Duplicates and unsupported links are skipped automatically; the line below tells you how many are valid."
+      },
+      "options": {
+        "title": "Format and quality",
+        "body": "The format and maximum quality for every link. You can change the save folder here too."
+      },
+      "start": {
+        "title": "Add to queue",
+        "body": "They all join the queue and download in turn (a few at once). Follow them in the list below."
+      }
+    },
+    "settings": {
+      "name": "Settings",
+      "general": {
+        "title": "General",
+        "body": "Language, save folder, file name format and the tours. <b>Start the tour</b> reopens the welcome tour."
+      },
+      "folders": {
+        "title": "Save folders",
+        "body": "Where downloads and screen recordings go. You can pick a separate folder for each and peek inside with <b>Open folder</b>.",
+        "tip": "If you'd like downloads sorted into subfolders per site, that's turned on here too."
+      },
+      "theme": {
+        "title": "Themes",
+        "body": "Change how the app looks here. Clicking a color dot applies that theme right away; <b>All themes</b> shows all 16 with large previews.",
+        "tip": "Want something dark that won't tire your eyes? <b>Graphite</b> and <b>Pitch Black</b> are for you."
+      },
+      "downloads": {
+        "title": "Downloads",
+        "body": "Default format and quality, how many jobs run at once, speed limit and sorting downloads into folders per site."
+      },
+      "subtitles": {
+        "title": "Subtitles",
+        "body": "Which languages to download when you ask for subtitles, and whether automatic (machine) subtitles are included."
+      },
+      "behavior": {
+        "title": "Notifications and clipboard",
+        "body": "Suggesting a copied link, notifications when a job finishes, opening the folder when done and minimizing to the tray on close."
+      },
+      "tools": {
+        "title": "Tools",
+        "body": "yt-dlp, FFmpeg and Deno versions. If a site suddenly stops working, <b>Update now</b> usually fixes it."
+      },
+      "privacy": {
+        "title": "Privacy",
+        "body": "Keep or clear the history. DownKit collects no data; everything stays on this computer."
+      },
+      "about": {
+        "title": "About",
+        "body": "Version, contact (Discord, author page), GitHub and voluntary donations. The legal notice is here too."
+      },
+      "browser": {
+        "title": "Send from your browser",
+        "body": "Save this code as a bookmark in your browser. Click it on a video page and the link goes straight to DownKit, either analyzed on Home or opened in the editor.",
+        "tip": "Nothing downloads by itself; only the link is handed to DownKit."
+      }
+    },
+    "record": {
+      "name": "Screen recorder",
+      "main": {
+        "title": "Start recording",
+        "body": "Press the red button and the chosen screen or window starts recording with sound. Length, file size and sound levels show here; when you stop, it's saved as an MP4.",
+        "tip": "The shortcut (by default <k>Ctrl</k> + <k>Alt</k> + <k>F9</k>) works while the app is in the background too."
+      },
+      "replay": {
+        "title": "Instant replay",
+        "body": "While it's on, the last 30 seconds (you can change the length) are kept in the background. Did something great just happen? Press <b>Save</b> or the shortcut and it becomes a file, like NVIDIA's Instant Replay.",
+        "tip": "With <b>Start with the app</b> it's always ready; it also runs alongside a normal recording."
+      },
+      "source": {
+        "title": "What to record",
+        "body": "Pick the whole screen or a single window. Frame rate, resolution and quality decide the file size: <b>Balanced</b> is enough for most things.",
+        "tip": "Video is compressed on the graphics card, so games barely slow down."
+      },
+      "audio": {
+        "title": "Sound",
+        "body": "<b>System sound</b> is everything coming out of your speakers (games, videos, calls). Turn on the <b>Microphone</b> to add your voice; each has its own level. The moving bars below them show live whether sound is coming through: if the bar moves, that sound goes into the recording."
+      },
+      "hotkeys": {
+        "title": "Shortcuts",
+        "body": "Keys to start and stop recording, save the instant replay and turn it on or off. Click one and press new keys to change it. If it says <b>Detected</b> next to it, the shortcut works; press it to try right away.",
+        "tip": "If another program uses the key too, you'll see a warning but the shortcut still works; pressing it may trigger both. If the game runs as administrator, run DownKit as administrator too."
+      },
+      "library": {
+        "title": "My recordings",
+        "body": "All your recordings are here. Click one to watch it in the app; from there, <b>Open in editor</b> to cut it, rename it or delete it.",
+        "tip": "Deleted recordings go to the Recycle Bin."
+      }
+    }
+  },
+  "tools": {
+    "downloading": "Setting up {{tool}} (first run): {{percent}}%",
+    "ready": "{{tool}} is ready",
+    "failed": "{{tool}} couldn't be downloaded; check your connection, it retries with the next job."
+  },
+  "report": {
+    "button": "Report this",
+    "copied": "The error report is on your clipboard.",
+    "copyFailed": "The report couldn't be copied.",
+    "where": "Paste it (Ctrl+V) into a new message on Discord or GitHub; a sentence about what you were doing helps a lot.",
+    "privacy": "Your user name isn't included; only the version, the error and technical details."
+  },
+  "language": {
+    "name": "English"
+  },
+  "recorder": {
+    "title": "Screen recorder",
+    "subtitle": "Record your screen or a single window with sound. With instant replay on, you can save what just happened after the fact.",
+    "folderName": "Recordings",
+    "recordingPrefix": "Recording",
+    "replayPrefix": "Instant replay",
+    "screenshotPrefix": "Screenshot",
+    "sourcesFailed": "Screens and windows couldn't be listed.",
+    "sourceMissing": "The chosen window isn't open anymore.",
+    "startFailed": "The recording couldn't start.",
+    "stopFailed": "The recording couldn't be stopped.",
+    "replayFailed": "Instant replay couldn't start.",
+    "saveFailed": "The instant replay couldn't be saved.",
+    "screenshot": "Screenshot",
+    "screenshotFailed": "Couldn't take the screenshot.",
+    "screenshotSaved": "{{name}} saved",
+    "errorTitle": "Screen recorder",
+    "replayOff": "Instant replay is off. Turn it on in the Screen recorder page first.",
+    "replayTitle": "Instant replay",
+    "savedTitle": "Recording saved",
+    "savedReplayTitle": "Instant replay saved",
+    "hotkeyInvalid": "This shortcut can't be used.",
+    "hotkeyTaken": "This shortcut couldn't be registered and the fallback couldn't be set up either; the key won't work right now. Try another combination.",
+    "hotkeyShared": "Another program uses this combination too; no problem: DownKit still catches the key in the background and the shortcut works (pressing it may trigger both programs). If it says \"Working\" above, you're set; try it right away with the \"Detected\" test.",
+    "screenN": "Screen {{n}}",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "recordingNow": "Recording",
+    "starting": "Starting…",
+    "ready": "Ready to record",
+    "systemAudio": "System sound",
+    "microphone": "Microphone",
+    "hotkey": "Shortcut",
+    "encoderHint": "The encoder that compresses the video; with a graphics card the CPU barely works.",
+    "encoderGpu": "{{name}} (graphics card)",
+    "seconds": "{{n}} seconds",
+    "minutes": "{{n}} minutes",
+    "replayHint": "While on, the last {{length}} are kept in the background. When something great happens, press Save or the shortcut and it becomes a file.",
+    "buffer": "Buffer {{have}} / {{total}}",
+    "replayOffShort": "Off",
+    "saving": "Saving…",
+    "saveLast": "Save the last {{length}}",
+    "replayLength": "Instant replay length",
+    "saveHotkey": "Save",
+    "replayOnStartup": "Start with the app",
+    "hotkeyNeedsModifier": "Press it with Ctrl, Alt or Shift (or use an F key).",
+    "noHotkey": "None",
+    "removeHotkey": "Remove shortcut",
+    "defaultHotkey": "Default",
+    "primaryScreen": "Main screen",
+    "windowClosed": "not open right now",
+    "defaultMic": "Windows default microphone",
+    "qualityHigh": "High",
+    "qualityBalanced": "Balanced",
+    "qualitySmall": "Small file",
+    "settingsTitle": "Recording settings",
+    "appliesNext": "Changes apply to the next recording.",
+    "whatToRecord": "What to record",
+    "refreshSources": "Refresh screens and windows",
+    "screenHint": "The whole screen is recorded, full-screen games included. Windows shows DRM-protected videos (e.g. Netflix) as black.",
+    "windowHint": "Only this window is recorded, even if another window covers it. A minimized window can't be recorded.",
+    "fps": "Frame rate",
+    "resolution": "Resolution",
+    "native": "Native",
+    "quality": "Quality",
+    "showCursor": "Show the mouse pointer",
+    "audio": "Sound",
+    "systemVolume": "System sound level",
+    "microphoneDevice": "Microphone device",
+    "microphoneVolume": "Microphone level",
+    "hotkeys": "Shortcuts",
+    "hotkeysHint": "They work while the app is in the background, even in a game. Click one and press new keys to change it.",
+    "hotkeyRecord": "Start / stop recording",
+    "hotkeySave": "Save instant replay",
+    "hotkeyToggleReplay": "Turn instant replay on / off",
+    "hotkeyScreenshot": "Take a screenshot",
+    "folder": "Recordings folder",
+    "openFolder": "Open folder",
+    "defaultFolder": "Back to default",
+    "library": "My recordings",
+    "refresh": "Refresh",
+    "libraryEmpty": "No recordings yet. Start recording, or turn on instant replay and save a moment.",
+    "save": "Save",
+    "repairHint": "This recording was cut off when the app closed (MKV). Convert it to MP4 so it plays everywhere.",
+    "repairing": "Repairing…",
+    "repair": "Repair",
+    "deleteConfirm": "Move this recording to the Recycle Bin?",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "openInEditor": "Open in editor",
+    "showInFolder": "Show in folder",
+    "rename": "Rename",
+    "playFailed": "The recording couldn't be played.",
+    "actionFailed": "That didn't work.",
+    "statusRecording": "Recording {{time}}",
+    "statusReplay": "Instant replay on · {{time}}",
+    "hud": {
+      "busy": "Still working on the previous action, wait a second.",
+      "recordingStarted": "Recording started",
+      "stopWith": "Press {{key}} to stop",
+      "replayOn": "Instant replay on",
+      "replayOnDetail": "Keeping the last {{length}}",
+      "saveWith": "press {{key}} to save",
+      "replayOff": "Instant replay turned off",
+      "replayIsOff": "Instant replay is off",
+      "turnOnWith": "Press {{key}} to turn it on",
+      "replaySaved": "Saved the last {{length}}",
+      "recordingSaved": "Recording saved ({{time}})",
+      "screenshotSaved": "Screenshot saved"
+    },
+    "hotkeyReady": "Working",
+    "hotkeyDetected": "Detected",
+    "hotkeyTest": "Press a shortcut to test it: it should say \"Detected\" next to it.",
+    "hotkeyReserved": "Alt+F4 closes windows in Windows; pick another key.",
+    "hotkeyPickKey": "Pick a key",
+    "hotkeyCancel": "Cancel",
+    "hotkeyEditHint": "Choose Ctrl / Alt / Shift and pick the key from the list — or just press the keys. A combination another program uses can be assigned too.",
+    "hotkeyAltGrRisk": "On some keyboards Ctrl+Alt types a character (e.g. Ctrl+Alt+Q = @ on Turkish); as a shortcut that character couldn't be typed. Adding Shift or using an F key is safer.",
+    "hotkeyApply": "Save",
+    "hotkeyFree": "Free: no other program uses this combination, it will work.",
+    "hotkeyBusy": "Another program uses this combination too. You can still save it: DownKit catches the key in the background and the shortcut works; pressing it may trigger both programs.",
+    "hotkeySuggestions": "Free suggestions:",
+    "replayOffNotice": "Instant replay is off, so there's nothing to save. Press {{key}} or use the switch above to turn it on.",
+    "minutesSeconds": "{{m}} min {{s}} s",
+    "customBitrate": "Custom bitrate",
+    "bitrate": "Bitrate",
+    "bitrateHint": "Constant bitrate: the value you pick goes straight into the file (size grows with length). 12–20 Mbps is a good start for 1080p60 games.",
+    "speakerDevice": "Device to take system sound from",
+    "defaultSpeaker": "Windows default speaker",
+    "noiseSuppression": "Noise suppression",
+    "noiseSuppressionHint": "Removes fans, keyboard and hum; lowers the mic while nobody talks.",
+    "appliesNextRecording": "Won't affect the running session; applies to the next recording.",
+    "byApp": "Sort into game / app folders",
+    "byAppHint": "Like NVIDIA: recordings go into subfolders such as Recordings\\League of Legends.",
+    "screens": "Screens",
+    "windows": "Windows",
+    "minimized": "Minimized",
+    "loadingSources": "Loading sources…",
+    "noWindows": "No open windows to record.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "recordingsCount_one": "{{count}} recording",
+    "recordingsCount_other": "{{count}} recordings",
+    "allFolders": "All",
+    "otherFolder": "Other",
+    "sortToggle": "Change order",
+    "sortOldestFirst": "Oldest first",
+    "sortNewestFirst": "Newest first",
+    "trim": "Trim",
+    "trimTitle": "Trim",
+    "trimLength": "selection {{length}}",
+    "trimStartHere": "Start: now",
+    "trimEndHere": "End: now",
+    "trimSaveCopy": "Save as copy",
+    "trimOverwrite": "Overwrite",
+    "trimOverwriteHint": "The original goes to the Recycle Bin; the trimmed version takes its name.",
+    "trimming": "Trimming…",
+    "trimSaved": "Trimmed copy saved.",
+    "trimOverwritten": "Recording trimmed; the original is in the Recycle Bin.",
+    "noiseShort": "noise suppression",
+    "video": "Video",
+    "noAudio": "No sound",
+    "byAppShort": "(sorted by game)"
+  },
+  "themes": {
+    "midnight": {
+      "name": "Midnight Blue",
+      "hint": "DownKit's default: navy and violet"
+    },
+    "graphite": {
+      "name": "Graphite",
+      "hint": "OBS-style dark grey"
+    },
+    "pitch": {
+      "name": "Pitch Black",
+      "hint": "True black, great on OLED"
+    },
+    "twilight": {
+      "name": "Twilight",
+      "hint": "Night with violet and pink accents"
+    },
+    "polar": {
+      "name": "Polar Night",
+      "hint": "Cool blue-grey tones"
+    },
+    "sakura": {
+      "name": "Sakura",
+      "hint": "Pink on dark"
+    },
+    "crimson": {
+      "name": "Crimson Fire",
+      "hint": "Red and orange"
+    },
+    "amethyst": {
+      "name": "Amethyst",
+      "hint": "Deep purple"
+    },
+    "emerald": {
+      "name": "Emerald Forest",
+      "hint": "Dark green"
+    },
+    "ocean": {
+      "name": "Deep Ocean",
+      "hint": "Teal and blue"
+    },
+    "sunset": {
+      "name": "Sunset",
+      "hint": "Amber and red"
+    },
+    "coffee": {
+      "name": "Turkish Coffee",
+      "hint": "Warm coffee tones"
+    },
+    "snow": {
+      "name": "Snow White",
+      "hint": "Bright and clean"
+    },
+    "fog": {
+      "name": "Morning Fog",
+      "hint": "Light grey, easy on the eyes"
+    },
+    "sand": {
+      "name": "Seaside Sand",
+      "hint": "Orange on cream"
+    },
+    "cotton": {
+      "name": "Cotton Candy",
+      "hint": "Light pink"
+    }
   }
 }

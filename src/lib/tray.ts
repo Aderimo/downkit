@@ -1,81 +1,92 @@
 import { TrayIcon } from "@tauri-apps/api/tray";
-import { Menu } from "@tauri-apps/api/menu";
-import { defaultWindowIcon } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import i18n from "../i18n";
 import { getSettings } from "./appSettings";
-import { notify } from "./tauri-api";
+import { showHud } from "./hud";
+import { flushPrefs } from "./prefsFile";
 import { useJobsStore } from "../store/jobsStore";
 import { ACTIVE_STATUSES } from "../types/jobs";
+import { isRecorderActive } from "../store/recorderStore";
+import { saveReplay, toggleRecording } from "./recorder";
 
 const TRAY_ID = "downkit";
 let trayReady = false;
 let hintShown = false;
 
-async function showWindow() {
-  const window = getCurrentWindow();
-  await window.show();
-  await window.unminimize();
-  await window.setFocus();
-}
-
-function buildMenu() {
-  return Menu.new({
-    items: [
-      { id: "show", text: i18n.t("tray.show"), action: () => void showWindow() },
-      // destroy: kapatma isteğini (tepsiye küçültme) atlayıp programı gerçekten kapatır.
-      { id: "quit", text: i18n.t("tray.quit"), action: () => void getCurrentWindow().destroy() },
-    ],
-  });
-}
-
 function hasWork(): boolean {
-  return useJobsStore
-    .getState()
-    .jobs.some((j) => ACTIVE_STATUSES.includes(j.status) || j.status === "queued");
+  return (
+    isRecorderActive() ||
+    useJobsStore
+      .getState()
+      .jobs.some((j) => ACTIVE_STATUSES.includes(j.status) || j.status === "queued")
+  );
 }
 
-/** Sistem tepsisi simgesi (sol tık: pencereyi göster; sağ tık: Göster / Çıkış) ve
- * pencere kapatılınca ne olacağı (Ayarlar > "Pencereyi kapatınca"). */
+/** Tepsi simgesi ve menüsü Rust tarafında kurulur (arayüzden bağımsız, her
+ * zaman çalışır). Buradaki görevler: menüdeki kayıt eylemlerini arayüzdeki
+ * duruma bağlamak, çıkıştan önce ayarları diske yazdırmak, dil değişince menü
+ * başlıklarını güncellemek ve pencere kapatılınca ne olacağına karar vermek
+ * (Ayarlar > "Pencereyi kapatınca"). */
 export async function initTray(): Promise<void> {
   try {
-    const existing = await TrayIcon.getById(TRAY_ID);
-    const tray =
-      existing ??
-      (await TrayIcon.new({
-        id: TRAY_ID,
-        icon: (await defaultWindowIcon()) ?? undefined,
-        tooltip: "DownKit",
-        menu: await buildMenu(),
-        showMenuOnLeftClick: false,
-        action: (event) => {
-          if (event.type === "Click" && event.button === "Left" && event.buttonState === "Up") {
-            void showWindow();
-          }
-        },
-      }));
-    trayReady = true;
-    i18n.on("languageChanged", () => {
-      void buildMenu().then((menu) => tray.setMenu(menu));
-    });
+    trayReady = (await TrayIcon.getById(TRAY_ID)) !== null;
   } catch {
-    // Tauri dışında (tarayıcı önizlemesi) ya da tepsi desteklenmiyorsa normal kapanır.
-    return;
+    // Tauri dışında (tarayıcı önizlemesi) tepsi yok; pencere normal kapanır.
+    trayReady = false;
+  }
+
+  if (trayReady) {
+    // Menüdeki "Kaydı başlat / durdur" ve "Anlık tekrarı kaydet" arayüzdeki
+    // duruma bağlı; Rust menüsü tıklamayı buraya olay olarak iletir.
+    void listen<string>("tray-action", (event) => {
+      if (event.payload === "toggle-record") void toggleRecording();
+      else if (event.payload === "save-replay") void saveReplay();
+    });
+    // Çıkış isteğinde bekleyen ayar yazımını bitir, sonra Rust çıkışı tamamlar.
+    // (Arayüz bu olayı kaçırırsa Rust'taki süre aşımı yine de çıkar.)
+    void listen("tray-quit-requested", () => {
+      void flushPrefs().finally(() => void invoke("force_quit").catch(() => {}));
+    });
+    // Menü başlıkları Rust'ta sabit başlar; arayüzün diliyle senkronlanır ve
+    // dil her değiştiğinde yeniden gönderilir.
+    const pushLabels = () =>
+      void invoke("tray_set_labels", {
+        show: i18n.t("tray.show"),
+        record: i18n.t("tray.record"),
+        replay: i18n.t("tray.saveReplay"),
+        quit: i18n.t("tray.quit"),
+      }).catch(() => {});
+    i18n.on("languageChanged", pushLabels);
+    pushLabels();
   }
 
   await getCurrentWindow().onCloseRequested(async (event) => {
     const behavior = getSettings().closeBehavior;
     const busy = hasWork();
     const toTray = trayReady && (behavior === "always" || (behavior === "whileBusy" && busy));
-    if (!toTray) return;
+    if (!toTray) {
+      // Kapanmadan önce son ayar değişiklikleri dosyaya yazılsın.
+      await flushPrefs();
+      return;
+    }
     event.preventDefault();
     await getCurrentWindow().hide();
-    // Kullanıcı programın kapandığını sanmasın: oturumda bir kez hatırlatılır.
-    if (!hintShown) {
+    // Kullanıcı programın kapandığını sanmasın. Kayıt ya da anlık tekrar sürüyorsa
+    // (ekran arka planda kaydediliyor) her seferinde, yoksa oturumda bir kez
+    // köşedeki bilgi penceresinde söylenir.
+    const recording = isRecorderActive();
+    if (recording || !hintShown) {
       hintShown = true;
-      await notify(
+      await showHud(
+        "info",
         i18n.t("tray.hiddenTitle"),
-        busy ? i18n.t("tray.hiddenBusy") : i18n.t("tray.hiddenIdle"),
+        recording
+          ? i18n.t("tray.hiddenRecording")
+          : busy
+            ? i18n.t("tray.hiddenBusy")
+            : i18n.t("tray.hiddenIdle"),
       );
     }
   });

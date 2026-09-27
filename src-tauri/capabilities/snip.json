@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "snip",
+  "description": "Ekran görüntüsünde bölge seçme penceresi: olay dinler, ayar dosyasını okur.",
+  "windows": ["snip"],
+  "permissions": ["core:default"]
+}

@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "edit" | "success" | "successLight";
 type Size = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,11 +14,15 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:
-    "dk-gradient text-white shadow-[0_8px_24px_-12px_rgb(91_124_255/80%)] hover:brightness-110",
+    "dk-gradient text-white shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--dk-accent)_80%,transparent)] hover:brightness-110",
   secondary:
     "border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] text-[var(--dk-text)] hover:border-[var(--dk-accent)]",
   ghost: "text-[var(--dk-text-muted)] hover:bg-white/5 hover:text-[var(--dk-text)]",
   danger: "text-[var(--dk-error)] hover:bg-[var(--dk-error)]/10",
+  // Renkler temadan (--dk-edit, --dk-save…): açık ve koyu temada okunur kalır.
+  edit: "bg-[var(--dk-edit)] text-white hover:brightness-110",
+  success: "bg-[var(--dk-save)] text-white hover:brightness-110",
+  successLight: "bg-[var(--dk-save-soft)] text-[var(--dk-save-soft-text)] hover:brightness-105",
 };
 
 const sizes: Record<Size, string> = {

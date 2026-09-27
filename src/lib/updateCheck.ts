@@ -1,23 +1,34 @@
 import { create } from "zustand";
-import { getAppVersion } from "./tauri-api";
+import { check as checkForUpdate, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { getAppVersion, getInstallKind } from "./tauri-api";
 import { getSettings } from "./appSettings";
 import { GITHUB_REPO, RELEASES_URL } from "./links";
 
-// Yeni sürüm varsa kullanıcıya haber verir ve sürüm sayfasını açar; indirip
-// kurmayı kendisi yapmaz (imzalı otomatik güncelleme yerine sade ve güvenli yol).
+// Yeni sürüm denetimi. Kurulumla gelmiş DownKit güncellemeyi imzasını doğrulayarak
+// indirip kurar ve yeniden başlar (Tauri updater); kurulumsuz exe'de yalnızca
+// haber verilir ve sürüm sayfası açılır. Otomatik kurulum yok: kullanıcı onaylar.
 
 export interface UpdateInfo {
   version: string;
   url: string;
 }
 
-type UpdateStatus = "idle" | "checking" | "upToDate" | "available" | "error";
+type UpdateStatus = "idle" | "checking" | "upToDate" | "available" | "installing" | "error";
 
 interface UpdateState {
   status: UpdateStatus;
   latest: UpdateInfo | null;
+  /** Kurulumlu sürümde güncelleme uygulamanın içinden kurulabilir. */
+  canInstall: boolean;
+  /** Kurulum sırasında indirme yüzdesi. */
+  progress: number | null;
   check: () => Promise<void>;
+  install: () => Promise<void>;
 }
+
+// Bulunan güncelleme (Tauri updater); "Güncelle"ye basılınca kurulur.
+let pending: Update | null = null;
 
 /** "v0.2.0" > "0.1.9" gibi karşılaştırma; ilk üç sayısal parça kullanılır. */
 export function isNewerVersion(latest: string, current: string): boolean {
@@ -36,11 +47,31 @@ export function isNewerVersion(latest: string, current: string): boolean {
   return false;
 }
 
-export const useUpdateStore = create<UpdateState>((set) => ({
+export const useUpdateStore = create<UpdateState>((set, get) => ({
   status: "idle",
   latest: null,
+  canInstall: false,
+  progress: null,
   check: async () => {
     set({ status: "checking" });
+    if ((await getInstallKind()) === "installed") {
+      try {
+        const update = await checkForUpdate();
+        pending = update;
+        set(
+          update
+            ? {
+                status: "available",
+                latest: { version: update.version, url: RELEASES_URL },
+                canInstall: true,
+              }
+            : { status: "upToDate", latest: null, canInstall: false },
+        );
+        return;
+      } catch {
+        // Güncelleme dosyası (latest.json) yoksa sürüm sayfasına bakılır.
+      }
+    }
     try {
       const [current, response] = await Promise.all([
         getAppVersion(),
@@ -71,6 +102,25 @@ export const useUpdateStore = create<UpdateState>((set) => ({
       }
     } catch {
       set({ status: "error" });
+    }
+  },
+  install: async () => {
+    if (!pending) return;
+    let total = 0;
+    let received = 0;
+    set({ status: "installing", progress: 0 });
+    try {
+      await pending.downloadAndInstall((event) => {
+        if (event.event === "Started") total = event.data.contentLength ?? 0;
+        if (event.event === "Progress") {
+          received += event.data.chunkLength;
+          if (total > 0) set({ progress: Math.min(100, (received / total) * 100) });
+        }
+      });
+      await relaunch();
+    } catch {
+      set({ status: "available", progress: null });
+      if (get().latest) set({ canInstall: false });
     }
   },
 }));

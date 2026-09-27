@@ -59,6 +59,7 @@ export function BatchScreen() {
 
       <section className="dk-card space-y-4 p-5">
         <textarea
+          data-tour="batch-input"
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -68,7 +69,7 @@ export function BatchScreen() {
           rows={7}
           className="dk-scroll w-full resize-none rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)] p-3 text-sm outline-none placeholder:text-[var(--dk-text-muted)] focus:border-[var(--dk-accent)]"
         />
-        <div className="grid gap-4 sm:grid-cols-[180px_220px_1fr]">
+        <div className="grid gap-4 sm:grid-cols-[180px_220px_1fr]" data-tour="batch-options">
           <div>
             <p className="mb-1.5 text-sm text-[var(--dk-text-muted)]">{t("options.format")}</p>
             <Select
@@ -113,6 +114,7 @@ export function BatchScreen() {
               t("batch.detected", { valid: valid.length, skipped: lines.length - valid.length })}
           </span>
           <Button
+            data-tour="batch-start"
             icon={<ListPlus size={18} />}
             disabled={valid.length === 0}
             onClick={() => void addAll()}

@@ -20,10 +20,14 @@ const DESC_KEYS: Record<OutputFormat, string> = {
   flac: "presets.flacDesc",
 };
 
+/** Dönüştürmeye özel hedef: videodan hareketli GIF (indirme biçimlerinde yok). */
+type ConvertTarget = OutputFormat | "gif";
+
 export function ConvertScreen() {
   const { t } = useTranslation();
-  const [target, setTarget] = useState<OutputFormat>("mp4");
+  const [target, setTarget] = useState<ConvertTarget>("mp4");
   const choice = (f: OutputFormat) => ({ value: f, title: f.toUpperCase(), desc: t(DESC_KEYS[f]) });
+  const gifChoice = { value: "gif" as const, title: "GIF", desc: t("presets.gifDesc") };
 
   return (
     <LocalToolShell
@@ -39,15 +43,15 @@ export function ConvertScreen() {
       renderOptions={(info) => (
         <>
           {info.width !== null ? (
-            <ChoiceCards
+            <ChoiceCards<ConvertTarget>
               label={t("convert.videoFormats")}
               value={target}
-              choices={VIDEO_FORMATS.map(choice)}
+              choices={[...VIDEO_FORMATS.map(choice), gifChoice]}
               onChange={setTarget}
-              columns={5}
+              columns={6}
             />
           ) : null}
-          <ChoiceCards
+          <ChoiceCards<ConvertTarget>
             label={t("convert.audioFormats")}
             value={target}
             choices={AUDIO_FORMATS.map(choice)}

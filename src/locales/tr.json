@@ -6,15 +6,14 @@
   "nav": {
     "sectionTools": "Hızlı Araçlar",
     "home": "Ana Sayfa",
-    "downloads": "İndirme",
+    "downloads": "İndirme ve Geçmiş",
     "convert": "Dönüştürme",
     "compress": "Sıkıştırma",
     "resize": "Boyut Ayarla",
-    "prepareForPlatform": "Platforma Hazırla",
-    "history": "Geçmiş",
     "batch": "Toplu İşlem",
-    "videoEditor": "Video Kes",
-    "settings": "Ayarlar"
+    "videoEditor": "Klip Düzenleyici",
+    "settings": "Ayarlar",
+    "record": "Ekran Kaydı"
   },
   "status": {
     "ready": "Hazır",
@@ -44,12 +43,12 @@
     "invalid": "Bu geçerli bir link gibi görünmüyor."
   },
   "media": {
-    "preview": "Önizleme",
     "openSource": "Kaynağa git",
     "clear": "Temizle",
     "close": "Kapat",
     "views": "{{views}} görüntülenme",
-    "previewUnavailable": "Bu video uygulama içinde oynatılamıyor (platform doğrudan oynatmayı kısıtlıyor). Kaynağında açabilirsin."
+    "openInEditor": "Düzenleyicide aç",
+    "editorHint": "İndirmeden izle, sahneleri kes, yalnızca onları indir."
   },
   "actions": {
     "downloadTitle": "Video / Ses İndir",
@@ -115,6 +114,7 @@
     "m4aDesc": "Daha iyi kalite",
     "wavDesc": "Kayıpsız",
     "aacDesc": "Dengeli",
+    "gifDesc": "Hareketli resim, sessiz; kısa klipler için",
     "flacDesc": "Kayıpsız, daha küçük",
     "quickTitle": "Hızlı ön ayarlar",
     "quickSubtitle": "Birini seç, hemen başla",
@@ -164,19 +164,25 @@
     "notifyFailed": "Başarısız oldu",
     "notice": {
       "subtitlesFailed": "Bazı altyazılar indirilemedi (platform kısıtladı)",
-      "notSmaller": "Dosya zaten verimli sıkıştırılmıştı, daha fazla küçülmedi"
+      "notSmaller": "Dosya zaten verimli sıkıştırılmıştı, daha fazla küçülmedi",
+      "sponsorsRemoved": "Sponsor bölümleri çıkarıldı (SponsorBlock)"
     },
     "interrupted": "Uygulama kapandığı için yarıda kaldı. Tekrar dene.",
     "resumeAll": "Tümünü devam ettir ({{count}})",
-    "stageTrimming": "Kesiliyor"
+    "stageTrimming": "Kesiliyor",
+    "stageClips": "Sahneler indiriliyor",
+    "stageExporting": "Dışa aktarılıyor",
+    "stageMergingClips": "Klipler birleştiriliyor"
   },
   "downloads": {
-    "title": "İndirme",
-    "subtitle": "Bu oturumdaki tüm indirme ve dönüştürmeler, canlı ilerlemesiyle.",
+    "title": "İndirme ve Geçmiş",
+    "subtitle": "Çalışan işler kuyrukta canlı ilerler; biten dosyalar ve aradığın linkler Geçmiş sekmesinde.",
+    "tabQueue": "Kuyruk",
+    "tabHistory": "Geçmiş",
     "filterAll": "Tümü",
     "filterActive": "Devam edenler",
     "filterFinished": "Bitenler",
-    "sessionNote": "Biten dosyalar Geçmiş'e de kaydedilir."
+    "sessionNote": "Biten dosyalar Geçmiş sekmesine de kaydedilir."
   },
   "batch": {
     "subtitle": "Birden fazla linki yapıştır, hepsini tek seferde kuyruğa ekle.",
@@ -221,7 +227,9 @@
     "presetBalanced": "Dengeli",
     "presetBalancedDesc": "1080p'ye kadar, iyi boyut/kalite dengesi",
     "presetSmall": "Küçük dosya",
-    "presetSmallDesc": "720p ve en fazla 30 fps, en küçük dosya",
+    "presetSmallDesc": "720p ve en fazla 30 fps, küçük dosya",
+    "presetTiny": "Çok küçük",
+    "presetTinyDesc": "480p ve 24 fps; en küçük ve en hızlı",
     "targetSizeLabel": "Özel (MB)",
     "original": "Orijinal",
     "estimated": "Tahmini",
@@ -231,7 +239,12 @@
     "summaryTarget": "{{from}} → ~{{to}} (~%{{reduction}} daha küçük)",
     "compressButton": "Sıkıştır",
     "resolutionDown": "Görüntü {{from}} → {{to}}",
-    "resolutionKept": "Çözünürlük korunur ({{resolution}})"
+    "resolutionKept": "Çözünürlük korunur ({{resolution}})",
+    "advanced": "Gelişmiş (isteğe bağlı)",
+    "advancedHint": "Çözünürlüğü ya da kare hızını düşürmek dosyayı daha da küçültür ve sıkıştırmayı hızlandırır. Video hiçbir zaman büyütülmez.",
+    "resolutionLimit": "En fazla çözünürlük",
+    "fpsLimit": "En fazla kare hızı",
+    "auto": "Otomatik"
   },
   "resize": {
     "title": "Boyut Ayarla",
@@ -257,11 +270,6 @@
     "summary": "{{from}} → {{to}}",
     "resizeButton": "Boyut Ayarla"
   },
-  "prepare": {
-    "title": "Platforma Hazırla",
-    "subtitle": "Bir videoyu TikTok, Reels, Shorts veya Instagram'ın beklediği boyuta tek tıkla getir.",
-    "button": "Hazırla"
-  },
   "history": {
     "title": "Geçmiş",
     "subtitle": "İndirdiğin veya işlediğin her şey ve aradığın linkler.",
@@ -281,7 +289,8 @@
       "convert": "Dönüştürme",
       "compress": "Sıkıştırma",
       "resize": "Boyutlandırma",
-      "trim": "Kesme"
+      "trim": "Kesme",
+      "edit": "Klip düzenleme"
     }
   },
   "error": {
@@ -315,7 +324,7 @@
     "updating": "Güncelleniyor...",
     "updateFailed": "yt-dlp'ye ulaşılamadı. İnternet bağlantını kontrol et.",
     "ytdlpHint": "Bir platform aniden çalışmayı bırakırsa yt-dlp'yi güncellemek genelde sorunu çözer.",
-    "license": "Ücretsiz ve açık kaynak (MIT). yt-dlp ve FFmpeg kullanır.",
+    "license": "© 2026 aderimo. Ücretsiz ve açık kaynak (MIT); DownKit adı ve ördek logosu aderimo'ya aittir. yt-dlp ve FFmpeg kullanır.",
     "disclaimer": "DownKit DRM kırmaz ve erişim kısıtlamalarını aşmaz. Yalnızca indirme hakkın olan ya da platformun koşullarının izin verdiği içerikleri indir.",
     "subtitle": "Tercihlerin bu bilgisayarda saklanır.",
     "reset": "Varsayılana dön",
@@ -372,7 +381,48 @@
     "checkUpdatesHint": "Yeni sürüm varsa durum çubuğunda haber verir; kendiliğinden indirmez.",
     "donateTitle": "Destek ol",
     "donateHint": "DownKit tamamen ücretsiz ve öyle kalacak. İstersen gönüllü bir bağışla geliştirmeye destek olabilirsin.",
-    "donateButton": "Bağış yap"
+    "donateButton": "Bağış yap",
+    "tutorial": "Tanıtım turu",
+    "tutorialHint": "Programın nasıl kullanıldığını adım adım gösterir.",
+    "tutorialStart": "Öğreticiyi başlat",
+    "tutorialOnLaunch": "Program açılınca turu göster",
+    "pageTours": "Sayfa turlarını ilk ziyarette göster",
+    "resetTours": "Sayfa turlarını sıfırla",
+    "resetToursDone": "Sıfırlandı: her sayfa ilk açılışta yeniden tanıtılır.",
+    "browser": "Tarayıcıdan gönder",
+    "browserHint": "Tarayıcında izlediğin bir videoyu tek tıkla DownKit'e göndermek için bir yer imi ekleyebilirsin.",
+    "bookmark": {
+      "open": "DownKit'e gönder (Ana Sayfa'da analiz eder)",
+      "edit": "Düzenleyicide aç (indirmeden izle, kes)"
+    },
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "bookmarkStep1": "Kodu kopyala; tarayıcında yer imleri çubuğuna sağ tıkla → Sayfa ekle.",
+    "bookmarkStep2": "Adına \"DownKit\" yaz, adres (URL) kısmına kodu yapıştır ve kaydet.",
+    "bookmarkStep3": "Bir video sayfasındayken yer imine tıkla; tarayıcı sorarsa \"DownKit'i aç\"ı seç.",
+    "sponsorBlock": "YouTube'da sponsor bölümlerini çıkar",
+    "sponsorBlockHint": "SponsorBlock topluluğunun işaretlediği sponsor, kendi reklamı ve \"abone ol\" kısımları kesilir. Bunun için videonun kimliğinden türetilen kısa bir özet sponsor.ajay.app'e gönderilir.",
+    "logFolder": "Hata günlüğü",
+    "logFolderHint": "Sorun bildirirken işe yarar; \"Hatayı bildir\" son satırları rapora kendisi ekler.",
+    "openLog": "Günlük klasörünü aç",
+    "theme": "Tema",
+    "themeHint": "Bir renk paketi seç; hemen uygulanır.",
+    "themesDark": "Koyu temalar",
+    "themesLight": "Açık temalar",
+    "folders": "Klasörler",
+    "foldersHint": "İndirilenler ve kayıtlar nereye gitsin? Bir kez seç, hep orada kalsın.",
+    "recordingsFolder": "Kayıt klasörü (ekran kaydı ve anlık tekrar)",
+    "downloadsFolderTitle": "İndirme klasörü (linkten indirilenler)",
+    "aboutText": "Link yapıştır, videoyu ya da sesi indir; istersen sadece sevdiğin sahneyi kes, ekranını kaydet, tek tıkla TikTok ya da Shorts boyutuna getir. Reklamsız, üyeliksiz, ücretsiz.",
+    "openSourceTitle": "Açık kaynak",
+    "creditDownKit": "Bu uygulama; kaynak kodu GitHub'da",
+    "creditYtdlp": "Linkten video ve ses indirme",
+    "creditFfmpeg": "Dönüştürme, kesme, birleştirme, ekran kaydı",
+    "creditDeno": "YouTube'un istediği JavaScript çalıştırıcısı",
+    "creditRnnoise": "Mikrofon gürültü engelleme",
+    "responsibleTitle": "Sorumlu kullanım",
+    "themesShowAll": "Tüm temalar",
+    "themesHide": "Gizle"
   },
   "backendError": {
     "botCheck": "Platform bot doğrulaması istiyor. Biraz bekleyip tekrar dene ya da Ayarlar'dan yt-dlp'yi güncelle.",
@@ -408,7 +458,23 @@
     "resizeFailed": "Boyutlandırma tamamlanamadı. Tekrar dene.",
     "channelOffline": "Bu kanal şu an yayında değil. Kanalın geçmiş yayınlarından (VOD) ya da kliplerinden birinin linkini dene.",
     "trimFailed": "Kesme tamamlanamadı. Tekrar dene.",
-    "invalidRange": "Bitiş zamanı başlangıçtan sonra olmalı."
+    "invalidRange": "Bitiş zamanı başlangıçtan sonra olmalı.",
+    "editFailed": "Dışa aktarma tamamlanamadı. Tekrar dene.",
+    "tooManyClips": "Tek seferde en fazla 50 klip dışa aktarılabilir.",
+    "noAudio": "Bu dosyada ses yok.",
+    "previewExpired": "Önizlemenin süresi doldu. Kaynağı yeniden aç.",
+    "previewUnavailable": "Önizleme başlatılamadı.",
+    "previewCopyFailed": "Önizleme kopyası oluşturulamadı.",
+    "unsupportedFile": "Bu dosya düzenleyicide açılamıyor.",
+    "noThumbnails": "Bu kaynak için kare alınamıyor.",
+    "streamInterrupted": "Platform bağlantıyı yarıda kesti (çoğunlukla geçicidir). Tekrar dene.",
+    "recorderFailed": "Kayıt işlemi tamamlanamadı.",
+    "captureUnavailable": "Ekran yakalanamadı. Seçilen ekran ya da pencere kapalı olabilir; Windows 10 (1903) ya da daha yenisi gerekir.",
+    "replayEmpty": "Henüz kaydedilecek bir şey yok; birkaç saniye sonra tekrar dene.",
+    "nameTaken": "Bu adla bir kayıt zaten var.",
+    "repairFailed": "Kayıt onarılamadı; dosya bozuk olabilir.",
+    "recorderSourceMissing": "Seçili pencere artık açık değil. Kaynak listesini yenileyip başka bir ekran ya da pencere seç.",
+    "replayJustSaved": "Az önce kaydedildi; birkaç saniye sonra tekrar dene."
   },
   "playlist": {
     "badge": "Oynatma listesi",
@@ -425,7 +491,9 @@
     "madeBy": "Yapımcı",
     "discord": "Discord'a katıl",
     "donate": "Destek ol",
-    "donateHint": "DownKit ücretsiz; istersen gönüllü bağışla destek olabilirsin."
+    "donateHint": "DownKit ücretsiz; istersen gönüllü bağışla destek olabilirsin.",
+    "collapse": "Menüyü daralt",
+    "expand": "Menüyü genişlet"
   },
   "section": {
     "title": "Videonun bir bölümünü indir",
@@ -433,29 +501,23 @@
     "start": "Başlangıç",
     "end": "Bitiş",
     "length": "Bölüm: {{length}}",
-    "pickInPreview": "Önizlemede seç",
-    "markHint": "Videoyu oynat, istediğin anda işaretle.",
-    "markStart": "Başlangıç = şu an",
-    "markEnd": "Bitiş = şu an",
-    "playSection": "Bölümü oynat"
+    "pickInEditor": "Düzenleyicide seç"
   },
   "trim": {
-    "title": "Video Kes",
-    "subtitle": "Bilgisayarındaki bir videodan istediğin aralığı yeni bir dosyaya çıkar. Orijinal dosya değişmez.",
-    "button": "Kes",
-    "summary": "{{from}} – {{to}} arası · {{length}}",
     "fast": "Hızlı",
     "fastDesc": "Saniyeler sürer, kalite kaybı yok; kesim birkaç saniye kayabilir",
     "precise": "Tam kare",
-    "preciseDesc": "Tam istenen anda keser; biraz daha uzun sürer",
-    "noDuration": "Bu dosyanın süresi okunamadı, kesilemiyor."
+    "preciseDesc": "Tam istenen anda keser; biraz daha uzun sürer"
   },
   "tray": {
     "show": "DownKit'i göster",
     "quit": "Çıkış",
     "hiddenTitle": "DownKit arka planda",
     "hiddenBusy": "İşlemler sürüyor; bitince haber vereceğim. Tepsideki ördeğe tıklayarak geri açabilirsin.",
-    "hiddenIdle": "Tepsideki ördeğe tıklayarak geri açabilirsin. Tamamen kapatmak için sağ tık > Çıkış."
+    "hiddenIdle": "Tepsideki ördeğe tıklayarak geri açabilirsin. Tamamen kapatmak için sağ tık > Çıkış.",
+    "record": "Kaydı başlat / durdur",
+    "saveReplay": "Anlık tekrarı kaydet",
+    "hiddenRecording": "Kayıt / anlık tekrar sürüyor. Kapatmak için tepsideki ördeğe sağ tık > Çıkış."
   },
   "update": {
     "available": "Yeni sürüm: v{{version}}",
@@ -463,9 +525,907 @@
     "checkNow": "Denetle",
     "checking": "Denetleniyor...",
     "upToDate": "Güncel (v{{version}})",
-    "failed": "Denetlenemedi. İnternet bağlantını kontrol et."
+    "failed": "Denetlenemedi. İnternet bağlantını kontrol et.",
+    "install": "Güncelle: v{{version}}",
+    "installing": "Güncelleniyor… %{{percent}}",
+    "installHint": "İndirip kurar ve DownKit'i yeniden başlatır."
   },
   "common": {
     "percent": "%{{value}}"
+  },
+  "editor": {
+    "title": "Klip Düzenleyici",
+    "subtitle": "Videoyu indirmeden izle, istediğin sahneleri seç; yalnızca o kısımları indir ya da kes.",
+    "fromLink": "Link ile aç",
+    "or": "veya",
+    "feature1Title": "İndirmeden izle",
+    "feature1Desc": "1 saatlik videoyu indirmeden oynat, sahneye git.",
+    "feature2Title": "Birden çok klip",
+    "feature2Desc": "Giriş (I) ve çıkış (O) noktası koy, klip ekle, sırala.",
+    "feature3Title": "Yalnızca seçilen kısım",
+    "feature3Desc": "Sadece klipler iner: video ya da yalnızca ses, ayrı ya da tek dosya.",
+    "playlistNotSupported": "Bu bir oynatma listesi. Düzenleyicide tek bir videonun linkini aç.",
+    "noDuration": "Bu kaynağın süresi bilinmiyor (canlı yayın olabilir); düzenlenemiyor.",
+    "localFile": "Bilgisayardaki dosya",
+    "notDownloaded": "indirilmedi, internetten oynatılıyor",
+    "changeSource": "Kaynağı değiştir",
+    "shortcuts": "Kısayollar",
+    "localUnplayable": "Bu dosyanın biçimi önizlemede oynatılamıyor. Hafif bir önizleme kopyası oluşturulabilir; dışa aktarım yine özgün dosyadan yapılır.",
+    "makeCopy": "Önizleme kopyası oluştur",
+    "copyProgress": "Önizleme kopyası hazırlanıyor… %{{percent}}",
+    "copyFailed": "Önizleme kopyası oluşturulamadı.",
+    "remoteFailed": "Önizleme açılamadı (bağlantının süresi dolmuş ya da erişim kısıtlı olabilir). Zaman çizelgesiyle yine sahne seçebilirsin.",
+    "noPreview": "Bu kaynak uygulama içinde oynatılamıyor. Zaman çizelgesiyle yine sahne seçip indirebilirsin.",
+    "retryPreview": "Yeniden dene",
+    "play": "Oynat",
+    "pause": "Duraklat",
+    "toStart": "Başa git",
+    "toEnd": "Sona git",
+    "back5": "5 sn geri",
+    "forward5": "5 sn ileri",
+    "buffering": "yükleniyor…",
+    "mute": "Sesi kapat",
+    "unmute": "Sesi aç",
+    "volume": "Ses düzeyi",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "zoomFit": "Tamamını göster",
+    "clipName": "Klip {{n}}",
+    "clipNameLabel": "Klip adı",
+    "playClip": "Klibi oynat",
+    "export": "Dışa aktar",
+    "outputVideo": "Video",
+    "outputAudio": "Ses",
+    "bitrate": "Ses kalitesi",
+    "cutMode": "Kesim",
+    "mergeClips": "Tek dosyada birleştir",
+    "mergeOn_one": "Tek parça",
+    "mergeOn_other": "{{count}} parça sırayla tek dosya olur",
+    "mergeOff_one": "Tek parça",
+    "mergeOff_other": "{{count}} parça, {{count}} ayrı dosya olur",
+    "fileName": "Dosya adı",
+    "namePrefix": "Dosya adı (adsız klipler için)",
+    "nothingToExport": "Zaman çizelgesinde klip kalmadı. Geri al (Ctrl+Z) ya da Klip sekmesinde \"Videoyu zaman çizelgesine yeniden koy\".",
+    "exportSummary_one": "{{count}} parça · {{total}}",
+    "exportSummary_other": "{{count}} parça · toplam {{total}}",
+    "onlySelectedDownloaded": "Yalnızca seçilen kısımlar indirilir; {{full}} uzunluğundaki videonun tamamı değil.",
+    "download": "Seçilenleri indir",
+    "downloadSeparate_one": "{{count}} parçayı indir",
+    "downloadSeparate_other": "{{count}} parçayı ayrı indir",
+    "exportButton": "Dışa aktar",
+    "exportSeparate_one": "{{count}} parçayı dışa aktar",
+    "exportSeparate_other": "{{count}} parçayı ayrı dışa aktar",
+    "jobClips_one": "{{count}} parça",
+    "jobClips_other": "{{count}} parça",
+    "changeSourceConfirm_one": "{{count}} klip silinsin, değiştir",
+    "changeSourceConfirm_other": "{{count}} klip silinsin, değiştir",
+    "openLink": "Aç",
+    "newLayerHint": "Klibi buraya sürükle: üst katman, alttakinin yerine geçer",
+    "undo": "Geri al",
+    "redo": "Yinele",
+    "split": "Böl",
+    "deleteClip": "Sil",
+    "duplicate": "Çoğalt",
+    "magnet": "Mıknatıs: kenarlar imlece ve kliplere yapışır (Alt ile geçici kapat)",
+    "keepOnly": "Yalnızca bunu tut",
+    "clipSpeed": "Hız",
+    "speedHint": "Hızlandırınca klip kısalır, yavaşlatınca uzar. Ses de aynı hızda çalar.",
+    "clipSource": "Kaynakta",
+    "clipOnTimeline": "Zaman çizelgesinde",
+    "clipLength": "Süre",
+    "clipLayer": "Katman",
+    "multiSelected": "{{count}} klip seçili",
+    "summaryTitle": "Zaman çizelgesi",
+    "summaryText_one": "{{count}} klip · çıktı {{output}}",
+    "summaryText_other": "{{count}} klip · çıktı {{output}}",
+    "gapsSkipped": "Klipler arasındaki boşluklar siyah ekran olur. İstemiyorsan Klip sekmesinden \"Boşlukları kapat\".",
+    "closeGaps": "Boşlukları kapat",
+    "addWholeSource": "Videoyu zaman çizelgesine yeniden koy",
+    "howtoTitle": "Nasıl kullanılır",
+    "howtoSplit": "Oynatma imlecini (beyaz çizgi) sahnenin başına getir ve {{key}}'ye bas; sonra sonuna getir, yine {{key}}. Aradaki parça ayrı klip olur.",
+    "howtoDelete": "İstemediğin klibe tıkla ve {{key}}'ye bas. Kalan boşluk dışa aktarımda siyah ekran olur; \"Boşlukları kapat\" ile klipleri uç uca getirebilirsin.",
+    "howtoTrim": "Klibin sağ ya da sol kenarından tutup sürükle: kısalt ya da (kaynakta yer varsa) uzat.",
+    "howtoLayers": "Klibi ortasından tutup taşı; yukarıdaki boş satıra bırakırsan üst katmana geçer ve alttakinin yerine oynar.",
+    "howtoMenu": "Sağ tık: oynat, böl, çoğalt, yalnızca bunu tut, hız.",
+    "resumeTitle": "Son proje",
+    "resumeMeta_one": "{{count}} klip · {{date}}",
+    "resumeMeta_other": "{{count}} klip · {{date}}",
+    "resumeForget": "Unut",
+    "resumeContinue": "Devam et",
+    "tabClip": "Klip",
+    "tabDownload": "İndir",
+    "gapPreview": "Boşluk: burada klip yok. Dışa aktarımda bu süre siyah ekran olur.",
+    "previewSpeed": "Önizleme hızı",
+    "fullscreen": "Tam ekran",
+    "outputGif": "GIF",
+    "gifFps": "Kare hızı",
+    "gifWidth": "Genişlik",
+    "gifHint": "GIF'te ses olmaz. Kısa tut: mesajlaşma uygulamaları için 10 saniyenin altı en iyisi.",
+    "gifLong": "Bu GIF {{seconds}} saniye; dosya çok büyük olabilir. Kısaltmayı ya da genişliği düşürmeyi dene.",
+    "chapters_one": "Bölümler ({{count}})",
+    "chapters_other": "Bölümler ({{count}})",
+    "splitChapters": "Bölümlerden böl",
+    "splitChaptersHint": "Her bölüm ayrı bir klip olur ve bölümün adını alır; istemediklerini seçip silebilirsin.",
+    "chapterUntitled": "Bölüm {{n}}",
+    "chapterRemoved": "Bu bölüm zaman çizelgesinden silinmiş",
+    "clipVolume": "Ses düzeyi",
+    "muteClip": "Sessize al",
+    "unmuteClip": "Sesi aç",
+    "fades": "Geçiş (açılma / kararma)",
+    "fadeIn": "Başta siyahtan açılsın",
+    "fadeOut": "Sonda siyaha kararsın",
+    "fadeNone": "Yok",
+    "fadeSeconds": "{{n}} sn",
+    "fadeHint": "Görüntü siyahtan açılır ya da siyaha kararır; ses de aynı sürede yükselip azalır.",
+    "frame": "Çerçeve",
+    "frameOption": {
+      "original": "Özgün",
+      "vertical": "Dikey (TikTok, Reels, Shorts)",
+      "square": "Kare (Instagram gönderi)",
+      "portrait": "Dikey gönderi (Instagram)",
+      "landscape": "Yatay (YouTube)"
+    },
+    "frameCrop": "Kırp (doldur)",
+    "frameFit": "Sığdır (bant)",
+    "framePosition": "Kırpma konumu",
+    "frameCropHint": "Önizlemede sarı çerçeveyi sürükleyerek de ayarlayabilirsin; dışında kalan kısım kesilir.",
+    "frameFitHint": "Görüntünün tamamı kalır, boş kalan kenarlar siyah olur.",
+    "addText": "Yazı ekle",
+    "textDefault": "Yazınız",
+    "textTitle": "Yazı",
+    "textContent": "Metin",
+    "textSize": "Boyut",
+    "textColor": "Renk",
+    "textBox": "Arka plan",
+    "textBold": "Kalın",
+    "textPosition": "Konum",
+    "pos": {
+      "top": "Üst",
+      "middle": "Orta",
+      "bottom": "Alt"
+    },
+    "deleteText": "Yazıyı sil",
+    "editText": "Yazıyı düzenle",
+    "textHint": "Önizlemede yazıyı sürükleyerek istediğin yere taşı. Ne zaman görüneceğini zaman çizelgesindeki mor bloktan ayarla: kenarından uzat ya da kısalt.",
+    "textRow": "Yazı satırı",
+    "trackMute": "Bu katmanın sesini kapat",
+    "trackUnmute": "Bu katmanın sesini aç",
+    "trackHide": "Bu katmanı gizle (alttaki görünür)",
+    "trackShow": "Bu katmanı göster",
+    "exportDialogHint": "Biçimi ve kaliteyi seç; kliplerin tek dosyada birleşir. Dikey çerçevede kalacak bölgeyi pencereyi kapatınca önizlemede sürükleyebilirsin.",
+    "toolClip": "Klip",
+    "toolFilters": "Filtreler",
+    "toolColor": "Renk",
+    "toolEffects": "Efektler",
+    "toolText": "Metin",
+    "toolTransitions": "Geçişler",
+    "toolSubtitles": "Altyazı",
+    "toolPresets": "Hazır ayar",
+    "lookPickClip": "İmlecin altında klip yok. İmleci bir klibin üstüne getir ya da zaman çizelgesinden klip seç; birden fazla klip seçersen hepsine birden uygulanır.",
+    "lookTarget": "Uygulanacak klip: {{name}}",
+    "filtersHint": "Tek tıkla renk havası: siyah-beyaz, sepya, sinema… Önizlemede hemen görünür.",
+    "colorHint": "Işığı ve rengi ince ayarla. Ortadaki değer videonun kendisidir.",
+    "effectsHint": "Bulanıklaştır, aynala ya da kenarları karart.",
+    "lookApplyAll": "Tüm kliplere uygula",
+    "lookReset": "Sıfırla",
+    "brightness": "Parlaklık",
+    "contrast": "Kontrast",
+    "saturation": "Doygunluk",
+    "temperature": "Sıcaklık (soğuk ↔ sıcak)",
+    "blur": "Bulanıklık",
+    "mirror": "Aynala (sağ-sol çevir)",
+    "vignette": "Kenarları karart",
+    "filter": {
+      "none": "Yok",
+      "bw": "Siyah-beyaz",
+      "sepia": "Sepya",
+      "vivid": "Canlı",
+      "cool": "Soğuk",
+      "warm": "Sıcak",
+      "cinema": "Sinema",
+      "faded": "Solgun"
+    },
+    "templatesHint": "Bir şablona tıkla, oynatma imlecinin olduğu yere yazı eklensin. Sonra metnini, yerini ve süresini değiştirebilirsin.",
+    "template": {
+      "title": {
+        "name": "Büyük başlık",
+        "sample": "Başlık"
+      },
+      "caption": {
+        "name": "Alt yazı",
+        "sample": "Buraya alt yazı"
+      },
+      "label": {
+        "name": "Köşe etiketi",
+        "sample": "CANLI"
+      },
+      "highlight": {
+        "name": "Vurgu",
+        "sample": "İşte o an!"
+      }
+    },
+    "transitionsHint": "Kartı tutup zaman çizelgesine sürükle. İki klibin birleştiği yere (ör. S ile böldüğün yer) bırakırsan geçiş o kesimde olur; klibin ortasına bırakırsan başına ve sonuna eklenir. Karta tıklamak seçili klibe uygular. Süreyi Klip panelinden değiştirebilirsin.",
+    "transitionsPick": "Geçiş eklemek için önce zaman çizelgesinden klibi seç (seçmezsen imlecin üstündeki klibe eklenir).",
+    "transitionsDragHint": "Kesime ya da klibin üstüne sürükle; tıklarsan seçili klibe eklenir",
+    "transition": {
+      "fadeBlack": "Kararma (siyah)",
+      "fadeWhite": "Beyaza açılma",
+      "fadeIn": "Yumuşak başlangıç",
+      "fadeOut": "Yumuşak bitiş"
+    },
+    "subtitlesHint": "Hazır bir .srt dosyan varsa içe aktar: her satır zaman çizelgesinde bir yazı olur ve dışa aktarınca videoya yazılır.",
+    "subtitlesBox": "Yazının arkasına yarı saydam kutu koy",
+    "subtitlesLarge": "Büyük yazı",
+    "subtitlesImport": ".srt dosyası seç",
+    "subtitlesImported": "{{count}} satır eklendi.",
+    "subtitlesEmpty": "Bu dosyada okunabilir altyazı satırı bulunamadı.",
+    "subtitlesFailed": "Altyazı dosyası açılamadı.",
+    "presetsHint": "Beğendiğin bir görünümü ya da yazı stilini adıyla kaydet, sonra tek tıkla kullan. Dosya olarak dışa aktarıp arkadaşlarınla paylaşabilirsin.",
+    "presetFromText": "Seçili yazının stili kaydedilecek.",
+    "presetFromLook": "Seçili klibin görünümü (filtre, renk, efekt) kaydedilecek.",
+    "presetNothing": "Kaydetmek için görünümü değiştirilmiş bir klip ya da bir yazı seç.",
+    "presetName": "Hazır ayarın adı",
+    "presetSave": "Kaydet",
+    "presetSaved": "Kaydedildi.",
+    "presetsEmpty": "Henüz hazır ayarın yok.",
+    "presetApply": "Uygula",
+    "presetDelete": "Sil",
+    "presetKindLook": "görünüm",
+    "presetKindText": "yazı",
+    "presetsImport": "İçe aktar",
+    "presetsExport": "Dışa aktar",
+    "presetsExported": "Hazır ayarlar dosyaya kaydedildi.",
+    "presetsImported": "{{count}} hazır ayar eklendi.",
+    "presetsNone": "Dosyada hazır ayar bulunamadı.",
+    "presetsFailed": "Hazır ayar dosyası işlenemedi."
+  },
+  "tutorial": {
+    "label": "Tanıtım turu",
+    "stepOf": "Adım {{step}} / {{total}}",
+    "close": "Turu kapat",
+    "skip": "Şimdilik atla",
+    "start": "Turu başlat",
+    "back": "Geri",
+    "next": "İleri",
+    "finish": "Başlayalım",
+    "dontShowAgain": "Bir daha gösterme",
+    "goToStep": "{{step}}. adıma git",
+    "welcome": {
+      "title": "DownKit'e hoş geldin",
+      "body": "Linkten video ve ses indir, sadece istediğin sahneyi kes, dönüştür, küçült, platforma hazırla — <b>tamamen ücretsiz</b>, reklamsız, üyeliksiz.",
+      "tip": "Nerede ne olduğunu 1 dakikada göstereyim. İstersen şimdi atlayabilirsin; tur Ayarlar'dan her zaman yeniden açılır."
+    },
+    "link": {
+      "title": "Linki yapıştır, indir",
+      "body": "<b>Ana Sayfa</b>'da bir video linkini kopyala ve <k>Ctrl</k> + <k>V</k>'ye bas. Başlığı, süreyi ve tahmini boyutu görürsün; formatı (MP4, MP3…) ve kaliteyi seçip <b>İndir</b>'e bas.",
+      "tip": "Videonun sadece bir kısmını mı istiyorsun? <b>Videonun bir bölümünü indir</b>'i aç; gerisi hiç inmez."
+    },
+    "editor": {
+      "title": "Klip Düzenleyici",
+      "body": "Video linkini ya da bilgisayarındaki bir dosyayı aç ve <b>indirmeden izle</b>. Beğenmediğin yerleri <k>S</k> ile bölüp sil, klibe filtre, yazı ve geçiş ekle; sonra yalnızca istediğin kısımları indir.",
+      "tip": "Kestiğin klipleri tek dosyada ya da ayrı ayrı, video ya da yalnızca ses olarak alırsın. İzlemek ve kesmek tamamen bedava; kota yalnızca indirirken harcanır."
+    },
+    "local": {
+      "title": "Bilgisayarındaki dosyalar",
+      "body": "Bir dosyayı pencereye sürükle bırak: <b>Dönüştür</b> (format değiştir), <b>Sıkıştır</b> (ör. Discord'a sığacak kadar küçült), <b>Boyut Ayarla</b> (TikTok, Reels, Shorts için dikey ya da kare).",
+      "tip": "Orijinal dosyan hiç değişmez; sonuç yeni bir dosya olarak kaydedilir."
+    },
+    "queue": {
+      "title": "Kuyruk ve geçmiş",
+      "body": "Başlattığın her iş <b>İndirme ve Geçmiş</b>'te canlı ilerler: yüzde, hız, kalan süre. Duraklat, devam et ya da iptal et. Biten dosyalar ve aradığın linkler aynı sayfadaki <b>Geçmiş</b> sekmesinde durur.",
+      "tip": "İş sürerken pencereyi kapatırsan program saatin yanındaki tepsiye iner; işin yarıda kalmaz."
+    },
+    "settings": {
+      "title": "Toplu işlem ve ayarlar",
+      "body": "<b>Toplu İşlem</b>'de onlarca linki tek seferde kuyruğa ekle. <b>Ayarlar</b>'da kayıt klasörü, dil, altyazı dilleri ve hız sınırı var.",
+      "tip": "Bu turu istediğin zaman <b>Ayarlar → Öğreticiyi başlat</b> ile yeniden açabilirsin."
+    },
+    "support": {
+      "title": "Son olarak, küçük bir ricam var",
+      "body": "DownKit'i boş zamanlarımda tek başıma geliştiriyorum ve <b>her zaman ücretsiz</b> kalacak — reklam yok, üyelik yok, gizli ücret yok.",
+      "tip": "İşine yaradıysa ve emeğime bir karşılık vermek istersen sol alttaki <b>Destek ol</b> ile bağış yapabilirsin. Zorunlu değil, ama yaparsan çok sevinirim. Bir hata ya da fikir için Discord'da seni beklerim."
+    },
+    "pageStepOf": "{{page}} · {{step}} / {{total}}",
+    "noPageTours": "Sayfa turlarını otomatik gösterme",
+    "pageHelp": "Bu sayfayı tanıt",
+    "help": {
+      "title": "Yardım her sayfada",
+      "body": "Sağ alttaki <b>Bu sayfayı tanıt</b> düğmesi, açık olan sayfadaki her öğeyi tek tek gösterip nasıl kullanıldığını anlatır. Bir sayfayı ilk kez açtığında bu tur kendiliğinden gelir.",
+      "tip": "Soldaki menü düğmesi menüyü daraltır: yalnızca simgeler kalır, çalışma alanı büyür. Tekrar basınca eski hâline döner."
+    },
+    "record": {
+      "title": "Ekran kaydı",
+      "body": "Ekranını ya da bir pencereyi sesiyle kaydet. <b>Geriye dönük kayıt</b> açıkken son 30 saniye arka planda tutulur; güzel bir an olunca tek tuşla kaydedersin.",
+      "tip": "Kısayollar oyun oynarken de çalışır."
+    }
+  },
+  "shortcuts": {
+    "title": "Kısayollar",
+    "subtitle": "Bir eylemin yanındaki + ile yeni tuş ekle, tuşun üstündeki × ile kaldır. Değişiklikler hemen kaydedilir.",
+    "group": {
+      "playback": "Oynatma",
+      "editing": "Düzenleme",
+      "view": "Görünüm"
+    },
+    "action": {
+      "playPause": "Oynat / duraklat",
+      "back1": "1 saniye geri",
+      "forward1": "1 saniye ileri",
+      "back5": "5 saniye geri",
+      "forward5": "5 saniye ileri",
+      "prevFrame": "Bir kare geri",
+      "nextFrame": "Bir kare ileri",
+      "toStart": "Başa git",
+      "toEnd": "Sona git",
+      "split": "İmleçten böl",
+      "deleteClip": "Seçili klibi sil",
+      "duplicate": "Çoğalt",
+      "trimStart": "Klibin imleçten öncesini at",
+      "trimEnd": "Klibin imleçten sonrasını at",
+      "undo": "Geri al",
+      "redo": "Yinele",
+      "selectAll": "Tümünü seç",
+      "deselect": "Seçimi kaldır",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır",
+      "zoomFit": "Tamamını göster",
+      "toggleMute": "Klibi sessize al / sesini aç"
+    },
+    "remove": "{{combo}} kısayolunu kaldır",
+    "add": "Tuş ekle",
+    "pressKey": "Bir tuşa bas… (Esc: vazgeç)",
+    "resetOne": "Varsayılana döndür",
+    "resetAll": "Tümünü varsayılana döndür",
+    "done": "Tamam",
+    "moved": "{{combo}} artık \"{{to}}\" için; \"{{from}}\" eyleminden kaldırıldı.",
+    "mouseHint": "Fareyle: Ctrl + tekerlek yakınlaştırır, tekerlek kaydırır, klibe çift tıklamak onu oynatır, sağ tık menü açar. Sürüklerken Alt mıknatısı geçici olarak kapatır."
+  },
+  "tour": {
+    "home": {
+      "name": "Ana Sayfa",
+      "url": {
+        "title": "Linki buraya yapıştır",
+        "body": "Tarayıcıda videonun adres çubuğundaki linki kopyala, buraya yapıştır ve <b>Analiz Et</b>'e bas. Daha hızlısı: bu sayfadayken <k>Ctrl</k> + <k>V</k>'ye bas; link yapıştırılır ve analiz kendiliğinden başlar.",
+        "tip": "Analiz birkaç saniye sürer. Video indirilmez; yalnızca başlık, süre ve kaliteler okunur."
+      },
+      "platforms": {
+        "title": "Desteklenen siteler",
+        "body": "YouTube, TikTok, Instagram, X, Reddit, Facebook, Twitch, Kick ve daha fazlası. Yapıştırdığın linkin sitesi burada vurgulanır.",
+        "tip": "<b>+3</b>'e tıklayınca diğer siteler görünür. Listede olmayan pek çok site de çalışır."
+      },
+      "media": {
+        "title": "Video bilgileri",
+        "body": "Başlık, kanal, süre ve çözünürlük burada. <b>Düzenleyicide aç</b> ile videoyu indirmeden izleyip istediğin sahneleri kesebilir, yalnızca onları indirebilirsin.",
+        "tip": "Küçük resme tıklamak da düzenleyiciyi açar."
+      },
+      "section": {
+        "title": "Yalnızca bir bölümü indir",
+        "body": "Anahtarı açınca iki tutamaç çıkar: başlangıcı ve bitişi sürükle ya da saatleri yaz (<k>1:24</k>, <k>1:02:03</k>). 1 saatlik videonun yalnızca o kısmı iner.",
+        "tip": "Sahneyi görerek seçmek istersen <b>Düzenleyicide seç</b>."
+      },
+      "actions": {
+        "title": "Ne yapmak istiyorsun?",
+        "body": "<b>İndir</b>: videoyu ya da sesi kaydet. <b>Dönüştür</b>: başka formata çevir. <b>Sıkıştır</b>: dosyayı küçült. <b>Boyut Ayarla</b>: dikey ya da kare yap. Seçtiğin kart vurgulanır, alttaki başlat düğmesi ona göre değişir.",
+        "tip": "Link analiz edilmediyse kartlar seni bilgisayardaki dosyalar için ilgili araca götürür."
+      },
+      "options": {
+        "title": "Format ve kalite",
+        "body": "<b>Temel</b> sekmesinde format (MP4, MP3…), kalite (her birinin tahmini boyutuyla) ve ses kalitesi var. <b>Platforma Hazırla</b> kutuları TikTok, Reels ve Shorts için ayrıca dikey bir kopya üretir; altyazı ve küçük dosya seçenekleri de burada.",
+        "tip": "<b>Gelişmiş</b> sekmesi sitenin sunduğu bütün formatları, <b>Toplu İşlem</b> sekmesi birden çok linki tek seferde eklemeyi gösterir."
+      },
+      "start": {
+        "title": "Başlat",
+        "body": "Hazır olunca bu düğmeye ya da <k>Enter</k>'a bas. İş kuyruğa eklenir ve hemen başlar; aynı anda birden çok iş çalışabilir.",
+        "tip": "Dosyalar düğmenin yanında yazan kayıt klasörüne gider. <b>Değiştir</b> ile başka bir klasör seçebilirsin."
+      },
+      "presets": {
+        "title": "Hazır ayarlar",
+        "body": "Tek tıkla ayar: en iyi kalite MP4, yalnızca ses MP3, küçük dosya, Discord'a uygun (en fazla 10 MB), TikTok'a hazır… Seçince format ve kalite kendiliğinden ayarlanır."
+      },
+      "queue": {
+        "title": "İşlem kuyruğu",
+        "body": "Başlattığın işler burada canlı ilerler: yüzde, hız, boyut ve kalan süre. İndirmeyi duraklatıp sonra devam ettirebilir ya da iptal edebilirsin. Bitince <b>Dosyayı aç</b> ve <b>Klasörde göster</b> düğmeleri çıkar.",
+        "tip": "Bütün işler için soldaki <b>İndirme</b> sayfasına bak."
+      }
+    },
+    "editorStart": {
+      "name": "Klip Düzenleyici",
+      "intro": {
+        "title": "Klip Düzenleyici",
+        "body": "Burada bir videoyu <b>indirmeden</b> izleyip istediğin sahneleri kesebilir, yalnızca o kısımları indirebilirsin. Bilgisayarındaki videoları da aynı şekilde kesersin.",
+        "tip": "Clipchamp ya da Premiere'deki gibi: zaman çizelgesi, bölme, katmanlar, hız."
+      },
+      "resume": {
+        "title": "Kaldığın yerden devam",
+        "body": "Son çalıştığın proje kendiliğinden kaydedilir. <b>Devam et</b> ile videoyu yeniden açar, kesimlerini geri getirir."
+      },
+      "link": {
+        "title": "Linkten aç",
+        "body": "Video linkini yapıştır ve <b>Aç</b>'a bas. Video birkaç saniyede oynamaya hazır olur; tamamı indirilmez."
+      },
+      "drop": {
+        "title": "Ya da bilgisayardan aç",
+        "body": "Bir video ya da ses dosyasını buraya sürükle ya da tıklayıp seç. Orijinal dosyan hiç değişmez."
+      }
+    },
+    "editor": {
+      "name": "Klip Düzenleyici",
+      "player": {
+        "title": "Önizleme",
+        "body": "Video burada oynar; tıkla durdur, bir daha tıkla devam ettir. Alttaki çubuktan önizleme hızını artırıp (ör. 2×) uzun videoda hızlıca gezinebilir, sesi ayarlayabilir ya da tam ekrana geçebilirsin.",
+        "tip": "Önizleme, çizelgedeki kesimlerine göre oynar: sildiğin yer atlanır, boşlukta ekran kararır. Dışa aktardığında da aynen böyle çıkar."
+      },
+      "tools": {
+        "title": "Sağdaki araçlar: klibi güzelleştir",
+        "body": "Bir klip seçiliyken bu sütun ona ait olur. <b>Klip</b>: hız, ses düzeyi, başta ve sonda kararma. <b>Filtreler</b>: tek tıkla hazır görünümler (siyah-beyaz, eski film, sıcak tonlar…). <b>Renk</b>: parlaklık, kontrast, doygunluk gibi ince ayarlar. <b>Efektler</b>: kenar karartması, aynalama gibi dokunuşlar.",
+        "tip": "Her değişiklik önizlemede anında görünür; beğenmediysen geri alman yeterli."
+      },
+      "add": {
+        "title": "Soldaki araçlar: videoya ekle",
+        "body": "Bu sütun videoya bir şey katmak için. <b>Metin</b>: hazır başlık ve alt yazı şablonları. <b>Geçişler</b>: iki klibin arasına yumuşak geçiş. <b>Altyazı</b>: elindeki .srt dosyasını içe aktar. <b>Hazır ayarlar</b>: beğendiğin görünümü kaydet, başka klipte tek tıkla kullan.",
+        "tip": "Eklediğin yazıyı önizlemede sürükleyerek yerleştirir, süresini çizelgedeki mor bloktan ayarlarsın."
+      },
+      "timeline": {
+        "title": "Zaman çizelgesi",
+        "body": "Video burada tek parça olarak başlar. Beyaz çizgi <b>oynatma imleci</b>: cetvele tıkla ya da sürükle, video o ana gider. En alttaki ince şerit videonun tamamının haritasıdır; üstündeki nokta imlecin yerini gösterir.",
+        "tip": "Uzun videoda sahneyi bulmak için imleci sürükle; kareler sen sürükledikçe görünür."
+      },
+      "split": {
+        "title": "Kes: böl ve sil",
+        "body": "İmleci sahnenin başına getir ve <k>S</k>'ye bas (ya da makas düğmesi): video ikiye bölünür. Sahnenin sonuna getir, yine <k>S</k>. Artık sahne ayrı bir klip; istemediğin parçaya tıklayıp <k>Delete</k> ile sil.",
+        "tip": "Silinen yerde boşluk kalır ve dışa aktarımda siyah ekran olur. İstemezsen \"Boşlukları kapat\" klipleri uç uca getirir."
+      },
+      "clip": {
+        "title": "Klipler",
+        "body": "Klibe tıkla: seçilir (beyaz çerçeve). <b>Kenarından</b> tutup sürükle: kısalt ya da uzat. <b>Ortasından</b> tutup sürükle: taşı. Çift tık: klibi oynat. Sağ tık: çoğalt, yalnızca bunu tut, hız.",
+        "tip": "Mıknatıs açıkken kenarlar imlece ve diğer kliplere yapışır; sürüklerken <k>Alt</k>'ı basılı tutarsan yapışmaz."
+      },
+      "layers": {
+        "title": "Katmanlar ve iz düğmeleri",
+        "body": "Bir klibi yukarıdaki boş satıra sürüklersen üst katmana geçer; oynadığı süre boyunca alttakinin <b>yerine</b> gösterilir. Her satırın solundaki düğmelerle o katmanı <b>sessize al</b> ya da <b>gizle</b>: gizli katman ne önizlemede ne de dışa aktarımda görünür, sessiz katmandan ses çıkmaz.",
+        "tip": "En fazla 3 katman var. Araya başka bir sahne almak için üst katmanı kullan."
+      },
+      "undo": {
+        "title": "Geri al ve mıknatıs",
+        "body": "Yanlış mı kestin? <k>Ctrl</k> + <k>Z</k> ile geri al, <k>Ctrl</k> + <k>Y</k> ile yinele. Mıknatıs düğmesi kliplerin birbirine ve imlece yapışmasını açar ya da kapatır."
+      },
+      "zoom": {
+        "title": "Yakınlaştır",
+        "body": "<k>Ctrl</k> + fare tekerleği ya da <k>+</k> / <k>-</k> ile yakınlaştır; saniye saniye çalışabilirsin. Tekerlek sağa sola kaydırır, çerçeve düğmesi tamamını gösterir."
+      },
+      "panel": {
+        "title": "Klip ayarları",
+        "body": "Seçili klibin <b>hızı</b> (0,25×–4×), <b>ses düzeyi</b> ve baştaki/sondaki <b>kararma</b> geçişi burada. Klip seçili değilse projenin özeti ve <b>Boşlukları kapat</b> görünür. Videoda bölümler varsa burada listelenir: tıklayınca o ana gidersin, <b>Bölümlerden böl</b> her bölümü ayrı klip yapar.",
+        "tip": "Hızlandırılan klip kısalır; sesi de aynı hızda çalar."
+      },
+      "export": {
+        "title": "İndir / dışa aktar",
+        "body": "Hazır olunca bu düğmeye bas; ayarlar ortada bir pencerede açılır. Video, yalnızca <b>ses</b> ya da <b>GIF</b> seç, format ve kaliteyi belirle. Birden çok parça varsa tek dosyada birleştirebilir ya da ayrı dosyalar alabilirsin. Linkten açtıysan yalnızca bıraktığın kısımlar iner.",
+        "tip": "<b>Çerçeve</b> seçiliyse kırpma alanı önizlemede görünür; pencereyi kapatsan bile köşelerinden sürükleyip ayarlamaya devam edersin."
+      },
+      "shortcuts": {
+        "title": "Kısayollar",
+        "body": "Bütün klavye kısayollarını buradan gör ve istediğin gibi değiştir: <b>+</b> ile yeni tuş ekle, <b>×</b> ile kaldır.",
+        "tip": "Bir tuşu başka bir işe verirsen eski yerinden kendiliğinden kaldırılır."
+      }
+    },
+    "local": {
+      "drop": {
+        "title": "Dosyayı seç",
+        "body": "Dosyayı pencereye sürükle bırak ya da bu alana tıklayıp seç. MP4, MKV, MOV, WebM, AVI, MP3, WAV… çoğu video ve ses dosyası olur."
+      },
+      "file": {
+        "title": "Seçili dosya",
+        "body": "Dosyanın süresi, çözünürlüğü, kodekleri ve boyutu burada. <b>Değiştir</b> ile başka bir dosya seçebilirsin."
+      },
+      "start": {
+        "title": "Başlat",
+        "body": "Düğmeye bas; iş kuyruğa girer ve ilerlemesi aşağıda görünür.",
+        "tip": "Kayıt klasörünü düğmenin solundaki satırdan değiştirebilirsin."
+      },
+      "result": {
+        "title": "Sonuç",
+        "body": "Orijinal dosyan hiç değişmez; sonuç yeni bir dosya olarak kaydedilir. Bitince <b>Dosyayı aç</b> ya da <b>Klasörde göster</b>."
+      }
+    },
+    "convert": {
+      "name": "Dönüştürme",
+      "intro": {
+        "title": "Dönüştürme",
+        "body": "Bir dosyanın formatını değiştirir: MKV'yi MP4'e, videoyu MP3'e çevirmek gibi.",
+        "tip": "Kodekler zaten uygunsa yeniden kodlamaz, kopyalar: saniyeler sürer, kalite kaybı olmaz."
+      },
+      "options": {
+        "title": "Hedef format",
+        "body": "Hangi formata çevrileceğini seç. Yalnızca ses formatlarında (MP3, M4A, WAV…) görüntü atılır."
+      }
+    },
+    "compress": {
+      "name": "Sıkıştırma",
+      "intro": {
+        "title": "Sıkıştırma",
+        "body": "Dosyayı küçültür; örneğin Discord'un 10 MB sınırına sığdırmak ya da telefonda yer açmak için."
+      },
+      "options": {
+        "title": "Kalite ya da hedef boyut",
+        "body": "<b>Kalite seviyesi</b>: Yüksek, Dengeli, Küçük ya da Çok küçük. <b>Hedef boyut</b>: MB yaz, dosya o boyuta sığdırılır. <b>Gelişmiş</b> bölümünden çözünürlüğü ve kare hızını kendin de düşürebilirsin.",
+        "tip": "Çözünürlük ve kare hızı düştükçe dosya küçülür ve sıkıştırma hızlanır. Sonuç küçülmediyse sana söylenir."
+      }
+    },
+    "resize": {
+      "name": "Boyut Ayarla",
+      "intro": {
+        "title": "Boyut Ayarla",
+        "body": "Videonun çözünürlüğünü ya da en-boy oranını değiştirir. TikTok, Reels, Shorts gibi platformlar için hazır ayarlar da burada: kartına tıkla, doğru boyut kendiliğinden seçilir."
+      },
+      "options": {
+        "title": "Boyut ve sığdırma",
+        "body": "Bir platform kartı seç ya da serbest çalış: en-boy oranını ve çözünürlüğü kendin belirle. <b>Doldur</b>: kenarlar kırpılır, <b>Sığdır</b>: siyah bantlar eklenir.",
+        "tip": "Seçili platform kartına tekrar tıklarsan seçim kalkar ve serbest orana dönersin."
+      }
+    },
+    "downloads": {
+      "name": "İndirme ve Geçmiş",
+      "view": {
+        "title": "Kuyruk ve Geçmiş tek sayfada",
+        "body": "<b>Kuyruk</b>: çalışan ve sıradaki işler. <b>Geçmiş</b>: biten dosyalar ve aradığın linkler. İkisi de burada; ayrı sayfa aramana gerek yok."
+      },
+      "list": {
+        "title": "Bütün işler",
+        "body": "Başlattığın her indirme ve dönüştürme burada: ilerleme, hız, boyut, kalan süre ve aşama (video, ses, birleştirme)."
+      },
+      "filter": {
+        "title": "Süzgeç",
+        "body": "<b>Devam edenler</b> çalışan, sıradaki ve duraklatılan işleri; <b>Bitenler</b> tamamlanan, hata veren ve iptal edilenleri gösterir."
+      },
+      "actions": {
+        "title": "Satırdaki düğmeler",
+        "body": "Duraklat, devam et, iptal et, tekrar dene. Bitenlerde dosyayı aç, klasörde göster ve listeden kaldır. Hata veren bir işte <b>Ayrıntı</b> sebebini gösterir.",
+        "tip": "Program kapanırken yarım kalan indirmeler bir sonraki açılışta duraklatılmış olarak geri gelir; <b>Tümünü sürdür</b> ile devam ettir."
+      },
+      "history": {
+        "title": "Geçmiş sekmesi",
+        "body": "Üstteki <b>Geçmiş</b> sekmesinde tamamlanan her dosya ve analiz ettiğin linkler durur. Dosyayı açabilir, klasörde gösterebilir ya da aynı linki tek tıkla yeniden indirebilirsin.",
+        "tip": "Geçmiş tutulsun istemiyorsan Ayarlar → Gizlilik'ten kapatabilirsin."
+      }
+    },
+    "batch": {
+      "name": "Toplu İşlem",
+      "input": {
+        "title": "Linkleri yapıştır",
+        "body": "Her satıra bir link yaz ya da yapıştır. Tekrar eden ve desteklenmeyen linkler kendiliğinden ayıklanır; altta kaç tanesinin geçerli olduğu yazar."
+      },
+      "options": {
+        "title": "Format ve kalite",
+        "body": "Bütün linklere uygulanacak format ve en yüksek kalite. Kayıt klasörünü de buradan değiştirebilirsin."
+      },
+      "start": {
+        "title": "Kuyruğa ekle",
+        "body": "Hepsi kuyruğa eklenir ve sırayla (aynı anda birkaç tane) iner. Aşağıdaki listeden izleyebilirsin."
+      }
+    },
+    "settings": {
+      "name": "Ayarlar",
+      "general": {
+        "title": "Genel",
+        "body": "Dil, kayıt klasörü, dosya adı biçimi ve tanıtım turları. <b>Öğreticiyi başlat</b> karşılama turunu yeniden açar."
+      },
+      "folders": {
+        "title": "Kayıt klasörleri",
+        "body": "İndirilen dosyaların ve ekran kayıtlarının nereye gittiği burada. İkisine ayrı klasör seçebilir, <b>Klasörü aç</b> ile içine bakabilirsin.",
+        "tip": "İndirmeleri siteye göre alt klasörlere ayırmak istersen onu da buradan açarsın."
+      },
+      "theme": {
+        "title": "Temalar",
+        "body": "Programın görünümünü buradan değiştirirsin. Üstteki renk yuvarlaklarına tıklamak temayı anında uygular; <b>Tüm temalar</b>'a tıklarsan 16 temanın hepsini büyük önizlemeleriyle görürsün.",
+        "tip": "Gözünü yormayan koyu bir şey mi arıyorsun? <b>Grafit</b> ve <b>Zifiri Siyah</b> tam sana göre."
+      },
+      "downloads": {
+        "title": "İndirmeler",
+        "body": "Varsayılan format ve kalite, aynı anda kaç işin çalışacağı, hız sınırı ve indirilenleri siteye göre klasörleme."
+      },
+      "subtitles": {
+        "title": "Altyazılar",
+        "body": "Altyazı istediğinde hangi dillerin indirileceği ve otomatik (makine) altyazıların dahil edilip edilmeyeceği."
+      },
+      "behavior": {
+        "title": "Bildirimler ve pano",
+        "body": "Panodaki linki önerme, iş bitince bildirim, iş bitince klasörü açma ve pencere kapatılınca tepsiye küçülme."
+      },
+      "tools": {
+        "title": "Araçlar",
+        "body": "yt-dlp, FFmpeg ve Deno sürümleri. Bir site aniden çalışmayı bırakırsa <b>Şimdi güncelle</b> genelde çözer."
+      },
+      "privacy": {
+        "title": "Gizlilik",
+        "body": "Geçmişi tutma ya da temizleme. DownKit hiçbir veri toplamaz; her şey bu bilgisayarda kalır."
+      },
+      "about": {
+        "title": "Hakkında",
+        "body": "Sürüm, iletişim (Discord, yapımcı sayfası), GitHub ve gönüllü bağış. Yasal uyarı da burada."
+      },
+      "browser": {
+        "title": "Tarayıcıdan gönder",
+        "body": "Buradaki kodu tarayıcında bir yer imi olarak kaydet. İzlediğin videonun sayfasında o yer imine tıklayınca link doğrudan DownKit'e gelir; ister Ana Sayfa'da analiz edilir, ister düzenleyicide açılır.",
+        "tip": "Hiçbir şey kendiliğinden inmez; yalnızca link DownKit'e aktarılır."
+      }
+    },
+    "record": {
+      "name": "Ekran Kaydı",
+      "main": {
+        "title": "Kaydı başlat",
+        "body": "Kırmızı düğmeye bas: seçtiğin ekran ya da pencere sesiyle kaydedilmeye başlar. Süre, dosya boyutu ve ses düzeyi burada görünür; durdurunca kayıt MP4 olarak kaydedilir.",
+        "tip": "Kısayol (varsayılan <k>Ctrl</k> + <k>Alt</k> + <k>F9</k>) program arka plandayken de çalışır."
+      },
+      "replay": {
+        "title": "Geriye dönük kayıt",
+        "body": "Açık olduğu sürece son 30 saniye (süreyi seçebilirsin) arka planda tutulur. Az önce güzel bir şey mi oldu? <b>Kaydet</b>'e ya da kısayola bas: o an dosyaya dönüşür. NVIDIA'daki Anlık Tekrar gibi.",
+        "tip": "<b>Program açılınca başlat</b> açıkken hep hazırda bekler; normal kayıtla aynı anda da çalışır."
+      },
+      "source": {
+        "title": "Ne kaydedilsin",
+        "body": "Ekranın tamamını ya da tek bir pencereyi seç. Kare hızı, çözünürlük ve kalite dosya boyutunu belirler: <b>Dengeli</b> çoğu iş için yeterli.",
+        "tip": "Görüntü ekran kartında sıkıştırılır; oyun performansı neredeyse etkilenmez."
+      },
+      "audio": {
+        "title": "Ses",
+        "body": "<b>Sistem sesi</b> hoparlörden çıkan her şeydir (oyun, video, sohbet). <b>Mikrofon</b>'u açarsan sesin de eklenir; düzeylerini ayrı ayrı ayarlarsın. Altlarındaki hareketli çubuklar sesin gelip gelmediğini canlı gösterir: çubuk oynuyorsa kayda o ses de girer."
+      },
+      "hotkeys": {
+        "title": "Kısayollar",
+        "body": "Kaydı başlatıp durdurmak, anlık tekrarı kaydetmek ve açıp kapatmak için tuşlar. Değiştirmek için tıkla ve yeni tuşlara bas. Yanında <b>Algılandı</b> yazıyorsa kısayol çalışıyor demektir; basıp hemen deneyebilirsin.",
+        "tip": "Tuşu başka bir program da kullanıyorsa uyarı çıkar ama kısayol yine çalışır; basınca iki program da tetiklenebilir. Oyun yönetici olarak açıldıysa DownKit'i de yönetici olarak aç."
+      },
+      "library": {
+        "title": "Kayıtlarım",
+        "body": "Bütün kayıtların burada. Tıklayınca program içinde izlersin; oradan <b>Düzenleyicide aç</b> ile kesip biçebilir, yeniden adlandırabilir ya da silebilirsin.",
+        "tip": "Silinen kayıt Geri Dönüşüm Kutusu'na gider."
+      }
+    }
+  },
+  "tools": {
+    "downloading": "{{tool}} ilk kez hazırlanıyor: %{{percent}}",
+    "ready": "{{tool}} hazır",
+    "failed": "{{tool}} indirilemedi; internet bağlantını kontrol et, ilk işte yeniden denenir."
+  },
+  "report": {
+    "button": "Hatayı bildir",
+    "copied": "Hata raporu panoya kopyalandı.",
+    "copyFailed": "Rapor kopyalanamadı.",
+    "where": "Discord'da ya da GitHub'da yeni bir mesaja yapıştır (Ctrl+V); ne yaparken olduğunu da bir cümleyle yazarsan çok yardımcı olur.",
+    "privacy": "Rapora kullanıcı adın eklenmez; yalnızca sürüm, hata ve teknik ayrıntı."
+  },
+  "language": {
+    "name": "Türkçe"
+  },
+  "recorder": {
+    "title": "Ekran Kaydı",
+    "subtitle": "Ekranını ya da bir pencereyi sesiyle kaydet. Geriye dönük kayıt açıkken az önce olanı sonradan kaydedebilirsin.",
+    "folderName": "Kayıtlar",
+    "recordingPrefix": "Kayıt",
+    "replayPrefix": "Anlık tekrar",
+    "screenshotPrefix": "Ekran Görüntüsü",
+    "sourcesFailed": "Ekranlar ve pencereler okunamadı.",
+    "sourceMissing": "Seçili pencere artık açık değil.",
+    "startFailed": "Kayıt başlatılamadı.",
+    "stopFailed": "Kayıt durdurulamadı.",
+    "replayFailed": "Anlık tekrar başlatılamadı.",
+    "saveFailed": "Anlık tekrar kaydedilemedi.",
+    "screenshot": "Ekran görüntüsü",
+    "screenshotFailed": "Ekran görüntüsü alınamadı.",
+    "screenshotSaved": "{{name}} kaydedildi",
+    "errorTitle": "Ekran kaydı",
+    "replayOff": "Anlık tekrar kapalı. Önce Ekran Kaydı sayfasından aç.",
+    "replayTitle": "Geriye dönük kayıt (anlık tekrar)",
+    "savedTitle": "Kayıt kaydedildi",
+    "savedReplayTitle": "Anlık tekrar kaydedildi",
+    "hotkeyInvalid": "Bu kısayol kullanılamaz.",
+    "hotkeyTaken": "Bu kısayol kaydedilemedi ve yedek yol da kurulamadı; tuş şu an çalışmaz. Başka bir birleşim dene.",
+    "hotkeyShared": "Bu birleşimi başka bir program da kullanıyor; sorun değil: DownKit tuşu arka plandan yakalar ve kısayol yine de çalışır (basınca iki program da tetiklenebilir). Yukarıda \"Çalışıyor\" yazıyorsa hazır demektir; \"Algılandı\" testiyle hemen deneyebilirsin.",
+    "screenN": "Ekran {{n}}",
+    "start": "Kaydı başlat",
+    "stop": "Kaydı durdur",
+    "recordingNow": "Kaydediliyor",
+    "starting": "Başlatılıyor…",
+    "ready": "Kayda hazır",
+    "systemAudio": "Sistem sesi",
+    "microphone": "Mikrofon",
+    "hotkey": "Kısayol",
+    "encoderHint": "Görüntüyü sıkıştıran kodlayıcı; ekran kartı varsa işlemci neredeyse hiç yorulmaz.",
+    "encoderGpu": "{{name}} (ekran kartı)",
+    "seconds": "{{n}} saniye",
+    "minutes": "{{n}} dakika",
+    "replayHint": "Açıkken son {{length}} arka planda tutulur. Güzel bir an olunca Kaydet'e ya da kısayola bas; o an dosyaya dönüşür.",
+    "buffer": "Arabellek {{have}} / {{total}}",
+    "replayOffShort": "Kapalı",
+    "saving": "Kaydediliyor…",
+    "saveLast": "Son {{length}} kaydet",
+    "replayLength": "Anlık tekrar süresi",
+    "saveHotkey": "Kaydet",
+    "replayOnStartup": "Program açılınca başlat",
+    "hotkeyNeedsModifier": "Ctrl, Alt ya da Shift ile birlikte bas (ya da bir F tuşu).",
+    "noHotkey": "Yok",
+    "removeHotkey": "Kısayolu kaldır",
+    "defaultHotkey": "Varsayılan",
+    "primaryScreen": "Ana ekran",
+    "windowClosed": "şu an açık değil",
+    "defaultMic": "Windows'un varsayılan mikrofonu",
+    "qualityHigh": "Yüksek",
+    "qualityBalanced": "Dengeli",
+    "qualitySmall": "Küçük dosya",
+    "settingsTitle": "Kayıt ayarları",
+    "appliesNext": "Değişiklikler bir sonraki kayıtta geçerli olur.",
+    "whatToRecord": "Ne kaydedilsin",
+    "refreshSources": "Ekran ve pencere listesini yenile",
+    "screenHint": "Ekranın tamamı kaydedilir; tam ekran oyunlar da. DRM korumalı videolar (ör. Netflix) Windows tarafından siyah gösterilir.",
+    "windowHint": "Yalnızca bu pencere kaydedilir; önüne başka pencere gelse de görünmez. Simge durumundaki pencere kaydedilemez.",
+    "fps": "Kare hızı",
+    "resolution": "Çözünürlük",
+    "native": "Özgün",
+    "quality": "Kalite",
+    "showCursor": "Fare imlecini göster",
+    "audio": "Ses",
+    "systemVolume": "Sistem sesi düzeyi",
+    "microphoneDevice": "Mikrofon aygıtı",
+    "microphoneVolume": "Mikrofon düzeyi",
+    "hotkeys": "Kısayollar",
+    "hotkeysHint": "Program arka plandayken, oyun oynarken bile çalışır. Değiştirmek için tıkla ve yeni tuşlara bas.",
+    "hotkeyRecord": "Kaydı başlat / durdur",
+    "hotkeySave": "Anlık tekrarı kaydet",
+    "hotkeyToggleReplay": "Anlık tekrarı aç / kapat",
+    "hotkeyScreenshot": "Ekran görüntüsü al",
+    "folder": "Kayıt klasörü",
+    "openFolder": "Klasörü aç",
+    "defaultFolder": "Varsayılana dön",
+    "library": "Kayıtlarım",
+    "refresh": "Yenile",
+    "libraryEmpty": "Henüz kayıt yok. Kaydı başlat ya da anlık tekrarı açıp bir anı kaydet.",
+    "save": "Kaydet",
+    "repairHint": "Bu kayıt program kapanırken yarım kalmış (MKV). MP4'e aktarınca her yerde oynatılabilir.",
+    "repairing": "Onarılıyor…",
+    "repair": "Onar",
+    "deleteConfirm": "Kayıt Geri Dönüşüm Kutusu'na taşınsın mı?",
+    "delete": "Sil",
+    "cancel": "Vazgeç",
+    "openInEditor": "Düzenleyicide aç",
+    "showInFolder": "Klasörde göster",
+    "rename": "Yeniden adlandır",
+    "playFailed": "Kayıt oynatılamadı.",
+    "actionFailed": "İşlem yapılamadı.",
+    "statusRecording": "Kayıt {{time}}",
+    "statusReplay": "Anlık tekrar açık · {{time}}",
+    "hud": {
+      "busy": "Önceki işlem sürüyor, bir saniye bekle.",
+      "recordingStarted": "Kayıt başladı",
+      "stopWith": "Durdurmak için {{key}}",
+      "replayOn": "Anlık tekrar açık",
+      "replayOnDetail": "Son {{length}} saklanıyor",
+      "saveWith": "Kaydetmek için {{key}}",
+      "replayOff": "Anlık tekrar kapatıldı",
+      "replayIsOff": "Anlık tekrar kapalı",
+      "turnOnWith": "Açmak için {{key}}",
+      "replaySaved": "Son {{length}} kaydedildi",
+      "recordingSaved": "Kayıt kaydedildi ({{time}})",
+      "screenshotSaved": "Ekran görüntüsü kaydedildi"
+    },
+    "hotkeyReady": "Çalışıyor",
+    "hotkeyDetected": "Algılandı",
+    "hotkeyTest": "Denemek için kısayola bas: yanında \"Algılandı\" yazmalı.",
+    "hotkeyReserved": "Alt+F4 Windows'ta pencereyi kapatır; başka bir tuş seç.",
+    "hotkeyPickKey": "Tuş seç",
+    "hotkeyCancel": "Vazgeç",
+    "hotkeyEditHint": "Ctrl / Alt / Shift seç ve listeden tuşu seç — ya da tuşlara bas. Başka bir programın kullandığı birleşim de atanabilir.",
+    "hotkeyAltGrRisk": "Türkçe klavyede Ctrl+Alt bazı tuşlarda karakter yazar (ör. Ctrl+Alt+Q = @); kısayol olursa o karakter yazılamaz. Shift eklemek ya da F tuşu seçmek daha güvenli.",
+    "hotkeyApply": "Kaydet",
+    "hotkeyFree": "Boş: bu birleşimi başka program kullanmıyor, basınca çalışır.",
+    "hotkeyBusy": "Bu birleşimi şu an başka bir program da kullanıyor. Yine de kaydedebilirsin: DownKit tuşu arka plandan yakalar ve kısayol çalışır; basınca iki program da tetiklenebilir.",
+    "hotkeySuggestions": "Boş öneriler:",
+    "replayOffNotice": "Anlık tekrar kapalı; kaydedilecek bir şey yok. Açmak için {{key}}'a bas ya da yukarıdaki anahtarı aç.",
+    "minutesSeconds": "{{m}} dk {{s}} sn",
+    "customBitrate": "Özel bit hızı",
+    "bitrate": "Bit hızı",
+    "bitrateHint": "Sabit bit hızı: seçtiğin değer dosyaya aynen yansır (dosya boyutu süreyle orantılı). 1080p60 oyun için 12–20 Mbps iyi bir başlangıç.",
+    "speakerDevice": "Sistem sesinin alınacağı aygıt",
+    "defaultSpeaker": "Windows'un varsayılan hoparlörü",
+    "noiseSuppression": "Gürültü engelleme",
+    "noiseSuppressionHint": "Fan, klavye ve uğultu gibi sesleri bastırır; konuşma yokken mikrofonu kısar.",
+    "appliesNextRecording": "Süren kayda etki etmez; sonraki kayıtta geçerli.",
+    "byApp": "Oyuna / uygulamaya göre klasörle",
+    "byAppHint": "NVIDIA'daki gibi: kayıtlar Kayıtlar\\League of Legends gibi alt klasörlere ayrılır.",
+    "screens": "Ekranlar",
+    "windows": "Pencereler",
+    "minimized": "Simge durumunda",
+    "loadingSources": "Kaynaklar yükleniyor…",
+    "noWindows": "Kaydedilebilecek açık pencere yok.",
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "recordingsCount_one": "{{count}} kayıt",
+    "recordingsCount_other": "{{count}} kayıt",
+    "allFolders": "Tümü",
+    "otherFolder": "Diğer",
+    "sortToggle": "Sıralamayı değiştir",
+    "sortOldestFirst": "Eskiden yeniye",
+    "sortNewestFirst": "Yeniden eskiye",
+    "trim": "Kırp",
+    "trimTitle": "Kırp",
+    "trimLength": "seçili bölüm {{length}}",
+    "trimStartHere": "Başı: şu an",
+    "trimEndHere": "Sonu: şu an",
+    "trimSaveCopy": "Kopya olarak kaydet",
+    "trimOverwrite": "Üzerine yaz",
+    "trimOverwriteHint": "Özgün kayıt Geri Dönüşüm Kutusu'na gider; kırpılmış hâl onun adını alır.",
+    "trimming": "Kırpılıyor…",
+    "trimSaved": "Kırpılmış kopya kaydedildi.",
+    "trimOverwritten": "Kayıt kırpıldı; özgünü Geri Dönüşüm Kutusu'nda.",
+    "noiseShort": "gürültü engelleme",
+    "video": "Görüntü",
+    "noAudio": "Ses yok",
+    "byAppShort": "(oyuna göre klasör)"
+  },
+  "themes": {
+    "midnight": {
+      "name": "Gece Mavisi",
+      "hint": "DownKit'in varsayılanı: lacivert ve mor"
+    },
+    "graphite": {
+      "name": "Grafit",
+      "hint": "OBS tarzı koyu gri"
+    },
+    "pitch": {
+      "name": "Zifiri Siyah",
+      "hint": "Tam siyah, OLED ekranlara uygun"
+    },
+    "twilight": {
+      "name": "Alacakaranlık",
+      "hint": "Mor ve pembe vurgulu gece"
+    },
+    "polar": {
+      "name": "Kutup Gecesi",
+      "hint": "Soğuk mavi-gri tonlar"
+    },
+    "sakura": {
+      "name": "Sakura",
+      "hint": "Koyu zeminde pembe"
+    },
+    "crimson": {
+      "name": "Kızıl Ateş",
+      "hint": "Kırmızı ve turuncu"
+    },
+    "amethyst": {
+      "name": "Ametist",
+      "hint": "Derin mor"
+    },
+    "emerald": {
+      "name": "Zümrüt Ormanı",
+      "hint": "Koyu yeşil"
+    },
+    "ocean": {
+      "name": "Derin Okyanus",
+      "hint": "Turkuaz ve mavi"
+    },
+    "sunset": {
+      "name": "Gün Batımı",
+      "hint": "Kehribar ve kızıl"
+    },
+    "coffee": {
+      "name": "Türk Kahvesi",
+      "hint": "Sıcak kahve tonları"
+    },
+    "snow": {
+      "name": "Kar Beyazı",
+      "hint": "Aydınlık ve sade"
+    },
+    "fog": {
+      "name": "Sabah Sisi",
+      "hint": "Açık gri, göz yormaz"
+    },
+    "sand": {
+      "name": "Kumsal",
+      "hint": "Krem zeminde turuncu"
+    },
+    "cotton": {
+      "name": "Pamuk Şeker",
+      "hint": "Açık pembe"
+    }
   }
 }

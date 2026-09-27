@@ -1,8 +1,8 @@
 [package]
 name = "downkit"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Video indirme, düzenleme, dönüştürme ve ekran kaydı"
+authors = ["aderimo"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,22 +24,37 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2.7.3"
 thiserror = "2.0.20"
-tokio = { version = "1.53.1", features = ["process", "io-util", "macros", "rt-multi-thread", "time", "sync"] }
+tokio = { version = "1.53.1", features = ["process", "io-util", "macros", "rt-multi-thread", "time", "sync", "net"] }
 sha2 = "0.11.0"
 zip = "8.6.0"
-windows = { version = "0.62.2", features = ["Win32_System_JobObjects", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_UI_WindowsAndMessaging"] }
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
+windows = { version = "0.62.2", features = ["Win32_System_JobObjects", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_UI_WindowsAndMessaging", "Win32_Media_Audio", "Win32_Media_KernelStreaming", "Win32_Media_Multimedia", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_Shell_PropertiesSystem", "Win32_Devices_FunctionDiscovery", "Win32_System_Performance", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_Xps", "Win32_Storage_FileSystem", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Globalization", "Graphics_Imaging", "Media_Ocr", "Security_Cryptography", "Storage_Streams"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "stream"] }
 url = "2.5.8"
 uuid = { version = "1.26.1", features = ["v4"] }
 tauri-plugin-clipboard-manager = "2.3.3"
 tauri-plugin-notification = "2.4.0"
-tauri-plugin-single-instance = "2.4.5"
+tauri-plugin-single-instance = { version = "2.4.5", features = ["deep-link"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+futures-util = "0.3"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+nnnoiseless = { version = "0.5", default-features = false }
+tauri-plugin-deep-link = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-global-shortcut = "2"
+trash = "5"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# lto = "thin" + paralel codegen: tam LTO'ya göre hız farkı bu tür bir uygulamada
+# hissedilmez ama derleme dakikalarca kısalır (tam LTO tek çekirdekte çok uzun sürer).
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true

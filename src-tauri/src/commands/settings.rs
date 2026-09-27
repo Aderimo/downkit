@@ -129,3 +129,27 @@ mod tests {
         assert_eq!(parse_deno_version(""), None);
     }
 }
+
+/// İlk açılışta araçları arka planda hazırlar (yt-dlp, FFmpeg); ilk iş indirmeyi
+/// beklemesin ve ilerleme baştan görünsün. Zaten varsa hiçbir şey indirmez.
+#[tauri::command]
+pub async fn prepare_tools(app: tauri::AppHandle) -> Result<(), AppError> {
+    crate::ytdlp::binary::ensure_ytdlp(&app).await?;
+    crate::ffmpeg::binary::ensure_ffmpeg(&app).await?;
+    Ok(())
+}
+
+/// "installed": kurulum dosyasıyla kurulmuş (yanında uninstall.exe var) — kendini
+/// güncelleyebilir. "portable": kurulumsuz exe — yeni sürüm sayfası açılır.
+#[tauri::command]
+pub fn install_kind() -> &'static str {
+    let installed = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("uninstall.exe").exists()))
+        .unwrap_or(false);
+    if installed {
+        "installed"
+    } else {
+        "portable"
+    }
+}

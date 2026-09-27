@@ -26,7 +26,9 @@ function metadata(overrides: Partial<MediaMetadata> = {}): MediaMetadata {
     description: null,
     viewCount: null,
     uploadDate: null,
-    previewUrl: null,
+    preview: null,
+    storyboard: null,
+    chapters: [],
     qualityOptions: [
       { height: 1080, container: "mp4", estimatedSizeBytes: 300 * MB },
       { height: 720, container: "mp4", estimatedSizeBytes: 150 * MB },

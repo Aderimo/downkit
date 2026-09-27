@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, RotateCcw, X } from "lucide-react";
 import { Button } from "./ui/Button";
+import { ReportButton } from "./ReportButton";
 
 interface ErrorBannerProps {
   message: string;
@@ -22,15 +23,18 @@ export function ErrorBanner({ message, detail, hint, onRetry, onDismiss }: Error
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-white">{message}</p>
           {hint ? <p className="mt-0.5 text-sm text-[var(--dk-text-muted)]">{hint}</p> : null}
-          {detail ? (
-            <button
-              type="button"
-              onClick={() => setShowDetail((v) => !v)}
-              className="mt-2 text-xs text-[var(--dk-text-muted)] underline hover:text-white"
-            >
-              {showDetail ? t("error.hideDetails") : t("error.showDetails")}
-            </button>
-          ) : null}
+          <span className="mt-2 flex items-center gap-3 text-xs">
+            {detail ? (
+              <button
+                type="button"
+                onClick={() => setShowDetail((v) => !v)}
+                className="text-[var(--dk-text-muted)] underline hover:text-white"
+              >
+                {showDetail ? t("error.hideDetails") : t("error.showDetails")}
+              </button>
+            ) : null}
+            <ReportButton input={{ message, detail: detail ?? null }} />
+          </span>
         </div>
         {onRetry ? (
           <Button size="sm" variant="secondary" icon={<RotateCcw size={14} />} onClick={onRetry}>

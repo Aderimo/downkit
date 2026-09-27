@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -6,10 +6,15 @@ import { DownloadsScreen } from "./screens/DownloadsScreen";
 import { ConvertScreen } from "./screens/ConvertScreen";
 import { CompressScreen } from "./screens/CompressScreen";
 import { ResizeScreen } from "./screens/ResizeScreen";
-import { HistoryScreen } from "./screens/HistoryScreen";
 import { BatchScreen } from "./screens/BatchScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { TrimScreen } from "./screens/TrimScreen";
+import { EditorScreen } from "./screens/EditorScreen";
+import { RecordScreen } from "./screens/RecordScreen";
+import { Tutorial } from "./components/Tutorial";
+import { tourForRoute, useTutorialStore } from "./lib/tutorial";
+import { initDeepLinks } from "./lib/deepLink";
+import { useEditorStore } from "./store/editorStore";
+import { useSettingsStore } from "./lib/appSettings";
 import { useConvertFile } from "./store/localFileStore";
 import { analyzeLink } from "./lib/workspaceActions";
 import type { Route } from "./types/route";
@@ -28,9 +33,43 @@ function App() {
     setRoute("convert");
   }, []);
 
+  // Bir sayfa ilk kez açılınca o sayfanın turu kendiliğinden başlar (açık bir tur yoksa).
+  const editorReady = useEditorStore((s) => s.phase === "ready");
+  const tutorialOpen = useTutorialStore((s) => s.open);
+  const pageTours = useSettingsStore((s) => s.pageTours);
+  const pageTour = tourForRoute(route, editorReady);
+  useEffect(() => {
+    if (tutorialOpen || !pageTours || !pageTour) return;
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo")) return;
+    if (useTutorialStore.getState().seen.includes(pageTour)) return;
+    const timer = setTimeout(() => {
+      if (!useTutorialStore.getState().open) useTutorialStore.getState().start(pageTour);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [pageTour, tutorialOpen, pageTours]);
+
+  // Kayıtlar'dan bir video düzenleyicide açılır.
+  const openInEditor = useCallback((path: string) => {
+    setRoute("editor");
+    void useEditorStore.getState().openFile(path);
+  }, []);
+
   const analyzeFromHistory = useCallback((url: string) => {
     setRoute("home");
     void analyzeLink(url);
+  }, []);
+
+  // Tarayıcıdaki yer iminden gelen "downkit://" bağlantıları.
+  useEffect(() => {
+    void initDeepLinks((target) => {
+      if (target.action === "edit") {
+        setRoute("editor");
+        void useEditorStore.getState().openUrl(target.url);
+      } else {
+        setRoute("home");
+        void analyzeLink(target.url);
+      }
+    });
   }, []);
 
   return (
@@ -41,18 +80,18 @@ function App() {
           {route === "home" ? (
             <HomeScreen onNavigate={setRoute} onOpenLocalFile={openLocalFile} />
           ) : null}
-          {route === "downloads" ? <DownloadsScreen /> : null}
+          {route === "downloads" ? <DownloadsScreen onAnalyze={analyzeFromHistory} /> : null}
           {route === "convert" ? <ConvertScreen /> : null}
           {route === "compress" ? <CompressScreen /> : null}
-          {route === "resize" ? <ResizeScreen key="resize" variant="resize" /> : null}
-          {route === "prepare" ? <ResizeScreen key="prepare" variant="platform" /> : null}
-          {route === "history" ? <HistoryScreen onAnalyze={analyzeFromHistory} /> : null}
+          {route === "resize" ? <ResizeScreen key="resize" /> : null}
           {route === "batch" ? <BatchScreen /> : null}
-          {route === "editor" ? <TrimScreen /> : null}
+          {route === "editor" ? <EditorScreen /> : null}
+          {route === "record" ? <RecordScreen onOpenInEditor={openInEditor} /> : null}
           {route === "settings" ? <SettingsScreen /> : null}
         </main>
-        <StatusBar />
+        <StatusBar pageTour={pageTour} onOpenRecorder={() => setRoute("record")} />
       </div>
+      <Tutorial />
     </div>
   );
 }

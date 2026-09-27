@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Play, Scissors } from "lucide-react";
+import { Clapperboard, Scissors } from "lucide-react";
 import type { TimeRange } from "../lib/timeRange";
 import { formatBytes } from "../lib/format";
 import { Switch } from "./ui/Switch";
@@ -12,8 +12,8 @@ interface SectionPickerProps {
   onChange: (section: TimeRange | null) => void;
   /** Seçili bölümün tahmini boyutu (bayt). */
   estimatedBytes: number | null;
-  /** Uygulama içi önizleme varsa: videoyu izleyerek başlangıç/bitiş işaretlemek için. */
-  onOpenPreview?: () => void;
+  /** Klip Düzenleyici'de aç: zaman çizelgesinde izleyerek, birden çok sahne seçerek. */
+  onOpenEditor?: () => void;
 }
 
 /** "Videonun yalnızca bir bölümünü indir": 1 saatlik bir videodan istenen
@@ -23,7 +23,7 @@ export function SectionPicker({
   section,
   onChange,
   estimatedBytes,
-  onOpenPreview,
+  onOpenEditor,
 }: SectionPickerProps) {
   const { t } = useTranslation();
 
@@ -33,7 +33,7 @@ export function SectionPicker({
   }
 
   return (
-    <section className={`dk-card p-4 ${section ? "dk-selected" : ""}`}>
+    <section data-tour="home-section" className={`dk-card p-4 ${section ? "dk-selected" : ""}`}>
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--dk-accent)]/15 text-[var(--dk-accent-hover)]">
           <Scissors size={20} />
@@ -53,16 +53,13 @@ export function SectionPicker({
             onChange={onChange}
             extra={estimatedBytes ? `~${formatBytes(estimatedBytes)}` : null}
             actions={
-              onOpenPreview ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={<Play size={14} />}
-                  onClick={onOpenPreview}
-                >
-                  {t("section.pickInPreview")}
-                </Button>
-              ) : null
+              <>
+                {onOpenEditor ? (
+                  <Button size="sm" icon={<Clapperboard size={14} />} onClick={onOpenEditor}>
+                    {t("section.pickInEditor")}
+                  </Button>
+                ) : null}
+              </>
             }
           />
         </div>

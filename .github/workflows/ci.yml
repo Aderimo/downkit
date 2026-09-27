@@ -1,4 +1,4 @@
-# Her push ve pull request'te: tip denetimi, lint, testler, biçim ve Rust testleri.
+# Her push ve pull request'te: tip denetimi, lint, testler, biçim, arayüz testleri ve Rust testleri.
 name: CI
 
 on:
@@ -30,5 +30,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm format:check
+      # Arayüz akışları gerçek tarayıcıda (çalıştırıcıdaki Edge ile).
+      - run: pnpm test:e2e
       - run: cargo test
         working-directory: src-tauri
