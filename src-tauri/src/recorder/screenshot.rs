@@ -111,6 +111,8 @@ fn capture(target: CaptureTarget) -> Option<(Vec<u8>, i32, i32)> {
     match target {
         CaptureTarget::Window { hwnd, .. } => grab_window(hwnd),
         CaptureTarget::Monitor { hmonitor, .. } => grab_monitor(hmonitor),
+        // Çoklu ekran seçiminde ekran görüntüsü ilk ekrandan alınır.
+        CaptureTarget::Monitors { monitors } => grab_monitor(monitors.first()?.hmonitor),
     }
 }
 

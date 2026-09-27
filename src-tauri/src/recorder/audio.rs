@@ -209,7 +209,32 @@ pub fn start(
     Capture { stop, thread }
 }
 
+/// Seçili aygıt kurulamazsa (takılı değil, sürücü değişti ya da aygıt geri
+/// döngüyü desteklemiyor — bazı Bluetooth kulaklıklar) kayıt sessiz kalmasın
+/// diye aynı türün varsayılan aygıtıyla bir kez daha denenir.
 fn run(
+    endpoint: &Endpoint,
+    mixer: &Arc<Mutex<Mixer>>,
+    track: usize,
+    origin: Ticks,
+    denoise: bool,
+    stop: &AtomicBool,
+) -> windows::core::Result<()> {
+    let fallback = match endpoint {
+        Endpoint::System(Some(_)) => Some(Endpoint::System(None)),
+        Endpoint::Microphone(Some(_)) => Some(Endpoint::Microphone(None)),
+        _ => None,
+    };
+    match run_inner(endpoint, mixer, track, origin, denoise, stop) {
+        Err(e) => match fallback {
+            Some(fb) => run_inner(&fb, mixer, track, origin, denoise, stop),
+            None => Err(e),
+        },
+        ok => ok,
+    }
+}
+
+fn run_inner(
     endpoint: &Endpoint,
     mixer: &Arc<Mutex<Mixer>>,
     track: usize,
@@ -219,17 +244,18 @@ fn run(
 ) -> windows::core::Result<()> {
     let enumerator = enumerator()?;
     let (flow, device) = unsafe {
+        let get = |flow: EDataFlow, id: &Option<String>| -> windows::core::Result<IMMDevice> {
+            match id {
+                // Kimliği bilinen aygıt bulunamazsa varsayılana düşülür.
+                Some(id) => enumerator
+                    .GetDevice(&HSTRING::from(id))
+                    .or_else(|_| enumerator.GetDefaultAudioEndpoint(flow, eConsole)),
+                None => enumerator.GetDefaultAudioEndpoint(flow, eConsole),
+            }
+        };
         match endpoint {
-            Endpoint::System(Some(id)) => (eRender, enumerator.GetDevice(&HSTRING::from(id))?),
-            Endpoint::System(None) => (
-                eRender,
-                enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?,
-            ),
-            Endpoint::Microphone(Some(id)) => (eCapture, enumerator.GetDevice(&HSTRING::from(id))?),
-            Endpoint::Microphone(None) => (
-                eCapture,
-                enumerator.GetDefaultAudioEndpoint(eCapture, eConsole)?,
-            ),
+            Endpoint::System(id) => (eRender, get(eRender, id)?),
+            Endpoint::Microphone(id) => (eCapture, get(eCapture, id)?),
         }
     };
     // Varsayılan aygıtı izleyen yakalama, varsayılan değişince yeniden kurulur.

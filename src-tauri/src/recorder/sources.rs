@@ -36,10 +36,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
 pub struct MonitorInfo {
     pub hmonitor: u64,
     pub dda_index: Option<u32>,
+    /// Masaüstü koordinatı (sanal ekranın sol üstü); çoklu ekran kaydında
+    /// yan yana dizilim bu konumlarla yapılır.
+    pub x: i32,
+    pub y: i32,
     pub width: u32,
     pub height: u32,
     pub primary: bool,
-    /// Masaüstündeki sıra (soldan sağa, 1'den başlar): arayüzde "Ekran 2".
+    /// Masaüstündeki sıra (soldan sağa, 1'den başlar): arayüzde "2. ekran".
     pub number: u32,
 }
 
@@ -123,6 +127,8 @@ pub fn list_monitors() -> Vec<MonitorInfo> {
         .map(|(i, (monitor, rect, primary))| MonitorInfo {
             hmonitor: monitor.0 as usize as u64,
             dda_index: dda.get(&(monitor.0 as isize)).copied(),
+            x: rect.left,
+            y: rect.top,
             width: (rect.right - rect.left).max(0) as u32,
             height: (rect.bottom - rect.top).max(0) as u32,
             primary,
@@ -232,6 +238,8 @@ pub fn app_folder(target: &super::args::CaptureTarget) -> Option<String> {
     use super::args::CaptureTarget;
     match target {
         CaptureTarget::Window { hwnd, .. } => window_app(HWND(*hwnd as usize as *mut _)),
+        // Çoklu ekran kaydında tek bir uygulamaya bağlanamaz.
+        CaptureTarget::Monitors { .. } => None,
         CaptureTarget::Monitor { hmonitor, .. } => unsafe {
             let front = GetForegroundWindow();
             if front.is_invalid() {

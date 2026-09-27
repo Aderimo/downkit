@@ -105,9 +105,6 @@ export function ScreenshotScreen() {
                 <span className="text-base font-semibold text-white">
                   {t(`snip.capture.${kind}`)}
                 </span>
-                <span className="text-xs text-[var(--dk-text-muted)]">
-                  {t(`snip.capture.${kind}Hint`)}
-                </span>
                 <span className="mt-auto rounded-md border border-[var(--dk-border-strong)] px-2 py-0.5 font-mono text-[11px] text-[var(--dk-text-muted)]">
                   {hotkeys[hotkey] ? hotkeyLabel(hotkeys[hotkey]) : t("snip.noHotkey")}
                 </span>
@@ -125,9 +122,6 @@ export function ScreenshotScreen() {
                 <ImagePlus size={21} />
               </span>
               <span className="text-base font-semibold text-white">{t("snip.capture.file")}</span>
-              <span className="text-xs text-[var(--dk-text-muted)]">
-                {t("snip.capture.fileHint")}
-              </span>
             </button>
           </div>
 

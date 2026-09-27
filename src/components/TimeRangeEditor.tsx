@@ -24,10 +24,22 @@ export function TimeRangeEditor({
   const { t } = useTranslation();
   const step = duration > 600 ? 1 : 0.5;
   const pct = (seconds: number) => `${(seconds / duration) * 100}%`;
+  // Sürüklenen tutamaç üstte kalır; ayrıca başlangıç tutamacı sağ yarıdayken de
+  // üstte olur. Yoksa iki tutamaç yaklaşınca bitiş tutamacı başlangıcın üstüne
+  // biner ve başlangıç bir daha tutulamazdı ("sağ tarafta takılı kalıyordu").
+  const [dragging, setDragging] = useState<"start" | "end" | null>(null);
+  const startOnTop = dragging === "start" || (dragging === null && value.start * 2 >= duration);
+  const endOnTop = dragging === "end";
 
   function set(next: TimeRange, moved: "start" | "end") {
     onChange(clampRange(next, duration, moved));
   }
+
+  const grip = (which: "start" | "end") => ({
+    onPointerDown: () => setDragging(which),
+    onPointerUp: () => setDragging(null),
+    onPointerCancel: () => setDragging(null),
+  });
 
   return (
     <div className="space-y-3">
@@ -44,6 +56,8 @@ export function TimeRangeEditor({
           step={step}
           value={value.start}
           aria-label={t("section.start")}
+          style={{ zIndex: startOnTop ? 5 : 3 }}
+          {...grip("start")}
           onChange={(e) => set({ ...value, start: Number(e.target.value) }, "start")}
         />
         <input
@@ -53,6 +67,8 @@ export function TimeRangeEditor({
           step={step}
           value={value.end}
           aria-label={t("section.end")}
+          style={{ zIndex: endOnTop ? 5 : 4 }}
+          {...grip("end")}
           onChange={(e) => set({ ...value, end: Number(e.target.value) }, "end")}
         />
       </div>

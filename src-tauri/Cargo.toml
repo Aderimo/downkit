@@ -1,6 +1,6 @@
 [package]
 name = "downkit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Video indirme, düzenleme, dönüştürme ve ekran kaydı"
 authors = ["aderimo"]
 edition = "2021"
@@ -43,8 +43,6 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 nnnoiseless = { version = "0.5", default-features = false }
 tauri-plugin-deep-link = "2"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
 tauri-plugin-global-shortcut = "2"
 trash = "5"
 

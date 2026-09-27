@@ -23,7 +23,7 @@ import {
   type RecorderSource,
 } from "../../lib/recorderSettings";
 import { resolveOutputDir } from "../../lib/recorder";
-import { resolveSource } from "../../lib/recorderLogic";
+import { monitorLabel, monitorsBounds, resolveMonitors, resolveSource } from "../../lib/recorderLogic";
 import { chooseDownloadDir, openFolder } from "../../lib/tauri-api";
 import { Select, type SelectOption } from "../ui/Select";
 import { Switch } from "../ui/Switch";
@@ -93,8 +93,12 @@ function VolumeSlider({
   );
 }
 
+// Pencere kaynağının anahtarı: exe ile başlık görünmez bir ayraçla birleşir.
+const WINDOW_SEP = String.fromCharCode(0);
+
 function sourceValue(source: RecorderSource): string {
-  return source.kind === "monitor" ? `m:${source.number}` : `w:${source.exe}\u0000${source.title}`;
+  if (source.kind === "monitors") return "m:multi";
+  return source.kind === "monitor" ? `m:${source.number}` : `w:${source.exe}${WINDOW_SEP}${source.title}`;
 }
 
 export function RecorderSettingsCard() {
@@ -106,6 +110,10 @@ export function RecorderSettingsCard() {
   const active = useRecorderStore((s) => s.status.recording !== null || s.status.replay !== null);
 
   const current = sources ? resolveSource(settings.source, sources) : null;
+  const multi =
+    settings.source.kind === "monitors" && sources
+      ? resolveMonitors(settings.source.numbers, sources)
+      : null;
   const options: SelectOption<string>[] = [];
   const sourceMap = new Map<string, RecorderSource>();
   const add = (source: RecorderSource, label: string, hint?: string) => {
@@ -113,28 +121,34 @@ export function RecorderSettingsCard() {
     sourceMap.set(value, source);
     options.push({ value, label, hint });
   };
-  const primary = sources?.monitors.find((m) => m.primary);
-  add(
-    { kind: "monitor", number: 0 },
-    t("recorder.primaryScreen"),
-    primary ? `${primary.width}×${primary.height}` : undefined,
-  );
-  if ((sources?.monitors.length ?? 0) > 1) {
-    for (const m of sources?.monitors ?? []) {
-      add(
-        { kind: "monitor", number: m.number },
-        t("recorder.screenN", { n: m.number }),
-        `${m.width}×${m.height}`,
-      );
-    }
+  // Her ekran bir kez listelenir: birincil "Ana ekran", ötekiler "2. ekran"…
+  for (const m of sources?.monitors ?? []) {
+    add({ kind: "monitor", number: m.number }, monitorLabel(m, t), `${m.width}×${m.height}`);
   }
   for (const w of sources?.windows ?? []) {
     if (w.own) continue;
     add({ kind: "window", exe: w.exe, title: w.title }, w.title, w.exe);
   }
   // Kayıtlı pencere şu an açık değilse de seçili görünsün.
-  const selected = sourceValue(settings.source);
-  if (!sourceMap.has(selected) && settings.source.kind === "window") {
+  let selected = sourceValue(settings.source);
+  if (settings.source.kind === "monitors") {
+    // Çoklu seçim açılır listede karşılığı olmayan özel bir değerle gösterilir.
+    selected = "m:multi";
+    const label =
+      multi && multi.length > 0
+        ? multi.length === 1
+          ? monitorLabel(multi[0], t)
+          : t("recorder.multiScreen", { count: multi.length })
+        : t("recorder.sourceMissing");
+    const hint =
+      multi && multi.length > 1
+        ? (() => {
+            const b = monitorsBounds(multi);
+            return `${b.width}×${b.height}`;
+          })()
+        : undefined;
+    options.unshift({ value: selected, label, hint });
+  } else if (!sourceMap.has(selected) && settings.source.kind === "window") {
     add(settings.source, settings.source.title, t("recorder.windowClosed"));
   }
 
@@ -350,7 +364,6 @@ export function RecorderSettingsCard() {
           <HotkeyInput id="record" label={t("recorder.hotkeyRecord")} />
           <HotkeyInput id="saveReplay" label={t("recorder.hotkeySave")} />
           <HotkeyInput id="toggleReplay" label={t("recorder.hotkeyToggleReplay")} />
-          <HotkeyInput id="screenshot" label={t("recorder.hotkeyScreenshot")} />
         </Group>
 
         <Group icon={<FolderOpen size={16} />} title={t("recorder.folder")}>

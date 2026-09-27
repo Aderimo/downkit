@@ -1,34 +1,31 @@
 import { create } from "zustand";
-import { check as checkForUpdate, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { getAppVersion, getInstallKind } from "./tauri-api";
+import { getAppVersion } from "./tauri-api";
 import { getSettings } from "./appSettings";
 import { GITHUB_REPO, RELEASES_URL } from "./links";
 
-// Yeni sürüm denetimi. Kurulumla gelmiş DownKit güncellemeyi imzasını doğrulayarak
-// indirip kurar ve yeniden başlar (Tauri updater); kurulumsuz exe'de yalnızca
-// haber verilir ve sürüm sayfası açılır. Otomatik kurulum yok: kullanıcı onaylar.
+// Yeni sürüm denetimi. Program kendiliğinden güncelleme KURMAZ: yeni sürüm
+// bulununca durum çubuğunda haber verilir; kullanıcı isterse (üst üste iki
+// onayla) sürüm sayfası tarayıcıda açılır, indirip kurmak ona kalır.
 
 export interface UpdateInfo {
   version: string;
   url: string;
 }
 
-type UpdateStatus = "idle" | "checking" | "upToDate" | "available" | "installing" | "error";
+type UpdateStatus = "idle" | "checking" | "upToDate" | "available" | "error";
+
+/** Onay penceresinin adımı: sor → emin misin → (onayda sayfa açılır). */
+export type UpdateDialogStep = "ask" | "confirm";
 
 interface UpdateState {
   status: UpdateStatus;
   latest: UpdateInfo | null;
-  /** Kurulumlu sürümde güncelleme uygulamanın içinden kurulabilir. */
-  canInstall: boolean;
-  /** Kurulum sırasında indirme yüzdesi. */
-  progress: number | null;
+  /** Onay penceresi bu adımla açık; null: kapalı. */
+  dialog: UpdateDialogStep | null;
   check: () => Promise<void>;
-  install: () => Promise<void>;
+  openDialog: () => void;
+  setDialog: (step: UpdateDialogStep | null) => void;
 }
-
-// Bulunan güncelleme (Tauri updater); "Güncelle"ye basılınca kurulur.
-let pending: Update | null = null;
 
 /** "v0.2.0" > "0.1.9" gibi karşılaştırma; ilk üç sayısal parça kullanılır. */
 export function isNewerVersion(latest: string, current: string): boolean {
@@ -47,31 +44,12 @@ export function isNewerVersion(latest: string, current: string): boolean {
   return false;
 }
 
-export const useUpdateStore = create<UpdateState>((set, get) => ({
+export const useUpdateStore = create<UpdateState>((set) => ({
   status: "idle",
   latest: null,
-  canInstall: false,
-  progress: null,
+  dialog: null,
   check: async () => {
     set({ status: "checking" });
-    if ((await getInstallKind()) === "installed") {
-      try {
-        const update = await checkForUpdate();
-        pending = update;
-        set(
-          update
-            ? {
-                status: "available",
-                latest: { version: update.version, url: RELEASES_URL },
-                canInstall: true,
-              }
-            : { status: "upToDate", latest: null, canInstall: false },
-        );
-        return;
-      } catch {
-        // Güncelleme dosyası (latest.json) yoksa sürüm sayfasına bakılır.
-      }
-    }
     try {
       const [current, response] = await Promise.all([
         getAppVersion(),
@@ -104,25 +82,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       set({ status: "error" });
     }
   },
-  install: async () => {
-    if (!pending) return;
-    let total = 0;
-    let received = 0;
-    set({ status: "installing", progress: 0 });
-    try {
-      await pending.downloadAndInstall((event) => {
-        if (event.event === "Started") total = event.data.contentLength ?? 0;
-        if (event.event === "Progress") {
-          received += event.data.chunkLength;
-          if (total > 0) set({ progress: Math.min(100, (received / total) * 100) });
-        }
-      });
-      await relaunch();
-    } catch {
-      set({ status: "available", progress: null });
-      if (get().latest) set({ canInstall: false });
-    }
+  openDialog: () => {
+    // Yalnızca bulunmuş bir sürüm varken açılır.
+    if (useUpdateStore.getState().latest) set({ dialog: "ask" });
   },
+  setDialog: (dialog) => set({ dialog }),
 }));
 
 export async function initUpdateCheck(): Promise<void> {

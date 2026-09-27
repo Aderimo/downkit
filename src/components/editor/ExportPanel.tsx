@@ -4,6 +4,7 @@ import { Download, FileOutput, FolderOpen } from "lucide-react";
 import {
   FRAME_SIZES,
   useEditorStore,
+  type EditorSourceEntry,
   type ExportOptions,
   type FrameAspect,
 } from "../../store/editorStore";
@@ -99,34 +100,48 @@ function toEditClip(segment: Segment): EditClip {
 export function ExportPanel() {
   const { t } = useTranslation();
   const source = useEditorStore((s) => s.source);
-  const stream = useEditorStore((s) => s.stream);
+  const sources = useEditorStore((s) => s.sources);
   const options = useEditorStore((s) => s.exportOptions);
   const setOptions = useEditorStore((s) => s.setExportOptions);
   const clips = useEditorStore((s) => s.clips);
   const texts = useEditorStore((s) => s.texts);
   const tracks = useEditorStore((s) => s.tracks);
-  const duration = useEditorStore((s) => s.duration);
   const lastJobIds = useEditorStore((s) => s.lastJobIds);
   const setLastJobIds = useEditorStore((s) => s.setLastJobIds);
   const destinationDir = useSettingsStore((s) => s.defaultDownloadDir);
   const jobs = useJobsStore((s) => s.jobs);
 
   if (!source) return null;
-  const remote = source.kind === "remote";
-  const hasVideo = remote ? (stream?.hasVideo ?? true) : source.info.videoCodec !== null;
-  const gif = options.output === "gif" && hasVideo;
-  const audio = !gif && (options.output === "audio" || !hasVideo);
   // Zaman çizelgesi çıktıya dönüşür: her anda en üstteki klip; klipler arasındaki
   // boşluk siyah ekran olur (Clipchamp'taki gibi).
   const segments = flatten(clips, tracks);
   const pieces = exportPieces(segments);
-  const ranges: EditClip[] = pieces.map(pieceClip);
+  // Parçaların kullandığı kaynaklar, ilk geçtikleri sırayla: dışa aktarım
+  // isteğindeki `inputs` bu sırayla kurulur; her klip kaynak indeksini taşır.
+  const usedInputs: EditorSourceEntry[] = [];
+  const inputIndex = (sourceId: string | undefined): number => {
+    const id = sourceId ?? sources[0]?.id;
+    const found = usedInputs.findIndex((s) => s.id === id);
+    if (found >= 0) return found;
+    const entry = sources.find((s) => s.id === id) ?? sources[0];
+    if (!entry) return 0;
+    usedInputs.push(entry);
+    return usedInputs.length - 1;
+  };
+  const ranges: EditClip[] = pieces.map((piece) =>
+    piece.kind === "clip"
+      ? { ...pieceClip(piece), source: inputIndex(piece.segment.sourceId) }
+      : pieceClip(piece),
+  );
   const total = piecesDuration(pieces);
-  // İndirilecek kaynak miktarı (boşluklar indirilmez; hızlandırılan klip kaynağın
-  // daha uzun kısmını kapsar).
-  const sourceSeconds = ranges
-    .filter((r) => !r.black)
-    .reduce((sum, r) => sum + (r.end - r.start), 0);
+  const multiSource = usedInputs.length > 1;
+  const remote = usedInputs.some((e) => e.source.kind === "remote");
+  const hasVideo = usedInputs.some((e) =>
+    e.source.kind === "remote" ? (e.stream?.hasVideo ?? true) : e.source.info.videoCodec !== null,
+  );
+  // Farklı kaynakların kare boyutları uyuşmayabilir; GIF birleştirme tek kaynakla sınırlı.
+  const gif = options.output === "gif" && hasVideo && !multiSource;
+  const audio = !gif && (options.output === "audio" || !hasVideo);
   // Hız, ses düzeyi ya da geçiş: kopyalayarak kesilemez, yeniden kodlanır.
   const speedChanged = ranges.some(
     (r) => r.black || r.look || r.speed !== 1 || r.volume !== 1 || r.fadeIn > 0 || r.fadeOut > 0,
@@ -137,20 +152,34 @@ export function ExportPanel() {
   const hasTexts = !audio && toOverlays(texts, pieces).length > 0;
   const separate = multiple && !options.merge;
   const lastJobs = jobs.filter((j) => lastJobIds.includes(j.id));
+  const remoteMeta = (e: EditorSourceEntry | undefined): MediaMetadata | null =>
+    e && e.source.kind === "remote" ? e.source.metadata : null;
+
+  // Kaynak başına indirilecek/okunacak saniye.
+  const secondsByInput = usedInputs.map(() => 0);
+  for (const r of ranges) if (!r.black) secondsByInput[r.source ?? 0] += r.end - r.start;
 
   const estimate =
     !ranges.length || gif
       ? null
-      : remote
-        ? remoteEstimate(source.metadata, options, sourceSeconds)
-        : audio
-          ? audioEstimate(options, total)
-          : !options.precise && !multiple && !speedChanged
-            ? Math.round((source.info.fileSizeBytes * sourceSeconds) / duration)
-            : null;
+      : audio
+        ? audioEstimate(options, total)
+        : usedInputs.reduce<number | null>((sum, entry, i) => {
+            if (sum === null) return null;
+            const metadata = remoteMeta(entry);
+            if (metadata) {
+              const part = remoteEstimate(metadata, options, secondsByInput[i]);
+              return part === null ? null : sum + part;
+            }
+            if (entry.source.kind !== "local") return null;
+            return !options.precise && !multiple && !speedChanged
+              ? sum +
+                  Math.round((entry.source.info.fileSizeBytes * secondsByInput[i]) / entry.duration)
+              : null;
+          }, 0);
 
-  const baseName =
-    options.outputName.trim() || (remote ? source.metadata.title : source.info.fileName);
+  const firstInput = usedInputs[0];
+  const baseName = options.outputName.trim() || (firstInput?.title ?? "");
   const format = gif ? "gif" : audio ? options.audioFormat : remote ? options.videoFormat : null;
   const qualityLabel = gif
     ? `${options.gifWidth}px · ${options.gifFps} fps`
@@ -168,40 +197,58 @@ export function ExportPanel() {
     if (!source || ranges.length === 0) return;
     const chosen = await ensureDestination();
     if (!chosen) return;
+    const firstRemote = usedInputs.map(remoteMeta).find((m) => m !== null) ?? null;
     // "Platforma göre klasörle" açıksa linkten alınan klipler de indirmeler gibi
     // "YouTube…", "Kick…" alt klasörüne gider.
+    const firstPlatform = firstRemote?.platform;
     const dir =
-      remote && getSettings().groupByPlatform && isSupportedPlatform(source.metadata.platform)
-        ? `${chosen}\\${PLATFORM_LABEL[source.metadata.platform]}`
+      firstPlatform && getSettings().groupByPlatform && isSupportedPlatform(firstPlatform)
+        ? `${chosen}\\${PLATFORM_LABEL[firstPlatform]}`
         : chosen;
     // Ayrı dosyalarda her parça, klibe ad verildiyse o adla kaydedilir.
     const clipName = (segment: Segment) =>
       clips.find((c) => c.id === segment.clipId)?.name.trim() ||
       `${baseName} (${rangeLabel({ start: segment.srcStart, end: segment.srcEnd })})`;
-    const title = remote ? source.metadata.title : source.info.fileName;
+    const title = firstInput?.title ?? baseName;
     // Ayrı dosyalarda boşluk yok: her klip kendi dosyası (baştan başlar).
     const groups: { clips: EditClip[]; pieces: ExportPiece[]; name: string }[] =
       separate || (segments.length === 1 && !hasGaps)
         ? segments.map((segment) => ({
-            clips: [toEditClip(segment)],
+            clips: [{ ...toEditClip(segment), source: inputIndex(segment.sourceId) }],
             pieces: exportPieces([segment], false),
             name: clipName(segment),
           }))
         : [{ clips: ranges, pieces, name: baseName }];
+    // Dışa aktarım isteğindeki kaynaklar (sıra = kliplerdeki `source` indeksi).
+    const inputs = usedInputs.map((e) =>
+      e.source.kind === "remote"
+        ? { inputPath: null, url: e.source.url }
+        : { inputPath: e.source.path, url: null },
+    );
 
     const ids = groups.map((group) => {
-      const seconds = group.clips
-        .filter((c) => !c.black)
-        .reduce((sum, c) => sum + (c.end - c.start), 0);
       const label =
         group.clips.length === 1
           ? `${formatTimecode(group.clips[0].start, 0)}–${formatTimecode(group.clips[0].end, 0)}`
           : t("editor.jobClips", { count: group.clips.length });
+      const groupEstimate = gif
+        ? null
+        : group.clips
+            .filter((c) => !c.black)
+            .reduce<number | null>((sum, c) => {
+              if (sum === null) return null;
+              const metadata = remoteMeta(usedInputs[c.source ?? 0]);
+              if (!metadata) return null;
+              const part = remoteEstimate(metadata, options, c.end - c.start);
+              return part === null ? null : sum + part;
+            }, 0);
       return enqueueEdit(
         {
           kind: "edit",
-          inputPath: remote ? null : source.path,
-          url: remote ? source.url : null,
+          inputPath:
+            firstInput?.source.kind === "local" ? firstInput.source.path : null,
+          url: firstInput?.source.kind === "remote" ? firstInput.source.url : null,
+          inputs,
           clips: group.clips,
           destinationDir: dir,
           outputName: group.name,
@@ -209,7 +256,7 @@ export function ExportPanel() {
           outputFormat: gif ? null : format,
           maxHeight: remote && !audio ? options.maxHeight : null,
           audioBitrateKbps: options.audioBitrateKbps,
-          precise: options.precise,
+          precise: options.precise && !multiSource,
           gif: gif ? { fps: options.gifFps, width: options.gifWidth } : null,
           frame: framed
             ? {
@@ -224,12 +271,11 @@ export function ExportPanel() {
         },
         {
           title: group.clips.length === 1 && groups.length > 1 ? group.name : title,
-          thumbnailUrl: remote ? source.metadata.thumbnailUrl : null,
-          platform: remote ? source.metadata.platform : "local",
-          formatLabel: `${(format ?? (options.precise || multiple || speedChanged ? "mp4" : source.kind === "local" ? source.info.container : "mp4")).toUpperCase()} · ${label}`,
+          thumbnailUrl: firstRemote?.thumbnailUrl ?? null,
+          platform: firstRemote?.platform ?? "local",
+          formatLabel: `${(format ?? (options.precise || multiple || speedChanged || multiSource ? "mp4" : firstInput?.source.kind === "local" ? firstInput.source.info.container : "mp4")).toUpperCase()} · ${label}`,
           qualityLabel,
-          totalBytesEstimate:
-            remote && !gif ? remoteEstimate(source.metadata, options, seconds) : null,
+          totalBytesEstimate: groupEstimate,
         },
       );
     });
@@ -239,7 +285,13 @@ export function ExportPanel() {
   const qualityOptions = remote
     ? [
         { value: 0, label: t("jobs.qualityBest") },
-        ...source.metadata.qualityOptions.map((q) => ({ value: q.height, label: `${q.height}p` })),
+        ...[
+          ...new Set(
+            usedInputs.flatMap((e) => remoteMeta(e)?.qualityOptions.map((q) => q.height) ?? []),
+          ),
+        ]
+          .sort((a, b) => b - a)
+          .map((height) => ({ value: height, label: `${height}p` })),
       ]
     : [];
 
@@ -251,9 +303,10 @@ export function ExportPanel() {
           value={gif ? "gif" : audio ? "audio" : "video"}
           onChange={(output) => setOptions({ output })}
           items={[
-            { value: "video", label: t("editor.outputVideo") },
-            { value: "audio", label: t("editor.outputAudio") },
-            { value: "gif", label: t("editor.outputGif") },
+            { value: "video" as const, label: t("editor.outputVideo") },
+            { value: "audio" as const, label: t("editor.outputAudio") },
+            // Farklı kaynakların kare boyutları uyuşmayabilir: GIF tek kaynakla.
+            ...(multiSource ? [] : [{ value: "gif" as const, label: t("editor.outputGif") }]),
           ]}
         />
       ) : null}
@@ -382,6 +435,7 @@ export function ExportPanel() {
       ) : null}
 
       {!remote &&
+      !multiSource &&
       !audio &&
       !gif &&
       !framed &&
@@ -427,7 +481,7 @@ export function ExportPanel() {
         <input
           value={options.outputName}
           onChange={(e) => setOptions({ outputName: e.target.value })}
-          placeholder={remote ? source.metadata.title : source.info.fileName}
+          placeholder={firstInput?.title}
           className="h-10 w-full rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)] px-3 text-sm outline-none focus:border-[var(--dk-accent)]"
         />
       </Field>
@@ -459,8 +513,16 @@ export function ExportPanel() {
         ) : null}
         {remote && ranges.length > 0 ? (
           <p className="text-xs text-[var(--dk-text-muted)]">
-            {t("editor.onlySelectedDownloaded", { full: formatTimecode(duration, 0) })}
+            {t("editor.onlySelectedDownloaded", {
+              full: formatTimecode(
+                usedInputs.reduce((sum, e) => sum + (remoteMeta(e) ? e.duration : 0), 0),
+                0,
+              ),
+            })}
           </p>
+        ) : null}
+        {multiSource ? (
+          <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.multiSourceHint")}</p>
         ) : null}
         <Button
           size="lg"

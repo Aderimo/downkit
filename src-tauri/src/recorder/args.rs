@@ -63,6 +63,18 @@ impl Quality {
     }
 }
 
+/// Çoklu ekran kaydında tek ekranın bölgesi (masaüstü koordinatıyla).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorRegion {
+    pub hmonitor: u64,
+    pub dda_index: Option<u32>,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Neyin kaydedileceği. Tutamaçlar (HMONITOR/HWND) listeden gelir.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -75,6 +87,11 @@ pub enum CaptureTarget {
         width: u32,
         height: u32,
     },
+    /// Birden çok ekran: her biri ayrı yakalanır ve masaüstündeki konumuna göre
+    /// yan yana (xstack) tek görüntüde birleştirilir. Kareler belleğe indirilir;
+    /// iki ekran kartı da taşınır ama tek ekrana göre daha ağırdır.
+    #[serde(rename_all = "camelCase")]
+    Monitors { monitors: Vec<MonitorRegion> },
     #[serde(rename_all = "camelCase")]
     Window { hwnd: u64, width: u32, height: u32 },
 }
@@ -90,10 +107,26 @@ impl CaptureTarget {
         )
     }
 
+    /// Görüntü girişi sayısı (ses borusu bundan sonra gelir).
+    fn input_count(&self) -> usize {
+        match self {
+            CaptureTarget::Monitors { monitors } => monitors.len().max(1),
+            _ => 1,
+        }
+    }
+
     fn size(&self) -> (u32, u32) {
         match *self {
             CaptureTarget::Monitor { width, height, .. } => (width, height),
             CaptureTarget::Window { width, height, .. } => (width, height),
+            CaptureTarget::Monitors { ref monitors } => {
+                // Sanal masaüstünün kaplayan kutusu.
+                let right = monitors.iter().map(|m| m.x + m.width as i32).max().unwrap_or(0);
+                let bottom = monitors.iter().map(|m| m.y + m.height as i32).max().unwrap_or(0);
+                let left = monitors.iter().map(|m| m.x).min().unwrap_or(0);
+                let top = monitors.iter().map(|m| m.y).min().unwrap_or(0);
+                ((right - left).max(2) as u32, (bottom - top).max(2) as u32)
+            }
         }
     }
 }
@@ -137,39 +170,76 @@ fn bool01(value: bool) -> u8 {
     u8::from(value)
 }
 
-/// Yakalama girişi (`-f lavfi -i …`).
-fn capture_input(target: &CaptureTarget, video: &VideoOptions) -> Vec<String> {
-    let fps = video.fps();
-    let cursor = bool01(video.cursor);
-    let source = match *target {
-        CaptureTarget::Monitor {
-            dda_index: Some(index),
-            ..
-        } => format!("ddagrab=output_idx={index}:framerate={fps}:draw_mouse={cursor}"),
-        CaptureTarget::Monitor { hmonitor, .. } => {
-            gfx_source(&format!("hmonitor={hmonitor}"), target, video)
-        }
-        CaptureTarget::Window { hwnd, .. } => gfx_source(&format!("hwnd={hwnd}"), target, video),
-    };
-    ["-fpsprobesize", "0", "-f", "lavfi", "-i", source.as_str()]
-        .map(String::from)
-        .to_vec()
+/// Tek ekranın yakalama kaynağı: varsa ddagrab (ekran kartında kalır), yoksa
+/// gfxcapture. Boyut verilmez: çoklu ekranda küçültme birleştirmeden sonra yapılır.
+fn monitor_source(hmonitor: u64, dda_index: Option<u32>, fps: u32, cursor: u8) -> String {
+    match dda_index {
+        Some(index) => format!("ddagrab=output_idx={index}:framerate={fps}:draw_mouse={cursor}"),
+        None => format!(
+            "gfxcapture=hmonitor={hmonitor}:max_framerate={fps}:capture_cursor={cursor}:width=-2:height=-2"
+        ),
+    }
 }
 
-fn gfx_source(handle: &str, target: &CaptureTarget, video: &VideoOptions) -> String {
+/// Yakalama girişleri (`-f lavfi -i …`); çoklu ekranda her ekran bir giriş.
+fn capture_inputs(target: &CaptureTarget, video: &VideoOptions) -> Vec<String> {
+    let fps = video.fps();
+    let cursor = bool01(video.cursor);
+    let sources: Vec<String> = match *target {
+        CaptureTarget::Monitor {
+            hmonitor,
+            dda_index: Some(index),
+            ..
+        } => vec![format!("ddagrab=output_idx={index}:framerate={fps}:draw_mouse={cursor}")],
+        CaptureTarget::Monitor { hmonitor, .. } => {
+            vec![gfx_source(&format!("hmonitor={hmonitor}"), target.size(), video)]
+        }
+        CaptureTarget::Monitors { ref monitors } => monitors
+            .iter()
+            .map(|m| monitor_source(m.hmonitor, m.dda_index, fps, cursor))
+            .collect(),
+        CaptureTarget::Window { hwnd, .. } => {
+            vec![gfx_source(&format!("hwnd={hwnd}"), target.size(), video)]
+        }
+    };
+    let mut args = Vec::new();
+    for source in sources {
+        args.extend(
+            ["-fpsprobesize", "0", "-f", "lavfi", "-i", source.as_str()].map(String::from),
+        );
+    }
+    args
+}
+
+fn gfx_source(handle: &str, size: (u32, u32), video: &VideoOptions) -> String {
     let fps = video.fps();
     let cursor = bool01(video.cursor);
     // Küçültme yakalamanın içinde (ekran kartında) yapılır; -2: çift sayıya yuvarla
     // (pencerelerin boyutu tek sayı olabilir, H.264 çift ister).
-    let size = match output_size(target.size(), video.max_height) {
+    let size = match output_size(size, video.max_height) {
         Some((w, h)) => format!(":width={w}:height={h}:resize_mode=scale_aspect"),
         None => ":width=-2:height=-2".to_string(),
     };
     format!("gfxcapture={handle}:max_framerate={fps}:capture_cursor={cursor}{size}")
 }
 
+/// Kodlayıcıya giden görüntü filtresi.
+enum VideoFilter {
+    /// Tek girişli basit zincir (`-vf`).
+    Simple(String),
+    /// Çoklu ekran birleştirme (`-filter_complex`); çıktısı `[vout]` ile eşlenir.
+    Complex(String),
+}
+
 /// Kodlayıcıdan önceki filtreler (gerekmiyorsa yok).
-fn video_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder) -> Option<String> {
+fn video_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder) -> Option<VideoFilter> {
+    if let CaptureTarget::Monitors { monitors } = target {
+        return Some(VideoFilter::Complex(stack_filter(monitors, video, encoder)));
+    }
+    single_filter(target, video, encoder).map(VideoFilter::Simple)
+}
+
+fn single_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder) -> Option<String> {
     let scale = if target.uses_dda() {
         output_size(target.size(), video.max_height)
     } else {
@@ -189,6 +259,38 @@ fn video_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder) 
         _ => {}
     }
     (!steps.is_empty()).then(|| steps.join(","))
+}
+
+/// Ekranları masaüstündeki konumlarıyla yan yana dizer: her giriş belleğe
+/// indirilir, xstack ile tek tuvalde birleştirilir, istenirse küçültülür.
+fn stack_filter(monitors: &[MonitorRegion], video: &VideoOptions, encoder: Encoder) -> String {
+    let left = monitors.iter().map(|m| m.x).min().unwrap_or(0);
+    let top = monitors.iter().map(|m| m.y).min().unwrap_or(0);
+    let right = monitors.iter().map(|m| m.x + m.width as i32).max().unwrap_or(0);
+    let bottom = monitors.iter().map(|m| m.y + m.height as i32).max().unwrap_or(0);
+    let bbox = ((right - left).max(2) as u32, (bottom - top).max(2) as u32);
+
+    let mut chains: Vec<String> = (0..monitors.len())
+        .map(|i| format!("[{i}:v]hwdownload,format=bgra[v{i}]"))
+        .collect();
+    let inputs: String = (0..monitors.len()).map(|i| format!("[v{i}]")).collect();
+    let layout = monitors
+        .iter()
+        .map(|m| format!("{}_{}", m.x - left, m.y - top))
+        .collect::<Vec<_>>()
+        .join("|");
+    let mut tail = format!("{inputs}xstack=inputs={}:layout={layout}", monitors.len());
+    // H.264 çift sayı ister; küçültme yoksa bile tek sayılı ekranlar yuvarlanır.
+    match output_size(bbox, video.max_height) {
+        Some((w, h)) => tail += &format!(",scale={w}:{h}:flags=bilinear"),
+        None => tail += ",scale=trunc(iw/2)*2:trunc(ih/2)*2",
+    }
+    match encoder {
+        Encoder::Qsv => tail += ",format=nv12",
+        _ => tail += ",format=yuv420p",
+    }
+    chains.push(format!("{tail}[vout]"));
+    chains.join(";")
 }
 
 /// Özel bit hızı sabittir (CBR): kullanıcının seçtiği değer dosyaya gerçekten
@@ -331,16 +433,25 @@ fn common(
     let mut args: Vec<String> = ["-hide_banner", "-loglevel", "warning", "-y"]
         .map(String::from)
         .to_vec();
-    args.extend(capture_input(target, video));
+    args.extend(capture_inputs(target, video));
     if let Some(pipe) = audio_pipe {
         args.extend(audio_input(pipe));
     }
-    args.extend(["-map".into(), "0:v".into()]);
-    if audio_pipe.is_some() {
-        args.extend(["-map".into(), "1:a".into()]);
+    let filter = video_filter(target, video, encoder);
+    if let Some(VideoFilter::Complex(f)) = &filter {
+        args.extend(["-filter_complex".into(), f.clone()]);
     }
-    if let Some(filter) = video_filter(target, video, encoder) {
-        args.extend(["-vf".into(), filter]);
+    // Çoklu ekranda birleştirilmiş çıkış, tekilde ilk girişin görüntüsü eşlenir.
+    match &filter {
+        Some(VideoFilter::Complex(_)) => args.extend(["-map".into(), "[vout]".into()]),
+        _ => args.extend(["-map".into(), "0:v".into()]),
+    }
+    if audio_pipe.is_some() {
+        // Ses borusu görüntü girişlerinden sonra gelir.
+        args.extend(["-map".into(), format!("{}:a", target.input_count())]);
+    }
+    if let Some(VideoFilter::Simple(f)) = &filter {
+        args.extend(["-vf".into(), f.clone()]);
     }
     args.extend([
         "-fps_mode".into(),
@@ -423,9 +534,13 @@ pub fn probe_args(target: &CaptureTarget, encoder: Encoder) -> Vec<String> {
     let mut args: Vec<String> = ["-hide_banner", "-loglevel", "error"]
         .map(String::from)
         .to_vec();
-    args.extend(capture_input(target, &video));
-    if let Some(filter) = video_filter(target, &video, encoder) {
-        args.extend(["-vf".into(), filter]);
+    args.extend(capture_inputs(target, &video));
+    match video_filter(target, &video, encoder) {
+        Some(VideoFilter::Simple(filter)) => args.extend(["-vf".into(), filter]),
+        Some(VideoFilter::Complex(filter)) => {
+            args.extend(["-filter_complex".into(), filter, "-map".into(), "[vout]".into()]);
+        }
+        None => {}
     }
     args.extend(encoder_args(encoder, &video));
     // Pencere yakalaması yalnızca içerik değişince kare verir: tek kare yeter.
@@ -649,5 +764,72 @@ mod tests {
         let args = probe_args(&monitor(Some(0)), Encoder::Qsv).join(" ");
         assert!(args.contains("-vf hwdownload,format=bgra,format=nv12"));
         assert!(args.ends_with("-frames:v 1 -f null -"));
+    }
+
+    #[test]
+    fn coklu_ekran_masaustu_konumuyla_birlestirilir() {
+        let target = CaptureTarget::Monitors {
+            monitors: vec![
+                MonitorRegion {
+                    hmonitor: 11,
+                    dda_index: Some(1),
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                MonitorRegion {
+                    hmonitor: 22,
+                    dda_index: None,
+                    x: 1920,
+                    y: -120,
+                    width: 2560,
+                    height: 1440,
+                },
+            ],
+        };
+        let args = recording_args(&target, &video(None), Encoder::Nvenc, Some(r"\\.\pipe\dk"), "k.mkv")
+            .join(" ");
+        // Her ekran kendi girişinden yakalanır; ses borusu onlardan sonra gelir.
+        assert!(args.contains("-i ddagrab=output_idx=1:framerate=60:draw_mouse=1"));
+        assert!(args.contains("gfxcapture=hmonitor=22:max_framerate=60"));
+        assert!(args.contains("-map 2:a"));
+        // İkinci ekran sağda ve 120 piksel yukarıda: dizilim konumu korunur.
+        assert!(args.contains("xstack=inputs=2:layout=0_120|1920_0"));
+        assert!(args.contains("-map [vout]"));
+        // Kareler belleğe iner ve H.264 için çift sayıya yuvarlanır.
+        assert!(args.contains("hwdownload,format=bgra[v0]"));
+        assert!(args.contains("scale=trunc(iw/2)*2:trunc(ih/2)*2"));
+        assert!(args.contains("-c:v h264_nvenc"));
+    }
+
+    #[test]
+    fn coklu_ekran_kucultme_kaplayan_kutuya_uygulanir() {
+        let target = CaptureTarget::Monitors {
+            monitors: vec![
+                MonitorRegion {
+                    hmonitor: 1,
+                    dda_index: Some(0),
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                MonitorRegion {
+                    hmonitor: 2,
+                    dda_index: Some(1),
+                    x: 1920,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+            ],
+        };
+        // 3840×1080 kaplayan kutu 1080p sınırını aşmaz: küçültme olmaz.
+        let args = recording_args(&target, &video(Some(1080)), Encoder::X264, None, "k.mkv").join(" ");
+        assert!(args.contains("xstack=inputs=2:layout=0_0|1920_0,scale=trunc"));
+        let args = recording_args(&target, &video(Some(720)), Encoder::X264, None, "k.mkv").join(" ");
+        assert!(args.contains("xstack=inputs=2:layout=0_0|1920_0,scale=2560:720:flags=bilinear"));
+        assert!(args.contains("format=yuv420p[vout]"));
     }
 }

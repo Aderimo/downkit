@@ -51,6 +51,45 @@ function formatTime(ms: number, lang: string): string {
   return new Date(ms).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
 }
 
+// Kırpma aralığı her kayıt için hatırlanır: pencereyi kapatıp açınca son
+// ayarlanan aralıkla devam edilir.
+const TRIM_KEY = "downkit.trimRanges";
+
+type TrimMemory = Record<string, { start: number; end: number; duration: number }>;
+
+function loadTrimMemory(): TrimMemory {
+  try {
+    const raw = localStorage.getItem(TRIM_KEY);
+    return raw ? (JSON.parse(raw) as TrimMemory) : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberedTrim(path: string, duration: number): TimeRange | null {
+  const saved = loadTrimMemory()[path];
+  if (!saved || duration <= 0) return null;
+  // Kayıt değiştiyse (üzerine kırpıldı, süresi kısaldı) eski aralık geçersizdir.
+  if (Math.abs(saved.duration - duration) > 1) return null;
+  if (saved.start < 0 || saved.end - saved.start < 0.5 || saved.start >= duration) return null;
+  return { start: saved.start, end: Math.min(saved.end, duration) };
+}
+
+function rememberTrim(path: string, range: TimeRange, duration: number) {
+  try {
+    const all = loadTrimMemory();
+    all[path] = { start: range.start, end: range.end, duration };
+    // Sınır: en eskiler atılır, harita büyümesin.
+    const keys = Object.keys(all);
+    if (keys.length > 200) {
+      for (const key of keys.slice(0, keys.length - 200)) delete all[key];
+    }
+    localStorage.setItem(TRIM_KEY, JSON.stringify(all));
+  } catch {
+    // Kaydedilemezse bu oturumda geçerli kalır.
+  }
+}
+
 function useDayLabel() {
   const { t, i18n } = useTranslation();
   return (dayStart: number) => {
@@ -347,6 +386,7 @@ function RecordingPlayer({
     if (video)
       video.currentTime = next.start !== range.start ? next.start : Math.max(0, next.end - 1);
     setRange(next);
+    rememberTrim(path, next, duration);
   }
 
   function saveTrim(overwrite: boolean) {
@@ -613,7 +653,8 @@ function RecordingPlayer({
                 disabled={needsRepair || trimming || !url}
                 onClick={() => {
                   setNotice(null);
-                  setRange({ start: 0, end: duration });
+                  // Son ayarlanan aralıkla açılır; yoksa tüm video seçili gelir.
+                  setRange(rememberedTrim(path, duration) ?? { start: 0, end: duration });
                   setTrimming(true);
                 }}
               >

@@ -324,3 +324,41 @@ describe("geçişi bırakılan uca uygulama", () => {
     expect(byId(out, "a").fadeOut).toBeUndefined();
   });
 });
+
+describe("çoklu kaynak", () => {
+  const twoSources = (): SeqClip[] => [
+    ...initialClips(100, "a", "s1"),
+    ...initialClips(100, "b", "s2").map((c) => ({ ...c, start: 100 })),
+  ];
+
+  it("kaynak kimliği düzleştirmede parçaya taşınır", () => {
+    const segments = flatten(twoSources());
+    expect(segments.map((s) => s.sourceId)).toEqual(["s1", "s2"]);
+  });
+
+  it("bölme ve çoğaltmada kaynak kimliği korunur", () => {
+    const [a, b] = splitClip(initialClips(100, "a", "s2"), "a", 40, "b");
+    expect(a.sourceId).toBe("s2");
+    expect(b.sourceId).toBe("s2");
+    expect(duplicateClip(initialClips(60, "x", "s2"), "x", "y")[1].sourceId).toBe("s2");
+  });
+
+  it("bölümden bölme yalnızca istenen kaynağın kliplerine uygulanır", () => {
+    const chapters = [
+      { start: 0, end: 50, title: "X" },
+      { start: 50, end: 100, title: "Y" },
+    ];
+    const out = splitAtChapters(twoSources(), chapters, makeId, "s2");
+    expect(out.filter((c) => c.sourceId === "s1")).toHaveLength(1);
+    expect(out.filter((c) => c.sourceId === "s2").map((c) => c.name)).toEqual(["X", "Y"]);
+    // Süzgeç verilmezse iki kaynak da bölünür.
+    expect(splitAtChapters(twoSources(), chapters, makeId)).toHaveLength(4);
+  });
+
+  it("kaynak anı yalnızca o kaynağın kliplerinde aranır", () => {
+    expect(timelineTimeOfSource(twoSources(), 30, "s1")).toBe(30);
+    expect(timelineTimeOfSource(twoSources(), 30, "s2")).toBe(130);
+    // Kimlik verilmezse eski davranış: ilk tutan klip.
+    expect(timelineTimeOfSource(twoSources(), 30)).toBe(30);
+  });
+});

@@ -62,8 +62,6 @@ pub fn run() {
         // "downkit://open?url=…" bağlantıları (tarayıcıdaki yer iminden gönderme).
         // Program açıksa tek pencere eklentisi bağlantıyı bu kopyaya iletir.
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         // Kayıt/anlık tekrar kısayolları (oyun oynarken de çalışsın diye sistem geneli).
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
@@ -107,6 +105,7 @@ pub fn run() {
             commands::editor::editor_thumbnails,
             commands::editor::editor_waveform,
             commands::editor::create_preview_copy,
+            commands::editor::editor_save_frame,
             commands::settings::get_ytdlp_version,
             commands::settings::update_ytdlp,
             commands::settings::get_tool_versions,

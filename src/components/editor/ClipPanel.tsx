@@ -357,13 +357,20 @@ function ClipAudio({ clip }: { clip: SeqClip }) {
 function ChapterList({ clips }: { clips: SeqClip[] }) {
   const { t } = useTranslation();
   const source = useEditorStore((s) => s.source);
+  const activeSourceId = useEditorStore((s) => s.activeSourceId);
   const currentTime = usePlayerStore((s) => s.currentTime);
   const chapters = sourceChapters(source);
   if (chapters.length === 0) return null;
 
   // İmlecin altındaki kaynak anı: hangi bölümde olduğumuzu vurgulamak için.
+  // (Bölümler önizlenen kaynağa ait; başka kaynağın klibi sayılmaz.)
   const here = clips
-    .filter((c) => currentTime >= c.start && currentTime < clipEnd(c))
+    .filter(
+      (c) =>
+        (c.sourceId ?? activeSourceId) === activeSourceId &&
+        currentTime >= c.start &&
+        currentTime < clipEnd(c),
+    )
     .sort((a, b) => b.track - a.track)[0];
   const sourceNow = here ? here.srcStart + (currentTime - here.start) * here.speed : null;
 
@@ -386,7 +393,8 @@ function ChapterList({ clips }: { clips: SeqClip[] }) {
       </div>
       <ol className="max-h-52 space-y-0.5 overflow-y-auto pr-1">
         {chapters.map((chapter: Chapter, index) => {
-          const onTimeline = timelineTimeOfSource(clips, chapter.start) !== null;
+          const onTimeline =
+            timelineTimeOfSource(clips, chapter.start, activeSourceId ?? undefined) !== null;
           const active =
             sourceNow !== null && sourceNow >= chapter.start && sourceNow < chapter.end;
           return (

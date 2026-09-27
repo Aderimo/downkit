@@ -182,6 +182,19 @@ export function SnipSettingsCard() {
               }))}
             />
           </Field>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">
+              <span className="block">{t("snip.translateOpensEditor")}</span>
+              <span className="block text-[11px] text-[var(--dk-text-muted)]">
+                {t("snip.translateOpensEditorHint")}
+              </span>
+            </span>
+            <Switch
+              checked={settings.translateOpensEditor}
+              onChange={(translateOpensEditor) => update({ translateOpensEditor })}
+              label={t("snip.translateOpensEditor")}
+            />
+          </label>
           <p className="text-[11px] text-[var(--dk-text-muted)]">{t("snip.translationHint")}</p>
         </Group>
 

@@ -12,8 +12,8 @@ import type { RecorderSources } from "../types/recorder";
 
 const sources: RecorderSources = {
   monitors: [
-    { hmonitor: 11, ddaIndex: 1, width: 2560, height: 1440, primary: false, number: 1 },
-    { hmonitor: 22, ddaIndex: 0, width: 1920, height: 1080, primary: true, number: 2 },
+    { hmonitor: 11, ddaIndex: 1, x: 0, y: 0, width: 2560, height: 1440, primary: false, number: 1 },
+    { hmonitor: 22, ddaIndex: 0, x: 2560, y: 0, width: 1920, height: 1080, primary: true, number: 2 },
   ],
   windows: [
     {

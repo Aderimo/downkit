@@ -38,6 +38,7 @@ describe("ekran görüntüsü ayarları", () => {
       copyOnSave: false,
       delaySeconds: 5,
       translateDirection: "en-tr",
+      translateOpensEditor: true,
     };
     expect(normalizeSnipSettings(saved)).toEqual(saved);
   });

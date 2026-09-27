@@ -19,7 +19,16 @@ import {
   type RecorderHotkey,
   type RecorderSettings,
 } from "./recorderSettings";
-import { captureTarget, fileStamp, isMonitor, resolveSource, toAccelerator } from "./recorderLogic";
+import {
+  captureTarget,
+  captureTargetMulti,
+  fileStamp,
+  isMonitor,
+  monitorLabel,
+  resolveMonitors,
+  resolveSource,
+  toAccelerator,
+} from "./recorderLogic";
 import {
   hotkeyUnwatch,
   hotkeyUnwatchAll,
@@ -33,7 +42,6 @@ import {
   recorderDefaultDir,
   recorderPrepare,
   recorderSources,
-  recorderScreenshot,
   recorderStart,
   recorderStatus,
   recorderStop,
@@ -44,7 +52,7 @@ import {
   replayStop,
 } from "./tauri-api";
 import { useRecorderStore, type RecorderPending } from "../store/recorderStore";
-import type { CaptureOptions, SavedRecording } from "../types/recorder";
+import type { CaptureOptions, CaptureTarget, SavedRecording } from "../types/recorder";
 
 const store = () => useRecorderStore.getState();
 const patch = (p: Parameters<ReturnType<typeof store>["patch"]>[0]) => store().patch(p);
@@ -92,25 +100,46 @@ export async function refreshSources(): Promise<void> {
   }
 }
 
+/** Ayarlardaki kaynağı şu anki ekran/pencerelerle eşler: yakalama hedefi ve
+ * (ekran kaydında) klasör etiketi. Çoklu ekran tek hedef olarak döner. */
+function resolveCapture(
+  settings: RecorderSettings,
+  sources: Awaited<ReturnType<typeof recorderSources>>,
+): { target: CaptureTarget; folderFallback: string | null } {
+  if (settings.source.kind === "monitors") {
+    const monitors = resolveMonitors(settings.source.numbers, sources);
+    if (monitors.length === 0) {
+      throw { code: "recorderSourceMissing", message: t("recorder.sourceMissing") };
+    }
+    // Tek ekran kaldıysa (öteki çıkarıldı) hızlı tek ekran yoluna düşülür.
+    if (monitors.length === 1) {
+      return { target: captureTarget(monitors[0]), folderFallback: monitorLabel(monitors[0], t) };
+    }
+    return {
+      target: captureTargetMulti(monitors),
+      folderFallback: t("recorder.multiScreen", { count: monitors.length }),
+    };
+  }
+  const item = resolveSource(settings.source, sources);
+  if (!item) throw { code: "recorderSourceMissing", message: t("recorder.sourceMissing") };
+  return {
+    target: captureTarget(item),
+    folderFallback: isMonitor(item) ? monitorLabel(item, t) : null,
+  };
+}
+
 /** Ayarlardaki kaynağı şu anki ekran/pencerelerle eşleyip kayıt seçeneklerini kurar.
  * `folderFallback`: uygulamaya göre klasörlemede ekran kaydının klasör adı
- * (tam ekran bir uygulama yoksa "Ana ekran" / "Ekran 2" gibi). */
+ * (tam ekran bir uygulama yoksa "Ana ekran" / "2. ekran" gibi). */
 async function buildOptions(
   settings: RecorderSettings,
 ): Promise<{ options: CaptureOptions; folderFallback: string | null }> {
   const sources = await recorderSources();
   patch({ sources });
-  const item = resolveSource(settings.source, sources);
-  if (!item) throw { code: "recorderSourceMissing", message: t("recorder.sourceMissing") };
-  const target = captureTarget(item);
+  const { target, folderFallback } = resolveCapture(settings, sources);
   if (!store().encoder) {
     patch({ encoder: await recorderPrepare(target) });
   }
-  const folderFallback = isMonitor(item)
-    ? item.primary
-      ? t("recorder.primaryScreen")
-      : t("recorder.screenN", { n: item.number })
-    : null;
   return {
     folderFallback,
     options: {
@@ -265,11 +294,10 @@ export async function saveReplay(): Promise<void> {
       let folderFallback: string | null = null;
       if (settings.byApp) {
         const sources = store().sources ?? (await recorderSources());
-        const item = resolveSource(settings.source, sources);
-        if (item && isMonitor(item)) {
-          folderFallback = item.primary
-            ? t("recorder.primaryScreen")
-            : t("recorder.screenN", { n: item.number });
+        try {
+          folderFallback = resolveCapture(settings, sources).folderFallback;
+        } catch {
+          folderFallback = null;
         }
       }
       await replaySave(
@@ -323,43 +351,12 @@ function onSaved(saved: SavedRecording) {
   );
 }
 
-/** Seçili kaynağın (ekran/pencere) tam çözünürlüklü ekran görüntüsünü PNG kaydeder. */
-export async function takeScreenshot(): Promise<void> {
-  await run(
-    "save",
-    async () => {
-      const settings = getRecorderSettings();
-      const sources = await recorderSources();
-      patch({ sources });
-      const item = resolveSource(settings.source, sources);
-      if (!item) throw { code: "recorderSourceMissing", message: t("recorder.sourceMissing") };
-      const dir = await resolveOutputDir();
-      const folderFallback = isMonitor(item)
-        ? item.primary
-          ? t("recorder.primaryScreen")
-          : t("recorder.screenN", { n: item.number })
-        : null;
-      const path = await recorderScreenshot(
-        captureTarget(item),
-        dir,
-        `${t("recorder.screenshotPrefix")} ${fileStamp(new Date())}`,
-        settings.byApp,
-        folderFallback,
-      );
-      patch({ notice: t("recorder.screenshotSaved", { name: fileName(path) }) });
-      void feedback("saved", t("recorder.hud.screenshotSaved"), fileName(path));
-    },
-    "recorder.screenshotFailed",
-  );
-}
-
 // --- Sistem geneli kısayollar ---
 
 const HOTKEY_ACTIONS: Record<RecorderHotkey, () => Promise<void>> = {
   record: toggleRecording,
   saveReplay,
   toggleReplay,
-  screenshot: takeScreenshot,
   snip: () => capture("region"),
   snipFull: () => capture("full"),
   snipTranslate: () => capture("translate"),

@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Cpu,
-  Camera,
   Film,
   FolderOpen,
   Mic,
@@ -24,26 +23,35 @@ import {
   replayLengthText,
   restartReplay,
   saveReplay,
-  takeScreenshot,
   toggleRecording,
   toggleReplay,
 } from "../../lib/recorder";
 import { formatBytes, formatDuration } from "../../lib/format";
-import { hotkeyLabel, resolveSource, isMonitor } from "../../lib/recorderLogic";
+import { hotkeyLabel, resolveSource, resolveMonitors, monitorsBounds, isMonitor, monitorLabel } from "../../lib/recorderLogic";
 import { meterFraction, readLevel, SILENT_METER, stepMeter } from "../../lib/levels";
 import { Button } from "../ui/Button";
 import { Switch } from "../ui/Switch";
 
-/** "Ekran 2 · 2560×1440" ya da "Oyun — game.exe". */
+/** "Ana ekran · 2560×1440", "2 ekran · 4480×1440" ya da "Oyun — game.exe". */
 function useSourceLabel(): string {
   const { t } = useTranslation();
   const source = useRecorderSettings((s) => s.source);
   const sources = useRecorderStore((s) => s.sources);
   if (!sources) return "";
+  if (source.kind === "monitors") {
+    const monitors = resolveMonitors(source.numbers, sources);
+    if (monitors.length === 0) return t("recorder.sourceMissing");
+    if (monitors.length === 1) {
+      const m = monitors[0];
+      return `${monitorLabel(m, t)} · ${m.width}×${m.height}`;
+    }
+    const bounds = monitorsBounds(monitors);
+    return `${t("recorder.multiScreen", { count: monitors.length })} · ${bounds.width}×${bounds.height}`;
+  }
   const item = resolveSource(source, sources);
   if (!item) return t("recorder.sourceMissing");
   if (isMonitor(item)) {
-    return `${t("recorder.screenN", { n: item.number })} · ${item.width}×${item.height}`;
+    return `${monitorLabel(item, t)} · ${item.width}×${item.height}`;
   }
   return `${item.title} — ${item.exe}`;
 }
@@ -351,17 +359,6 @@ export function RecordCard() {
         <span className="flex items-center gap-1.5">
           {t("recorder.hotkey")}: <Kbd combo={settings.hotkeys.record} />
         </span>
-        <button
-          type="button"
-          onClick={() => void takeScreenshot()}
-          disabled={pending !== null}
-          title={t("recorder.screenshot")}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
-        >
-          <Camera size={14} />
-          {t("recorder.screenshot")}
-          <Kbd combo={settings.hotkeys.screenshot} />
-        </button>
         {encoder ? (
           <span className="flex items-center gap-1.5" title={t("recorder.encoderHint")}>
             <Cpu size={13} />
