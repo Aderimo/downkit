@@ -1,3 +1,4 @@
+// DownKit — © 2026 aderimo — MIT — https://github.com/Aderimo/downkit
 import { initPrefsFile } from "./lib/prefsFile";
 
 // Aynı sayfa üç pencerede açılır: ana pencere, köşedeki bilgi penceresi (?hud) ve

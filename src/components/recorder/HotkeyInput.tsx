@@ -211,7 +211,7 @@ export function HotkeyInput({ id, label }: { id: RecorderHotkey; label: string }
           >
             <X size={14} />
           </button>
-        ) : (
+        ) : DEFAULT_HOTKEYS[id] ? (
           <button
             type="button"
             onClick={() => save(DEFAULT_HOTKEYS[id])}
@@ -219,7 +219,7 @@ export function HotkeyInput({ id, label }: { id: RecorderHotkey; label: string }
           >
             {t("recorder.defaultHotkey")}
           </button>
-        )}
+        ) : null}
       </div>
 
       {editing ? (

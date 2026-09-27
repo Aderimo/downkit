@@ -69,7 +69,7 @@ pub fn check_inside(path: &Path, dir: &Path) -> Result<PathBuf, String> {
 
 /// `canonicalize` Windows'ta `\\?\C:\…` biçimi verir; arayüze ve diğer
 /// komutlara olağan `C:\…` yolu gider (ağ yolları olduğu gibi kalır).
-fn plain_path(path: PathBuf) -> PathBuf {
+pub(crate) fn plain_path(path: PathBuf) -> PathBuf {
     const VERBATIM: &str = r"\\?\";
     match path.to_str().and_then(|s| s.strip_prefix(VERBATIM)) {
         Some(rest) if !rest.starts_with(r"UNC\") => PathBuf::from(rest),

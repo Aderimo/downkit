@@ -5,11 +5,11 @@ It is built on the open-source work listed below.
 
 ## Downloaded on first use (not bundled in DownKit.exe)
 
-| Component | License | Used for |
-|---|---|---|
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense | Downloading video and audio from links |
-| [FFmpeg](https://ffmpeg.org) | LGPL-2.1+ / GPL (depends on the build) | Converting, cutting, merging, screen recording |
-| [Deno](https://deno.com) | MIT | The JavaScript runtime YouTube requires for yt-dlp |
+| Component                                  | License                                | Used for                                           |
+| ------------------------------------------ | -------------------------------------- | -------------------------------------------------- |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Unlicense                              | Downloading video and audio from links             |
+| [FFmpeg](https://ffmpeg.org)               | LGPL-2.1+ / GPL (depends on the build) | Converting, cutting, merging, screen recording     |
+| [Deno](https://deno.com)                   | MIT                                    | The JavaScript runtime YouTube requires for yt-dlp |
 
 These programs are fetched from their official release pages the first time they
 are needed and run as separate processes. Their source code and licenses are

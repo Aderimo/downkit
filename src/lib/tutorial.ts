@@ -26,6 +26,7 @@ export type TourId =
   | "downloads"
   | "batch"
   | "record"
+  | "screenshot"
   | "settings";
 
 const localTool: TutorialStep[] = [
@@ -43,6 +44,7 @@ export const TOURS: Record<TourId, TutorialStep[]> = {
     { id: "link", targets: ["nav-home"] },
     { id: "editor", targets: ["nav-editor"] },
     { id: "record", targets: ["nav-record"] },
+    { id: "screenshot", targets: ["nav-screenshot"] },
     { id: "local", targets: ["nav-convert", "nav-compress", "nav-resize"] },
     { id: "queue", targets: ["nav-downloads"] },
     { id: "settings", targets: ["nav-batch", "nav-settings"] },
@@ -102,6 +104,16 @@ export const TOURS: Record<TourId, TutorialStep[]> = {
     { id: "audio", targets: ["record-audio"] },
     { id: "hotkeys", targets: ["record-hotkeys"] },
     { id: "library", targets: ["record-library"] },
+  ],
+  // Düzenleyici açıkken yakalama ekranı yok, kapalıyken araçlar yok: adımlar
+  // görünen öğeye göre seçilir.
+  screenshot: [
+    { id: "capture", targets: ["snip-capture"], optional: true },
+    { id: "hotkeys", targets: ["snip-hotkeys"], optional: true },
+    { id: "settings", targets: ["snip-settings"], optional: true },
+    { id: "library", targets: ["snip-library"], optional: true },
+    { id: "tools", targets: ["snip-tools"], optional: true },
+    { id: "actions", targets: ["snip-actions"], optional: true },
   ],
   settings: [
     { id: "general", targets: ["settings-general"] },

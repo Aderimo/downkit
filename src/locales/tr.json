@@ -13,7 +13,8 @@
     "batch": "Toplu İşlem",
     "videoEditor": "Klip Düzenleyici",
     "settings": "Ayarlar",
-    "record": "Ekran Kaydı"
+    "record": "Ekran Kaydı",
+    "screenshot": "Ekran Görüntüsü"
   },
   "status": {
     "ready": "Hazır",
@@ -422,7 +423,8 @@
     "creditRnnoise": "Mikrofon gürültü engelleme",
     "responsibleTitle": "Sorumlu kullanım",
     "themesShowAll": "Tüm temalar",
-    "themesHide": "Gizle"
+    "themesHide": "Gizle",
+    "originalAuthor": "Orijinal yapımcı"
   },
   "backendError": {
     "botCheck": "Platform bot doğrulaması istiyor. Biraz bekleyip tekrar dene ya da Ayarlar'dan yt-dlp'yi güncelle.",
@@ -474,7 +476,12 @@
     "nameTaken": "Bu adla bir kayıt zaten var.",
     "repairFailed": "Kayıt onarılamadı; dosya bozuk olabilir.",
     "recorderSourceMissing": "Seçili pencere artık açık değil. Kaynak listesini yenileyip başka bir ekran ya da pencere seç.",
-    "replayJustSaved": "Az önce kaydedildi; birkaç saniye sonra tekrar dene."
+    "replayJustSaved": "Az önce kaydedildi; birkaç saniye sonra tekrar dene.",
+    "unsupportedImage": "Yalnızca PNG, JPEG ve WebP görüntüler açılabilir.",
+    "screenshotFailed": "Ekran görüntüsü alınamadı.",
+    "ocrFailed": "Görüntüdeki yazı okunamadı. Windows'ta bu dilin paketi yüklü olmayabilir (Ayarlar → Saat ve dil → Dil).",
+    "translateOffline": "Çeviri hizmetine ulaşılamadı. İnternet bağlantını kontrol et.",
+    "translateQuota": "Bugünkü ücretsiz çeviri sınırı doldu (yaklaşık 5000 karakter). Yarın yeniden deneyebilirsin."
   },
   "playlist": {
     "badge": "Oynatma listesi",
@@ -517,7 +524,8 @@
     "hiddenIdle": "Tepsideki ördeğe tıklayarak geri açabilirsin. Tamamen kapatmak için sağ tık > Çıkış.",
     "record": "Kaydı başlat / durdur",
     "saveReplay": "Anlık tekrarı kaydet",
-    "hiddenRecording": "Kayıt / anlık tekrar sürüyor. Kapatmak için tepsideki ördeğe sağ tık > Çıkış."
+    "hiddenRecording": "Kayıt / anlık tekrar sürüyor. Kapatmak için tepsideki ördeğe sağ tık > Çıkış.",
+    "snip": "Ekran görüntüsü al"
   },
   "update": {
     "available": "Yeni sürüm: v{{version}}",
@@ -837,6 +845,11 @@
       "title": "Ekran kaydı",
       "body": "Ekranını ya da bir pencereyi sesiyle kaydet. <b>Geriye dönük kayıt</b> açıkken son 30 saniye arka planda tutulur; güzel bir an olunca tek tuşla kaydedersin.",
       "tip": "Kısayollar oyun oynarken de çalışır."
+    },
+    "screenshot": {
+      "title": "Ekran görüntüsü",
+      "body": "<b>Ekran Görüntüsü</b>'nde ekranın bir bölgesini seç, üstüne ok, yazı ve numara ekle, gizlemek istediğini bulanıklaştır. Görüntüdeki yazıyı okuyup çevirebilirsin.",
+      "tip": "Program arka plandayken bile <k>Alt</k> + <k>Shift</k> + <k>S</k> ile alan seçebilirsin."
     }
   },
   "shortcuts": {
@@ -1181,6 +1194,36 @@
         "body": "Bütün kayıtların burada. Tıklayınca program içinde izlersin; oradan <b>Düzenleyicide aç</b> ile kesip biçebilir, yeniden adlandırabilir ya da silebilirsin.",
         "tip": "Silinen kayıt Geri Dönüşüm Kutusu'na gider."
       }
+    },
+    "screenshot": {
+      "name": "Ekran Görüntüsü",
+      "capture": {
+        "title": "Yakala",
+        "body": "<b>Alan seç</b> ekranı dondurur, istediğin bölgeyi sürüklersin. <b>Tüm ekran</b> tek seferde alır. <b>Hızlı çeviri</b> seçtiğin alandaki yazıyı okuyup çevirir.",
+        "tip": "Seçim ekranında Enter tüm ekranı alır, Esc vazgeçer, sağ tık seçimi temizler."
+      },
+      "hotkeys": {
+        "title": "Kısayollar",
+        "body": "Aynı işler klavyeden de yapılır; DownKit tepsideyken bile çalışır. Değiştirmek için tıkla ve yeni tuşlara bas."
+      },
+      "settings": {
+        "title": "Seçimden sonra ne olsun",
+        "body": "Enter'a basınca görüntü düzenleyicide mi açılsın, panoya mı kopyalansın, yoksa doğrudan kaydedilsin mi? Dosya biçimi (PNG, JPEG, WebP), kayıt klasörü ve gecikme de burada."
+      },
+      "library": {
+        "title": "Ekran görüntülerim",
+        "body": "Kaydettiğin görüntüler burada. Birine tıklarsan düzenleyicide açılır; kopyalayabilir, klasörde gösterebilir ya da silebilirsin.",
+        "tip": "Silinen görüntüler Geri Dönüşüm Kutusu'na gider."
+      },
+      "tools": {
+        "title": "Çizim araçları",
+        "body": "Ok, dikdörtgen, kalem, vurgulayıcı, yazı, numaralı adım, bulanıklaştırma, pikselleştirme ve kırpma. Rengi ve kalınlığı yandan seç.",
+        "tip": "Her aracın tek harflik kısayolu var (ör. <k>A</k> ok, <k>T</k> yazı); <k>Ctrl</k> + <k>Z</k> geri alır."
+      },
+      "actions": {
+        "title": "Kopyala, kaydet, çevir",
+        "body": "<k>Ctrl</k> + <k>C</k> panoya kopyalar, <k>Ctrl</k> + <k>S</k> kaydeder. <b>Yazıyı oku</b> görüntüdeki metni çıkarır, <b>Çevir</b> çevirisini yazının üstüne yerleştirir."
+      }
     }
   },
   "tools": {
@@ -1427,5 +1470,125 @@
       "name": "Pamuk Şeker",
       "hint": "Açık pembe"
     }
+  },
+  "snip": {
+    "title": "Ekran Görüntüsü",
+    "subtitle": "Lightshot gibi: ekranın bir bölgesini seç, üstüne ok, yazı, numara ekle, gizlemek istediğini bulanıklaştır; kopyala ya da kaydet. Görüntüdeki yazıyı okuyup çevirebilirsin.",
+    "hint": "Almak istediğin alanı sürükleyerek seç · Enter: tüm ekran · Esc: vazgeç",
+    "hintTranslate": "Çevirmek istediğin yazıyı sürükleyerek seç · Esc: vazgeç",
+    "edit": "Düzenle",
+    "translate": "Çevir",
+    "copy": "Kopyala",
+    "save": "Kaydet",
+    "saveAs": "Farklı kaydet…",
+    "fullScreen": "Tüm ekran",
+    "cancel": "Vazgeç",
+    "filePrefix": "Ekran görüntüsü",
+    "copied": "Panoya kopyalandı.",
+    "saved": "Kaydedildi.",
+    "savedAndCopied": "Kaydedildi ve panoya kopyalandı.",
+    "savedTitle": "Ekran görüntüsü kaydedildi",
+    "captureFailed": "Ekran görüntüsü alınamadı.",
+    "openFailed": "Görüntü açılamadı.",
+    "copyFailed": "Panoya kopyalanamadı.",
+    "saveFailed": "Görüntü kaydedilemedi.",
+    "deleteFailed": "Görüntü silinemedi.",
+    "loadFailed": "Görüntü yüklenemedi. Dosya taşınmış ya da silinmiş olabilir.",
+    "back": "Geri dön",
+    "tools": "Çizim araçları",
+    "tool": {
+      "arrow": "Ok",
+      "rect": "Dikdörtgen",
+      "ellipse": "Elips",
+      "pen": "Kalem",
+      "highlight": "Vurgulayıcı",
+      "text": "Yazı",
+      "step": "Numaralı adım",
+      "blur": "Bulanıklaştır",
+      "pixelate": "Pikselleştir",
+      "crop": "Kırp"
+    },
+    "color": "Renk",
+    "thickness": "Kalınlık",
+    "undo": "Geri al",
+    "redo": "Yinele",
+    "removeCrop": "Kırpmayı kaldır",
+    "close": "Düzenleyiciyi kapat",
+    "discardConfirm": "Kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?",
+    "textPlaceholder": "Yaz, Enter ile bitir",
+    "readText": "Yazıyı oku",
+    "reading": "Okunuyor…",
+    "translating": "Çevriliyor…",
+    "showTranslation": "Çeviriyi görüntüde göster",
+    "noText": "Görüntüde okunabilir yazı bulunamadı.",
+    "ocrFailed": "Görüntüdeki yazı okunamadı.",
+    "translateFailed": "Çeviri yapılamadı.",
+    "recognizedText": "Okunan yazı",
+    "translatedText": "Çeviri",
+    "copyText": "Metni kopyala",
+    "textCopied": "Kopyalandı",
+    "showInFolder": "Klasörde göster",
+    "openInEditor": "Düzenleyicide aç",
+    "openExternal": "Görüntüleyicide aç",
+    "delete": "Sil",
+    "deleteConfirm": "\"{{name}}\" Geri Dönüşüm Kutusu'na taşınsın mı?",
+    "refresh": "Yenile",
+    "libraryTitle": "Ekran görüntülerim",
+    "libraryEmpty": "Henüz kaydedilmiş ekran görüntüsü yok. Yukarıdan bir alan seç ya da kısayola bas.",
+    "showMore": "{{n}} görüntü daha göster",
+    "noHotkey": "Kısayol yok",
+    "capture": {
+      "region": "Alan seç",
+      "regionHint": "Ekranı dondurur; almak istediğin bölgeyi sürükleyerek seçersin.",
+      "full": "Tüm ekran",
+      "fullHint": "İmlecin olduğu ekranın tamamını tek seferde alır.",
+      "translate": "Hızlı çeviri",
+      "translateHint": "Seçtiğin alandaki yazıyı okur ve Türkçe ↔ İngilizce çevirir.",
+      "file": "Görüntü aç",
+      "fileHint": "Bilgisayarındaki bir PNG, JPEG ya da WebP'yi düzenleyicide aç."
+    },
+    "settingsTitle": "Ekran görüntüsü ayarları",
+    "hotkeys": "Kısayollar",
+    "hotkeysHint": "DownKit arka planda ya da tepsideyken de çalışır. Değiştirmek için tıkla ve yeni tuşlara bas.",
+    "hotkeyRegion": "Alan seç",
+    "hotkeyFull": "Tüm ekran",
+    "hotkeyTranslate": "Hızlı çeviri",
+    "afterCapture": "Seçimden sonra",
+    "enterAction": "Enter'a (ya da kısayola) basınca",
+    "enter": {
+      "edit": "Düzenleyicide aç",
+      "editHint": "Ok, yazı, bulanıklaştırma eklemek için",
+      "copy": "Panoya kopyala",
+      "copyHint": "Hemen yapıştırmak için (Discord, WhatsApp…)",
+      "save": "Klasöre kaydet",
+      "saveHint": "Doğrudan dosya olarak"
+    },
+    "copyOnSave": "Kaydederken panoya da kopyala",
+    "copyOnSaveHint": "Kaydettiğin görüntü hemen yapıştırılabilir.",
+    "delay": "Gecikme",
+    "noDelay": "Gecikme yok",
+    "delaySeconds": "{{n}} saniye",
+    "delayHint": "Sayfadaki düğmelerle yakalarken beklenir: açılır menü ya da ipucu gibi tıklayınca kaybolan şeyleri yakalamak için.",
+    "fileFormat": "Dosya biçimi",
+    "format": "Biçim",
+    "formatHint": {
+      "png": "Kayıpsız, yazılar keskin",
+      "jpg": "Küçük dosya, fotoğraflar için",
+      "webp": "En küçük dosya, modern"
+    },
+    "quality": "Kalite",
+    "pngLossless": "PNG kayıpsızdır: kalite ayarı gerekmez.",
+    "qualityHint": "Düşük kalite daha küçük dosya demektir; %85–95 çoğu iş için yeterli.",
+    "translation": "Çeviri",
+    "translateDirection": "Çeviri yönü",
+    "direction": {
+      "auto": "Otomatik (dili kendisi bulur)",
+      "en-tr": "İngilizce → Türkçe",
+      "tr-en": "Türkçe → İngilizce"
+    },
+    "translationHint": "Yazı Windows'un kendi motoruyla bilgisayarında okunur. Çeviri için yalnızca metin (görüntü değil) ücretsiz MyMemory hizmetine gönderilir; günlük sınırı yaklaşık 5000 karakterdir.",
+    "folder": "Kayıt klasörü",
+    "openFolder": "Klasörü aç",
+    "defaultFolder": "Varsayılana dön"
   }
 }

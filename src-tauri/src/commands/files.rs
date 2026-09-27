@@ -5,9 +5,9 @@ use crate::error::AppError;
 
 // Önyüz yalnızca bizim ürettiğimiz medya dosyalarını açabilsin; geniş bir
 // "her yolu aç" izni vermek, herhangi bir .exe'yi çalıştırmaya kapı açardı.
-const OPENABLE_EXTENSIONS: [&str; 14] = [
+const OPENABLE_EXTENSIONS: [&str; 18] = [
     "mp4", "mkv", "webm", "mov", "avi", "mp3", "m4a", "wav", "aac", "flac", "opus", "ogg", "srt",
-    "gif",
+    "gif", "png", "jpg", "jpeg", "webp",
 ];
 
 pub fn is_openable(path: &std::path::Path) -> bool {
@@ -29,11 +29,16 @@ pub async fn open_media_file(app: AppHandle, path: String) -> Result<(), AppErro
 }
 
 /// Kayıt klasörünü Gezgin'de açar. Yalnızca klasör kabul edilir: bir klasörü
-/// açmak hiçbir şey çalıştırmaz.
+/// açmak hiçbir şey çalıştırmaz. Henüz hiç kayıt yapılmadıysa (varsayılan
+/// klasör yoksa) önce oluşturulur.
 #[tauri::command]
 pub async fn open_folder(app: AppHandle, path: String) -> Result<(), AppError> {
-    if !std::path::Path::new(&path).is_dir() {
-        return Err(AppError::new("Klasör bulunamadı.", Some(path)));
+    let dir = std::path::Path::new(&path);
+    if !dir.is_dir() {
+        let created = dir.is_absolute() && !dir.exists() && std::fs::create_dir_all(dir).is_ok();
+        if !created {
+            return Err(AppError::new("Klasör bulunamadı.", Some(path)));
+        }
     }
     app.opener()
         .open_path(&path, None::<&str>)

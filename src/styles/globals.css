@@ -102,6 +102,22 @@ body {
     0 0 24px -8px color-mix(in srgb, var(--dk-accent) 55%, transparent);
 }
 
+/* Görüntü düzenleyicinin zemini: saydam alan dama deseniyle görünsün. */
+.dk-checker {
+  background-color: var(--dk-surface);
+  background-image:
+    linear-gradient(45deg, rgb(127 127 127 / 12%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(127 127 127 / 12%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(127 127 127 / 12%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(127 127 127 / 12%) 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+}
+
 .dk-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--dk-border-strong) transparent;

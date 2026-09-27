@@ -11,6 +11,7 @@ import { localizeError } from "./errors";
 import { logEvent } from "./log";
 import { showHud, type HudKind } from "./hud";
 import { setLevels } from "./levels";
+import { capture } from "./snipActions";
 import { hotkeyLabel } from "./recorderLogic";
 import {
   getRecorderSettings,
@@ -359,6 +360,9 @@ const HOTKEY_ACTIONS: Record<RecorderHotkey, () => Promise<void>> = {
   saveReplay,
   toggleReplay,
   screenshot: takeScreenshot,
+  snip: () => capture("region"),
+  snipFull: () => capture("full"),
+  snipTranslate: () => capture("translate"),
 };
 
 // Kayıt/kaldırma çağrıları sırayla yapılır: üst üste gelen değişiklikler

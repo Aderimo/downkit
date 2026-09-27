@@ -22,6 +22,7 @@ import type {
   PixelRect,
   SnipAction,
   SnipImage,
+  ShotFile,
   SnipState,
   TranslateLang,
 } from "../types/snip";
@@ -292,6 +293,11 @@ export function getAppVersion(): Promise<string> {
   return getVersion();
 }
 
+/** Exe'ye gömülü yapımcı imzası (sürüm, yapımcı, lisans, resmi kaynak). */
+export function getAppSignature(): Promise<string> {
+  return invoke("app_signature");
+}
+
 export async function readClipboardText(): Promise<string | null> {
   try {
     return await readText();
@@ -555,10 +561,32 @@ export function onRecorderLevels(handler: (levels: number[]) => void): Promise<U
 
 // ——— Ekran görüntüsü aracı (snip): bölge seçme, OCR, çeviri ———
 
-/** Bölge seçimini başlatır. `hideMain`: DownKit'teki düğmeyle başladıysa önce
- * ana pencere gizlenir (yoksa görüntüde DownKit'in kendisi olur). */
-export function snipStart(mode: "edit" | "translate", hideMain: boolean): Promise<void> {
-  return invoke("snip_start", { mode, hideMain });
+/** Bölge seçimini başlatır. `mode`: seçimde Enter'ın yapacağı iş. `hideMain`:
+ * DownKit'teki düğmeyle başladıysa önce ana pencere gizlenir (yoksa görüntüde
+ * DownKit'in kendisi olur). `full`: seçim yok, ekranın tamamı doğrudan `mode` işine.
+ * `delay`: yakalamadan önce beklenecek saniye. */
+export function snipStart(
+  mode: SnipAction,
+  hideMain: boolean,
+  full = false,
+  delay = 0,
+): Promise<void> {
+  return invoke("snip_start", { mode, hideMain, full, delay });
+}
+
+/** Ekran görüntüsü klasöründeki görüntüler, en yeni önce. */
+export function snipList(dir: string): Promise<ShotFile[]> {
+  return invoke("snip_list", { dir });
+}
+
+/** Görüntünün küçük resminin adresi. */
+export function snipThumbnail(path: string): Promise<string> {
+  return invoke("snip_thumbnail", { path });
+}
+
+/** Görüntüyü Geri Dönüşüm Kutusu'na taşır. */
+export function snipDelete(path: string, dir: string): Promise<void> {
+  return invoke("snip_delete", { path, dir });
 }
 
 export function snipState(): Promise<SnipState | null> {
@@ -616,7 +644,11 @@ export function ocrImage(path: string, language: string | null): Promise<OcrOutp
   return invoke("ocr_image", { path, language });
 }
 
-export function translateText(text: string, from: TranslateLang, to: TranslateLang): Promise<string> {
+export function translateText(
+  text: string,
+  from: TranslateLang,
+  to: TranslateLang,
+): Promise<string> {
   return invoke("translate_text", { text, from, to });
 }
 
@@ -636,7 +668,7 @@ export async function chooseImageFile(): Promise<string | null> {
   const selected = await open({
     directory: false,
     multiple: false,
-    filters: [{ name: "PNG / JPEG", extensions: ["png", "jpg", "jpeg"] }],
+    filters: [{ name: "PNG / JPEG / WebP", extensions: ["png", "jpg", "jpeg", "webp"] }],
   });
   return typeof selected === "string" ? selected : null;
 }

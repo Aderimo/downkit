@@ -36,6 +36,9 @@ TikTok. DownKit does all of that in one place, without codecs, bitrates or comma
 - **Small enough to share** — a compressed copy that fits under Discord's 10 MB limit.
 - **Record your screen** — or save the last 30 seconds after something great happened, like
   NVIDIA's Instant Replay.
+- **Take screenshots like Lightshot** — select an area with **Alt+Shift+S**, add arrows, text and
+  numbered steps, blur what's private, then copy or save. It can even read and translate the
+  text in the picture.
 - **Honest progress** — percent, speed, size and time left, stage by stage.
 
 Free forever. No ads, no account, no telemetry.
@@ -216,6 +219,43 @@ Open **Screen recorder** in the sidebar.
 Picture and sound stay in sync: in a test with a flash and a beep every second, sound landed
 within 14–24 ms of the picture on screen recordings.
 
+### Screenshot
+
+Open **Screenshot** in the sidebar — or just press **Alt + Shift + S** anywhere, even with
+DownKit in the tray (also in the tray menu: **Take screenshot**).
+
+![Screenshot](docs/screenshots/en/screenshot.png)
+
+- **Select area** freezes the screen: drag over the part you want. **Enter** takes the whole
+  screen, **Esc** cancels, right-click clears the selection. A toolbar under the selection offers
+  **Edit**, **Translate**, **Copy** (Ctrl+C) and **Save** (Ctrl+S).
+- **Whole screen** grabs the screen the mouse is on in one go (no default shortcut; assign one if
+  you like). **Open image** edits a PNG, JPEG or WebP from your computer.
+- **Delay** (3, 5 or 10 s) gives you time to open a menu or tooltip before the capture.
+
+![Screenshot editor](docs/screenshots/en/snip-editor.png)
+
+- **Editor:** arrow, rectangle, ellipse, pen, highlighter, text, **numbered steps**, **blur**,
+  **pixelate** and **crop**, in 7 colors and 3 thicknesses, with undo / redo. Everything is
+  drawn at full resolution: what you see is exactly what's saved.
+- **Copy, save or save as** PNG (lossless), JPEG or WebP (quality slider). With **Also copy to
+  clipboard when saving** on, a saved screenshot is ready to paste in Discord or WhatsApp.
+- **Read text** pulls the text out of the image (Windows' own OCR, offline).
+  **Quick translate** (**Alt + Shift + T**) reads a selected area and translates English ↔ Turkish,
+  placing the translation over the original text — handy for games and apps in another language.
+- **Settings** on the same page: shortcuts, what Enter does (open in editor, copy or save), file
+  format, save folder (**Pictures\DownKit** by default) and translation direction.
+- **My screenshots:** your saved images with thumbnails; open one in the editor, copy it, show it
+  in its folder or delete it (to the Recycle Bin).
+
+| Key (default)       | Action                                                                      |
+| ------------------- | --------------------------------------------------------------------------- |
+| Alt + Shift + S     | Select an area                                                              |
+| Alt + Shift + T     | Quick translate                                                             |
+| A R E P H T N B X C | Arrow, rectangle, ellipse, pen, highlight, text, step, blur, pixelate, crop |
+| Ctrl + Z / Ctrl + Y | Undo / redo                                                                 |
+| Ctrl + C / Ctrl + S | Copy / save (Ctrl + Shift + S: save as)                                     |
+
 ### Files on your computer
 
 Drag a file onto the window, or use the tools in the sidebar:
@@ -250,6 +290,13 @@ The original file is never changed; results are saved as new files.
 - Screen or window, system sound and microphone, hardware encoding
 - Instant replay (last 15 s – 5 min) with a system-wide shortcut
 - In-app library: watch, open in editor, rename, delete, repair
+
+**Screenshot**
+
+- Area, whole screen or an image file; system-wide shortcuts and a tray menu item; optional delay
+- Arrow, shapes, pen, highlighter, text, numbered steps, blur, pixelate, crop; undo / redo
+- Copy, save, save as PNG / JPEG / WebP; offline text recognition and English ↔ Turkish translation drawn on the image
+- In-app library of saved screenshots
 
 **Queue**
 
@@ -291,6 +338,8 @@ The original file is never changed; results are saved as new files.
 | **A recorder shortcut doesn't work**                        | Another program (often the NVIDIA app: Alt+F9, Alt+F10, Alt+Z) already uses that key; DownKit says so next to the shortcut. Turn it off in that program (DownKit takes it over within seconds) or pick another one. |
 | **A video is black in the recording**                       | Windows hides DRM-protected video (e.g. Netflix) from screen capture. DownKit doesn't get around that.                                                                                                              |
 | **A window recording freezes**                              | A minimized window can't be recorded. Keep it open, or record the screen instead.                                                                                                                                   |
+| **"Couldn't read the text in the image"**                   | Windows reads text with the language packs installed on your PC. Add the language under **Windows Settings → Time & language → Language**.                                                                          |
+| **"Today's free translation limit is used up"**             | The free translation service allows about 5,000 characters a day. Reading text (OCR) still works; translation is back tomorrow.                                                                                     |
 | **Where are my files?**                                     | The save folder shown next to the **Download** button, or **Settings → Save folder**. Every finished job has **Show in folder**.                                                                                    |
 | **A clip cut from a local file starts a bit early**         | _Fast_ cuts at keyframes. Choose _Frame-accurate_ in the export panel.                                                                                                                                              |
 | **The editor preview doesn't play**                         | Links are only valid for a few hours — press **Try again**. For local files, use **Create preview copy**.                                                                                                           |
@@ -308,6 +357,9 @@ Still stuck? Ask on [Discord](https://discord.gg/z72EaBazJG) or [open an issue](
   captures only what you start it for; nothing is uploaded.
 - If you turn on **SponsorBlock**, a short hash derived from the video ID is sent to
   sponsor.ajay.app to look up sponsor segments.
+- Screenshots stay on your computer. Text recognition runs offline; only when you press
+  **Translate**, the recognized text (never the image) is sent to the free
+  [MyMemory](https://mymemory.translated.net/) service.
 - **DownKit does not break DRM or bypass access restrictions.** Only download content you have
   the right to download, or that the platform's terms allow. Responsibility for what you
   download is yours.
@@ -346,6 +398,7 @@ Windows shortcuts: `baslat.bat` runs all checks and starts the app; `paketle.bat
 | `src-tauri/src/commands/`  | Tauri commands: analyze, download, convert, compress, resize, clip editor         |
 | `src-tauri/src/preview.rs` | Local 127.0.0.1 relay for in-app previews (HLS rewriting, file ranges)            |
 | `src-tauri/src/recorder/`  | Screen recorder: WASAPI audio, mixer, instant replay ring, recordings library     |
+| `src-tauri/src/snip/`      | Screenshot: area selection window, OCR (Windows.Media.Ocr), translation, library  |
 | `src-tauri/src/ytdlp/`     | yt-dlp, Deno and friendly error mapping                                           |
 | `src-tauri/src/ffmpeg/`    | FFmpeg argument builders (pure functions, unit-tested)                            |
 | `branding/`                | Icon source (`icon.svg`) and installer images                                     |
@@ -366,8 +419,9 @@ written in Turkish; English is fine for issues and pull requests.
 
 [MIT](LICENSE) © 2026 aderimo — use, modify and redistribute freely; keep the copyright notice.
 The name "DownKit" and the duck logo belong to aderimo: if you publish a modified version, give it
-its own name and icon ([TRADEMARKS.md](TRADEMARKS.md)). Licenses of the components DownKit uses:
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+its own name and icon ([TRADEMARKS.md](TRADEMARKS.md)). DownKit's original author is aderimo;
+how to recognize an original build is in [AUTHORS.md](AUTHORS.md). Licenses of the components
+DownKit uses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 DownKit is an independent tool built on [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense),
 [FFmpeg](https://ffmpeg.org/legal.html) (LGPL/GPL, run as a separate program),

@@ -37,6 +37,9 @@ DownKit hepsini tek yerde yapar; codec, bit hızı ya da komut satırı bilmeden
 - **Paylaşmaya uygun boyut** — Discord'un 10 MB sınırına sığan sıkıştırılmış kopya.
 - **Ekranını kaydet** — ya da güzel bir şey olduktan sonra son 30 saniyeyi kaydet; NVIDIA'nın
   Anlık Tekrar'ı gibi.
+- **Lightshot gibi ekran görüntüsü al** — **Alt+Shift+S** ile alan seç, ok, yazı ve numaralı adım
+  ekle, gizli kalması gerekeni bulanıklaştır; kopyala ya da kaydet. Görüntüdeki yazıyı okuyup
+  çevirebilir de.
 - **Dürüst ilerleme** — yüzde, hız, boyut ve kalan süre; aşama aşama.
 
 Sonsuza kadar ücretsiz. Reklam yok, hesap yok, veri toplama yok.
@@ -217,6 +220,44 @@ Kenar çubuğundan **Ekran Kaydı**'nı aç.
 Ses ve görüntü eşzamanlı kalır: her saniye yanıp sönen ve bip çalan bir testte ekran kaydında
 ses görüntüden 14–24 ms sonra geldi.
 
+### Ekran Görüntüsü
+
+Kenar çubuğundan **Ekran Görüntüsü**'nü aç — ya da nerede olursan ol **Alt + Shift + S**'ye bas;
+DownKit tepsideyken de çalışır (tepsi menüsünde de var: **Ekran görüntüsü al**).
+
+![Ekran Görüntüsü](docs/screenshots/tr/screenshot.png)
+
+- **Alan seç** ekranı dondurur: istediğin bölgeyi sürükle. **Enter** tüm ekranı alır, **Esc**
+  vazgeçer, sağ tık seçimi temizler. Seçimin altındaki çubukta **Düzenle**, **Çevir**,
+  **Kopyala** (Ctrl+C) ve **Kaydet** (Ctrl+S) var.
+- **Tüm ekran** imlecin olduğu ekranı tek seferde alır (varsayılan kısayolu yok; istersen ata).
+  **Görüntü aç** bilgisayarındaki bir PNG, JPEG ya da WebP'yi düzenler.
+- **Gecikme** (3, 5 ya da 10 sn): yakalamadan önce bir menüyü ya da ipucunu açmana zaman tanır.
+
+![Ekran görüntüsü düzenleyicisi](docs/screenshots/tr/snip-editor.png)
+
+- **Düzenleyici:** ok, dikdörtgen, elips, kalem, vurgulayıcı, yazı, **numaralı adım**,
+  **bulanıklaştırma**, **pikselleştirme** ve **kırpma**; 7 renk, 3 kalınlık, geri al / yinele.
+  Her şey tam çözünürlükte çizilir: ekranda ne görüyorsan dosyada o olur.
+- **Kopyala, kaydet ya da farklı kaydet:** PNG (kayıpsız), JPEG ya da WebP (kalite ayarlı).
+  **Kaydederken panoya da kopyala** açıkken kaydettiğin görüntü Discord'a, WhatsApp'a hemen
+  yapıştırılabilir.
+- **Yazıyı oku** görüntüdeki metni çıkarır (Windows'un kendi OCR'ı, internetsiz).
+  **Hızlı çeviri** (**Alt + Shift + T**) seçtiğin alandaki yazıyı okuyup İngilizce ↔ Türkçe
+  çevirir ve çeviriyi özgün yazının üstüne yerleştirir — başka dildeki oyun ve programlar için.
+- **Ayarlar** aynı sayfada: kısayollar, Enter'ın ne yapacağı (düzenleyicide aç, kopyala ya da
+  kaydet), dosya biçimi, kayıt klasörü (varsayılan **Resimler\DownKit**) ve çeviri yönü.
+- **Ekran görüntülerim:** kaydettiğin görüntüler küçük resimleriyle; düzenleyicide aç, kopyala,
+  klasörde göster ya da sil (Geri Dönüşüm Kutusu'na).
+
+| Tuş (varsayılan)    | İşlev                                                                  |
+| ------------------- | ---------------------------------------------------------------------- |
+| Alt + Shift + S     | Alan seç                                                               |
+| Alt + Shift + T     | Hızlı çeviri                                                           |
+| A R E P H T N B X C | Ok, dikdörtgen, elips, kalem, vurgu, yazı, adım, bulanık, piksel, kırp |
+| Ctrl + Z / Ctrl + Y | Geri al / yinele                                                       |
+| Ctrl + C / Ctrl + S | Kopyala / kaydet (Ctrl + Shift + S: farklı kaydet)                     |
+
 ### Bilgisayarındaki dosyalar
 
 Dosyayı pencereye sürükle ya da kenar çubuğundaki araçları kullan:
@@ -252,6 +293,13 @@ Orijinal dosya asla değişmez; sonuçlar yeni dosya olarak kaydedilir.
 - Ekran ya da pencere, sistem sesi ve mikrofon, ekran kartında sıkıştırma
 - Sistem geneli kısayolla geriye dönük kayıt (son 15 sn – 5 dk)
 - Program içi kütüphane: izle, düzenleyicide aç, yeniden adlandır, sil, onar
+
+**Ekran Görüntüsü**
+
+- Alan, tüm ekran ya da görüntü dosyası; sistem geneli kısayollar ve tepsi menüsü; isteğe bağlı gecikme
+- Ok, şekiller, kalem, vurgulayıcı, yazı, numaralı adım, bulanıklaştırma, pikselleştirme, kırpma; geri al / yinele
+- Kopyala, kaydet, PNG / JPEG / WebP olarak farklı kaydet; internetsiz yazı tanıma ve görüntünün üstüne İngilizce ↔ Türkçe çeviri
+- Kaydedilen görüntüler için program içi kütüphane
 
 **Kuyruk**
 
@@ -293,6 +341,8 @@ Orijinal dosya asla değişmez; sonuçlar yeni dosya olarak kaydedilir.
 | **Kayıt kısayolu çalışmıyor**                              | O tuşu başka bir program (çoğu zaman NVIDIA: Alt+F9, Alt+F10, Alt+Z) kullanıyor; DownKit kısayolun yanında bunu yazar. O programda kapat (DownKit birkaç saniyede devralır) ya da başka tuş seç. |
 | **Kayıtta bir video siyah görünüyor**                      | Windows DRM korumalı videoları (ör. Netflix) ekran yakalamaya göstermez. DownKit bunu aşmaz.                                                                                                     |
 | **Pencere kaydı donuyor**                                  | Simge durumundaki pencere kaydedilemez. Pencereyi açık tut ya da ekranı kaydet.                                                                                                                  |
+| **"Görüntüdeki yazı okunamadı"**                           | Windows yazıyı bilgisayarda yüklü dil paketleriyle okur. Dili **Windows Ayarları → Saat ve dil → Dil**'den ekle.                                                                                 |
+| **"Bugünkü ücretsiz çeviri sınırı doldu"**                 | Ücretsiz çeviri hizmeti günde yaklaşık 5000 karaktere izin verir. Yazıyı okuma (OCR) çalışmaya devam eder; çeviri yarın geri gelir.                                                              |
 | **Dosyalarım nerede?**                                     | **İndir** düğmesinin yanında yazan kayıt klasöründe ya da **Ayarlar → Kayıt klasörü**. Biten her işte **Klasörde göster** var.                                                                   |
 | **Kestiğim parça biraz erken başlıyor**                    | _Hızlı_ kesim anahtar karelerden keser. Dışa aktar panelinde _Tam kare_'yi seç.                                                                                                                  |
 | **Düzenleyicide önizleme oynamıyor**                       | Linkler birkaç saat geçerlidir — **Yeniden dene**'ye bas. Bilgisayardaki dosyada **Önizleme kopyası oluştur**'u kullan.                                                                          |
@@ -310,6 +360,9 @@ Hâlâ takıldın mı? [Discord](https://discord.gg/z72EaBazJG)'da sor ya da [bi
   başlattığını yakalar; hiçbir şey yüklenmez.
 - **SponsorBlock**'u açarsan sponsor bölümlerini bulmak için videonun kimliğinden türetilen kısa
   bir özet sponsor.ajay.app'e gönderilir.
+- Ekran görüntüleri bilgisayarında kalır. Yazı tanıma internetsiz çalışır; yalnızca **Çevir**'e
+  bastığında okunan metin (görüntü asla) ücretsiz [MyMemory](https://mymemory.translated.net/)
+  hizmetine gönderilir.
 - **DownKit DRM kırmaz ve erişim kısıtlamalarını aşmaz.** Yalnızca indirme hakkın olan ya da
   platformun koşullarının izin verdiği içerikleri indir. İndirdiklerinin sorumluluğu sana aittir.
 
@@ -347,6 +400,7 @@ proje klasörüne `DownKit.exe` ve `DownKit-Setup.exe` üretir.
 | `src-tauri/src/commands/`  | Tauri komutları: analiz, indirme, dönüştürme, sıkıştırma, boyutlandırma, klip düzenleme   |
 | `src-tauri/src/preview.rs` | Uygulama içi önizleme için yalnızca 127.0.0.1'de çalışan aktarıcı (HLS, dosya aralıkları) |
 | `src-tauri/src/recorder/`  | Ekran kaydı: WASAPI ses, karıştırıcı, geriye dönük kayıt halkası, kayıtlar                |
+| `src-tauri/src/snip/`      | Ekran görüntüsü: alan seçme penceresi, OCR (Windows.Media.Ocr), çeviri, kütüphane         |
 | `src-tauri/src/ytdlp/`     | yt-dlp, Deno ve anlaşılır hata eşlemesi                                                   |
 | `src-tauri/src/ffmpeg/`    | FFmpeg argüman kurucuları (saf fonksiyonlar, birim testli)                                |
 | `branding/`                | İkon kaynağı (`icon.svg`) ve kurulum görselleri                                           |
@@ -367,8 +421,9 @@ yazılır; issue ve pull request'ler İngilizce de olabilir.
 
 [MIT](LICENSE) © 2026 aderimo — özgürce kullan, değiştir, yeniden dağıt; telif satırını koru.
 "DownKit" adı ve ördek logosu aderimo'ya aittir: değiştirilmiş bir sürüm yayınlarsan ona kendi adını ve
-simgesini ver ([TRADEMARKS.md](TRADEMARKS.md)). DownKit'in kullandığı bileşenlerin lisansları:
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+simgesini ver ([TRADEMARKS.md](TRADEMARKS.md)). DownKit'in özgün yazarı aderimo'dur; resmi
+bir derlemenin nasıl tanınacağı [AUTHORS.md](AUTHORS.md)'de. DownKit'in kullandığı bileşenlerin
+lisansları: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 DownKit bağımsız bir araçtır; [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense),
 [FFmpeg](https://ffmpeg.org/legal.html) (LGPL/GPL, ayrı bir program olarak çalıştırılır),

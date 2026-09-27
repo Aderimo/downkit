@@ -52,21 +52,16 @@ export function SnipApp() {
   const s = state && viewWidth > 0 ? state.width / viewWidth : 1;
 
   const selection: PixelRect | null =
-    state && start && end
-      ? selectionToPixels(start, end, s, state.width, state.height)
-      : null;
+    state && start && end ? selectionToPixels(start, end, s, state.width, state.height) : null;
   const hasSelection = selection !== null && selection.width >= 4 && selection.height >= 4;
 
-  const finish = useCallback(
-    (rect: PixelRect | null, action: SnipAction) => {
-      if (finishing.current) return;
-      finishing.current = true;
-      void snipFinish(rect, action).catch(() => {
-        finishing.current = false;
-      });
-    },
-    [],
-  );
+  const finish = useCallback((rect: PixelRect | null, action: SnipAction) => {
+    if (finishing.current) return;
+    finishing.current = true;
+    void snipFinish(rect, action).catch(() => {
+      finishing.current = false;
+    });
+  }, []);
 
   const fullScreen = useCallback(() => {
     if (state) finish({ x: 0, y: 0, width: state.width, height: state.height }, state.mode);
@@ -144,17 +139,17 @@ export function SnipApp() {
         : box.top + 8
     : 0;
 
-  const actions: { action: SnipAction; icon: typeof Copy; label: string; hint: string }[] = [
-    { action: "edit", icon: PenLine, label: t("snip.edit"), hint: state.mode === "edit" ? "Enter" : "" },
-    {
-      action: "translate",
-      icon: Languages,
-      label: t("snip.translate"),
-      hint: state.mode === "translate" ? "Enter" : "",
-    },
-    { action: "copy", icon: Copy, label: t("snip.copy"), hint: "Ctrl+C" },
-    { action: "save", icon: Save, label: t("snip.save"), hint: "Ctrl+S" },
+  // Enter, pencerenin açılış işini yapar (ayarlardaki "Enter'a basınca" ya da hızlı çeviri).
+  const base: { action: SnipAction; icon: typeof Copy; label: string; keys: string }[] = [
+    { action: "edit", icon: PenLine, label: t("snip.edit"), keys: "" },
+    { action: "translate", icon: Languages, label: t("snip.translate"), keys: "" },
+    { action: "copy", icon: Copy, label: t("snip.copy"), keys: "Ctrl+C" },
+    { action: "save", icon: Save, label: t("snip.save"), keys: "Ctrl+S" },
   ];
+  const actions = base.map((a) => ({
+    ...a,
+    keys: state.mode === a.action ? ["Enter", a.keys].filter(Boolean).join(" · ") : a.keys,
+  }));
 
   return (
     <div
@@ -197,14 +192,14 @@ export function SnipApp() {
           style={{ top: barTop, left: Math.max(8, Math.min(box.left, window.innerWidth - 470)) }}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {actions.map(({ action, icon: Icon, label, hint }) => (
+          {actions.map(({ action, icon: Icon, label, keys }) => (
             <button
               key={action}
               type="button"
               onClick={() => finish(selection, action)}
-              title={hint ? `${label} (${hint})` : label}
+              title={keys ? `${label} (${keys})` : label}
               className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm text-white transition hover:bg-white/10 ${
-                hint === "Enter" ? "bg-[var(--dk-accent)]/80 hover:bg-[var(--dk-accent)]" : ""
+                state.mode === action ? "bg-[var(--dk-accent)]/80 hover:bg-[var(--dk-accent)]" : ""
               }`}
             >
               <Icon size={15} />

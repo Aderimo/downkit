@@ -10,6 +10,7 @@ import { useJobsStore } from "../store/jobsStore";
 import { ACTIVE_STATUSES } from "../types/jobs";
 import { isRecorderActive } from "../store/recorderStore";
 import { saveReplay, toggleRecording } from "./recorder";
+import { capture } from "./snipActions";
 
 const TRAY_ID = "downkit";
 let trayReady = false;
@@ -43,6 +44,7 @@ export async function initTray(): Promise<void> {
     void listen<string>("tray-action", (event) => {
       if (event.payload === "toggle-record") void toggleRecording();
       else if (event.payload === "save-replay") void saveReplay();
+      else if (event.payload === "snip") void capture("region");
     });
     // Çıkış isteğinde bekleyen ayar yazımını bitir, sonra Rust çıkışı tamamlar.
     // (Arayüz bu olayı kaçırırsa Rust'taki süre aşımı yine de çıkar.)
@@ -54,6 +56,7 @@ export async function initTray(): Promise<void> {
     const pushLabels = () =>
       void invoke("tray_set_labels", {
         show: i18n.t("tray.show"),
+        snip: i18n.t("tray.snip"),
         record: i18n.t("tray.record"),
         replay: i18n.t("tray.saveReplay"),
         quit: i18n.t("tray.quit"),

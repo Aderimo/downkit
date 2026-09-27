@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import {
   ArrowDownToLine,
+  Camera,
   ExternalLink,
   Heart,
   House,
@@ -43,6 +44,7 @@ const TOOL_ITEMS: NavItem[] = [
   { route: "batch", icon: Layers, labelKey: "nav.batch" },
   { route: "editor", icon: Clapperboard, labelKey: "nav.videoEditor" },
   { route: "record", icon: Video, labelKey: "nav.record" },
+  { route: "screenshot", icon: Camera, labelKey: "nav.screenshot" },
   { route: "settings", icon: Settings, labelKey: "nav.settings" },
 ];
 

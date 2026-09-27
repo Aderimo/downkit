@@ -27,6 +27,9 @@ export default [
       ...tseslint.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": "warn",
+      // Tanımsız adları TypeScript zaten yakalar; bu kural DOM türlerini
+      // (CanvasImageSource gibi) yanlışlıkla hata sayıyor (typescript-eslint önerisi).
+      "no-undef": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },

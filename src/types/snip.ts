@@ -15,7 +15,17 @@ export interface SnipState {
   url: string;
   width: number;
   height: number;
-  mode: "edit" | "translate";
+  /** Enter'ın yapacağı iş. */
+  mode: SnipAction;
+}
+
+/** Rust `snip::library::ShotFile`: ekran görüntüsü klasöründeki bir dosya. */
+export interface ShotFile {
+  path: string;
+  name: string;
+  bytes: number;
+  /** Unix zamanı (ms). */
+  modified: number;
 }
 
 /** Donmuş görüntünün piksel koordinatlarında dikdörtgen. */

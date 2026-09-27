@@ -3,6 +3,23 @@
 Bakımcı için adım adım rehber. _Maintainer guide; the steps are the same in English —
 the commands and file names are what matter._
 
+## 0. Bir kez: GitHub deposu
+
+1. github.com → **New repository** → ad `downkit`, sahibi `Aderimo`, **Public**. README,
+   .gitignore ya da lisans **ekleme** (hepsi depoda zaten var).
+2. Yerelde: `git remote add origin https://github.com/Aderimo/downkit.git` ve
+   `git push -u origin main`.
+3. Depo sayfasında sağdaki **About** (⚙) kutusu — aramada bulunmak için İngilizce:
+   - **Description:** `Free, open-source media tool for Windows: download from YouTube, TikTok,
+Instagram & more, cut scenes without downloading the whole video, compress, convert, record
+your screen and take Lightshot-style screenshots.`
+   - **Website:** `https://github.com/Aderimo/downkit/releases/latest`
+   - **Topics:** `video-downloader`, `youtube-downloader`, `yt-dlp`, `ffmpeg`, `tauri`,
+     `screen-recorder`, `screenshot-tool`, `lightshot-alternative`, `video-editor`,
+     `windows`, `open-source`, `turkish`
+4. **Settings → General → Social preview:** `docs/screenshots/en/home.png` yükle (link
+   paylaşılınca bu görünür).
+
 ## 1. Bir kez: güncelleme anahtarı
 
 DownKit, kurulumla gelen kopyalarda güncellemeyi uygulamanın içinden kurar. Güncelleme
