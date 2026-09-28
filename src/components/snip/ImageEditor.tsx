@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { ask, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   ArrowUpRight,
   Circle,
@@ -511,8 +511,17 @@ export function ImageEditor({
     }
   }, [translateOnOpen, img, readText]);
 
-  const close = useCallback(() => {
-    if (dirty && !window.confirm(t("snip.discardConfirm"))) return;
+  const close = useCallback(async () => {
+    if (dirty) {
+      // window.confirm WebView2'de çökebiliyor; yerel onay penceresi kullanılır.
+      const ok = await ask(t("snip.discardConfirm"), {
+        title: t("snip.close"),
+        kind: "warning",
+        okLabel: t("snip.close"),
+        cancelLabel: t("snip.cancel"),
+      });
+      if (!ok) return;
+    }
     closeEditor();
   }, [dirty, t]);
 
@@ -665,7 +674,7 @@ export function ImageEditor({
         </span>
         <button
           type="button"
-          onClick={close}
+          onClick={() => void close()}
           title={t("snip.close")}
           aria-label={t("snip.close")}
           className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--dk-text-muted)] hover:bg-white/5 hover:text-[var(--dk-text)]"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { Copy, ExternalLink, FolderOpen, Images, PenLine, RefreshCw, Trash2 } from "lucide-react";
 import { useSnipStore } from "../../store/snipStore";
 import { deleteShot, loadShotThumb, openFile, refreshShots } from "../../lib/snipActions";
@@ -74,7 +75,14 @@ export function ShotsLibrary() {
   };
 
   const remove = async (shot: ShotFile) => {
-    if (!window.confirm(t("snip.deleteConfirm", { name: shot.name }))) return;
+    // window.confirm WebView2'de çökebiliyor; yerel onay penceresi kullanılır.
+    const ok = await ask(t("snip.deleteConfirm", { name: shot.name }), {
+      title: t("snip.delete"),
+      kind: "warning",
+      okLabel: t("snip.delete"),
+      cancelLabel: t("snip.cancel"),
+    });
+    if (!ok) return;
     await deleteShot(shot.path);
   };
 

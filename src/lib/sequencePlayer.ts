@@ -34,15 +34,36 @@ function segmentSourceId(segment: Segment): string | null {
   return segment.sourceId ?? st.sources[0]?.id ?? null;
 }
 
-/** Gerekirse önizleme kaynağını parçanın kaynağına çevirir. Geçiş yapıldıysa
- * true döner: arama/oynatma yeni oynatıcı hazır olunca `playerReady`'de yapılır. */
-function switchSource(segment: Segment, play: boolean): boolean {
+/** Parçanın kaynağının oynatılabilir önizleme akışı var mı. Kimi linkte önizleme
+ * açılamaz (stream null); o parçalar siyah ekranda saat akışıyla geçilir. */
+function isPlayable(segment: Segment): boolean {
   const st = useEditorStore.getState();
   const id = segmentSourceId(segment);
-  if (!id || id === st.activeSourceId) return false;
+  return id !== null && st.sources.find((s) => s.id === id)?.stream != null;
+}
+
+/** Gerekirse önizleme kaynağını parçanın kaynağına çevirir. Geçiş yapıldıysa
+ * true döner: arama/oynatma yeni oynatıcı hazır olunca `playerReady`'de yapılır.
+ * `time`: yeni oynatıcıda açılacak kaynak anı (verilmezse parçanın başı).
+ * Kaynağın akışı yoksa oynatıcı durdurulur (eski video oynamaya devam etmez) ve
+ * "önizleme yok" görünür; parça `playDead` ile saat akışıyla geçilir. */
+function switchSource(segment: Segment, play: boolean, time?: number): boolean {
+  const st = useEditorStore.getState();
+  const id = segmentSourceId(segment);
+  if (!id) return false;
   const entry = st.sources.find((s) => s.id === id);
-  if (!entry?.stream) return false;
-  pendingSeek = { token: entry.stream.token, time: segment.srcStart, play };
+  if (!entry?.stream) {
+    if (id !== st.activeSourceId) st.activateSource(id);
+    player()?.pause();
+    pendingSeek = null;
+    return false;
+  }
+  if (id === st.activeSourceId) return false;
+  // Eski oynatıcı hemen durdurulur: kaldırılana dek geçen sürede zaman olayı
+  // üretip parça-bitişi mantığını ikinci kez tetiklemesin (oynatma donmasının
+  // asıl nedeni buydu) ve proxy bağlantısı serbest kalsın.
+  player()?.pause();
+  pendingSeek = { token: entry.stream.token, time: time ?? segment.srcStart, play };
   st.activateSource(id);
   return true;
 }
@@ -79,7 +100,7 @@ function playGap(from: number, next: Segment) {
   media?.pause();
   // Sonraki parçanın başı şimdiden hazırlanır (linkte ara belleğe alınsın);
   // parça başka kaynaktaysa önizleme boşluk sürerken o kaynağa geçer.
-  if (!switchSource(next, false)) media?.seek(next.srcStart);
+  if (!switchSource(next, false) && isPlayable(next)) media?.seek(next.srcStart);
   active = null;
   const state = usePlayerStore.getState();
   state.patch({ currentTime: from, inGap: true, gapPlaying: true });
@@ -97,9 +118,15 @@ function playGap(from: number, next: Segment) {
     }
     if (time >= next.tStart) {
       gapFrame = 0;
+      s.patch({ gapPlaying: false });
+      // Önizlemesi olmayan kaynağın parçası: boşluk gibi saat akışıyla geçilir.
+      if (!isPlayable(next)) {
+        playDead(next, next.tStart);
+        return;
+      }
       active = next;
       applyEffects(next, next.tStart);
-      s.patch({ currentTime: next.tStart, inGap: false, gapPlaying: false });
+      s.patch({ currentTime: next.tStart, inGap: false });
       // Kaynak geçişi boşlukta başlatıldıysa oynatıcı daha hazır olmamış
       // olabilir; o zaman oynatma `playerReady`de başlar.
       if (pendingSeek) {
@@ -116,6 +143,81 @@ function playGap(from: number, next: Segment) {
     gapFrame = requestAnimationFrame(tick);
   };
   gapFrame = requestAnimationFrame(tick);
+}
+
+/** Önizlemesi açılamayan kaynağın parçası: "önizleme yok" görünür, saat parçanın
+ * kendi hızıyla akar; bitince sonraki parçaya geçilir. */
+function playDead(segment: Segment, from: number) {
+  stopGap();
+  player()?.pause();
+  active = segment;
+  const state = usePlayerStore.getState();
+  state.patch({ currentTime: from, inGap: false, gapPlaying: true });
+  applyEffects(segment, from);
+  let last = performance.now();
+  let time = from;
+  const tick = (now: number) => {
+    const s = usePlayerStore.getState();
+    time += ((now - last) / 1000) * s.rate * segment.speed;
+    last = now;
+    if (s.stopAt !== null && time >= s.stopAt) {
+      stopGap();
+      s.patch({ currentTime: s.stopAt, stopAt: null });
+      return;
+    }
+    if (time >= segment.tEnd) {
+      gapFrame = 0;
+      s.patch({ gapPlaying: false });
+      advanceAfter(segment);
+      return;
+    }
+    s.patch({ currentTime: time });
+    gapFrame = requestAnimationFrame(tick);
+  };
+  gapFrame = requestAnimationFrame(tick);
+}
+
+/** Parça bitti: sonraki parçaya geç (boşluk, önizlemesiz parça, kaynak değişimi
+ * ve bitişik devam durumlarını yönetir); parça yoksa dur. */
+function advanceAfter(finished: Segment, sourceTime?: number) {
+  const state = usePlayerStore.getState();
+  const segments = currentSegments();
+  const next = segments[segments.indexOf(finished) + 1];
+  if (!next || (state.stopAt !== null && next.tStart >= state.stopAt)) {
+    pendingSeek = null;
+    player()?.pause();
+    state.patch({ currentTime: state.stopAt ?? finished.tEnd, stopAt: null, gapPlaying: false });
+    return;
+  }
+  // Arada boşluk varsa ekran kararır ve saat boşluk boyunca akar.
+  if (next.tStart - finished.tEnd > 0.02) {
+    playGap(finished.tEnd, next);
+    return;
+  }
+  // Önizlemesi olmayan kaynağın parçası: saat akışıyla geçilir.
+  if (!isPlayable(next)) {
+    switchSource(next, false);
+    playDead(next, next.tStart);
+    return;
+  }
+  // Başka kaynağın parçasına geçiş: önizleme o kaynağa çevrilir.
+  if (segmentSourceId(next) !== segmentSourceId(finished)) {
+    active = next;
+    applyEffects(next, next.tStart);
+    state.patch({ currentTime: next.tStart, inGap: false });
+    switchSource(next, true);
+    return;
+  }
+  // Aynı klibin bitişik parçasıysa atlamaya gerek yok (takılma olmasın).
+  const continuous =
+    sourceTime !== undefined &&
+    Math.abs(next.srcStart - sourceTime) < 0.08 &&
+    next.speed === finished.speed;
+  active = next;
+  if (!continuous) player()?.seek(next.srcStart);
+  applyRate(next);
+  applyEffects(next, next.tStart);
+  state.patch({ currentTime: next.tStart, inGap: false });
 }
 
 export function currentSegments(): Segment[] {
@@ -167,7 +269,13 @@ export function seekTimeline(t: number): boolean {
   usePlayerStore.getState().patch({ currentTime: time, inGap: segment === null });
   applyEffects(segment, time);
   if (segment) {
-    if (switchSource(segment, false)) return true;
+    // Önizlemesi olmayan kaynak: kaynak etkinleşir ("önizleme yok" görünür),
+    // oynatıcı durur; eski video karesi gösterilmez.
+    if (!isPlayable(segment)) {
+      switchSource(segment, false);
+      return false;
+    }
+    if (switchSource(segment, false, sourceTimeAt(segment, time))) return true;
     player()?.seek(sourceTimeAt(segment, time));
     applyRate(segment);
   } else {
@@ -184,6 +292,8 @@ export function refreshPlayback() {
 /** Oynatıcıdan gelen kaynak zamanı: zaman çizelgesine çevrilir, parça bitince
  * sonrakine geçilir. */
 export function onSourceTime(sourceTime: number) {
+  // Kaynak geçişi sürüyor: eski oynatıcının gecikmeli olayları yok sayılır.
+  if (pendingSeek) return;
   const state = usePlayerStore.getState();
   const segments = currentSegments();
   if (!active) {
@@ -191,32 +301,7 @@ export function onSourceTime(sourceTime: number) {
     if (!active) return;
   }
   if (sourceTime >= active.srcEnd - 0.03) {
-    const next = segments[segments.indexOf(active) + 1];
-    if (!next || (state.stopAt !== null && next.tStart >= state.stopAt)) {
-      player()?.pause();
-      state.patch({ currentTime: state.stopAt ?? active.tEnd, stopAt: null });
-      return;
-    }
-    // Arada boşluk varsa ekran kararır ve saat boşluk boyunca akar.
-    if (next.tStart - active.tEnd > 0.02) {
-      playGap(active.tEnd, next);
-      return;
-    }
-    // Başka kaynağın parçasına geçiş: önizleme o kaynağa çevrilir.
-    if (segmentSourceId(next) !== segmentSourceId(active)) {
-      active = next;
-      applyEffects(next, next.tStart);
-      state.patch({ currentTime: next.tStart, inGap: false });
-      switchSource(next, true);
-      return;
-    }
-    // Aynı klibin bitişik parçasıysa atlamaya gerek yok (takılma olmasın).
-    const continuous = Math.abs(next.srcStart - sourceTime) < 0.08 && next.speed === active.speed;
-    active = next;
-    if (!continuous) player()?.seek(next.srcStart);
-    applyRate(next);
-    applyEffects(next, next.tStart);
-    state.patch({ currentTime: next.tStart, inGap: false });
+    advanceAfter(active, sourceTime);
     return;
   }
   const t = Math.max(active.tStart, timelineTimeAt(active, sourceTime));
@@ -233,6 +318,11 @@ export function togglePlayback() {
   const state = usePlayerStore.getState();
   if (state.gapPlaying) {
     stopGap();
+    return;
+  }
+  // Kaynak geçişi bekleniyorsa: yeni oynatıcı hazır olunca oynat.
+  if (pendingSeek) {
+    pendingSeek = { ...pendingSeek, play: true };
     return;
   }
   if (state.playing) {
@@ -253,6 +343,12 @@ function startFrom(t: number) {
   // Boşluktan başlatılınca (baştaki boşluk dahil) önce boşluk oynar.
   if (segment.tStart > time + 0.02) {
     playGap(time, segment);
+    return;
+  }
+  // Önizlemesi olmayan kaynağın parçasından başlatılınca saat akışıyla oynar.
+  if (!isPlayable(segment)) {
+    seekTimeline(time);
+    playDead(segment, time);
     return;
   }
   // Kaynak değişiyorsa oynatma, yeni oynatıcı hazır olunca başlar.

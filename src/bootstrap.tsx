@@ -8,6 +8,8 @@ import "./styles/globals.css";
 import { initJobEngine } from "./lib/jobEngine";
 import { initTray } from "./lib/tray";
 import { initUpdateCheck } from "./lib/updateCheck";
+import { initWhatsNew } from "./lib/whatsNew";
+import { initCounter } from "./lib/counter";
 import { initToolDownloads } from "./lib/toolDownloads";
 import { initRecorder } from "./lib/recorder";
 import { initSnip } from "./lib/snipActions";
@@ -41,6 +43,9 @@ export function start() {
     void initSnip().catch(() => {});
   }
   void initUpdateCheck();
+  void initWhatsNew();
+  // Anonim kullanım sayacı (günde bir kez; sunucu kuruluysa ve ayardan kapatılmadıysa).
+  void initCounter();
   if (!(import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo"))) {
     void initToolDownloads();
   }

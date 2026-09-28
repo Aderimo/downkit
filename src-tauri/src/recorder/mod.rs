@@ -55,6 +55,8 @@ struct Recorder {
     replay: Option<Replay>,
     /// Çalıştığı denenmiş kodlayıcı; anahtar: ddagrab mı (kare yolu farklı).
     encoders: HashMap<bool, Encoder>,
+    /// Ekran tutamacı → ddagrab o çıkışı yakalayabiliyor mu (bir kez denenir).
+    dda_ok: HashMap<u64, bool>,
     ticker: bool,
     meta: library::MetaCache,
 }
@@ -260,6 +262,35 @@ async fn app_dir(
     }
 }
 
+/// Tek ekran hedefi ddagrab ile yakalanamıyorsa (sürücü, ikinci ekran kartı,
+/// izin…) Windows.Graphics.Capture yoluna (gfxcapture) düşürür; karar ekran
+/// tutamacına göre bir kez denenip hatırlanır. Aksi hâlde kodlayıcı denemeleri
+/// hep aynı bozuk girişle yapıldığı için "ekran yakalanamadı" çıkıyordu.
+async fn normalize_target(app: &AppHandle, ffmpeg_exe: &Path, target: &CaptureTarget) -> CaptureTarget {
+    let CaptureTarget::Monitor {
+        hmonitor,
+        dda_index: Some(_),
+        width,
+        height,
+    } = *target
+    else {
+        return target.clone();
+    };
+    let fallback = CaptureTarget::Monitor {
+        hmonitor,
+        dda_index: None,
+        width,
+        height,
+    };
+    if let Some(ok) = state(app).lock().await.dda_ok.get(&hmonitor) {
+        return if *ok { target.clone() } else { fallback };
+    }
+    // Giriş yolunu sınamak için her zaman bulunan işlemci kodlayıcısı yeter.
+    let ok = pipeline::probe(ffmpeg_exe, args::probe_args(target, Encoder::X264), None).await;
+    state(app).lock().await.dda_ok.insert(hmonitor, ok);
+    if ok { target.clone() } else { fallback }
+}
+
 /// Bu yakalama için çalışan kodlayıcıyı bulur (ilk seferde dener, sonra hatırlar).
 async fn ensure_encoder(
     app: &AppHandle,
@@ -303,7 +334,9 @@ pub async fn recorder_prepare(
     target: CaptureTarget,
 ) -> Result<EncoderInfo, AppError> {
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
-    let encoder = ensure_encoder(&app, &ffmpeg_dir.join("ffmpeg.exe"), &target).await?;
+    let ffmpeg_exe = ffmpeg_dir.join("ffmpeg.exe");
+    let target = normalize_target(&app, &ffmpeg_exe, &target).await;
+    let encoder = ensure_encoder(&app, &ffmpeg_exe, &target).await?;
     Ok(EncoderInfo {
         encoder,
         label: encoder.label(),
@@ -339,6 +372,10 @@ pub async fn recorder_start(
     }
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
     let ffmpeg_exe = ffmpeg_dir.join("ffmpeg.exe");
+    // ddagrab'ın erişemediği ekranda gfxcapture yoluna düşülür (hedef normalize
+    // edilir ki denenen kodlayıcı ile gerçek kayıt aynı girişi kullansın).
+    let mut options = options;
+    options.target = normalize_target(&app, &ffmpeg_exe, &options.target).await;
     let encoder = ensure_encoder(&app, &ffmpeg_exe, &options.target).await?;
 
     let dir = app_dir(
@@ -484,6 +521,8 @@ pub async fn replay_start(
     let seconds = seconds.clamp(5, MAX_REPLAY_SECONDS);
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
     let ffmpeg_exe = ffmpeg_dir.join("ffmpeg.exe");
+    let mut options = options;
+    options.target = normalize_target(&app, &ffmpeg_exe, &options.target).await;
     let encoder = ensure_encoder(&app, &ffmpeg_exe, &options.target).await?;
     let dir = paths::cache_dir(&app, "replay")?.join(Uuid::new_v4().simple().to_string());
     tokio::fs::create_dir_all(&dir)

@@ -8,6 +8,9 @@ export interface PlayableStream {
   url: string;
   audioUrl: string | null;
   hasVideo: boolean;
+  /** Önizleme oturumu kimliği; aynı adres yeniden açıldığında bile kaynağın
+   * baştan bağlanması için bağlama etkeninin bağımlılıklarına girer. */
+  token?: string;
 }
 
 interface MediaPlayerProps {
@@ -116,7 +119,7 @@ export function MediaPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [stream.kind, stream.url]);
+  }, [stream.kind, stream.url, stream.token]);
 
   // Ayrı ses: görüntünün her hareketini izler.
   useEffect(() => {
@@ -211,6 +214,10 @@ export function MediaPlayer({
     return () => {
       cancelAnimationFrame(frame);
       handlers.forEach(([name, fn]) => video.removeEventListener(name, fn));
+      // Kaldırılırken "pause" olayı düşmeyebilir; durum bayrakları doğru kalsın
+      // (aksi hâlde oynatma düğmesi bir daha çalışmaz hâle gelebiliyor).
+      callbacks.current.onPlayingChange?.(false);
+      callbacks.current.onWaitingChange?.(false);
       callbacks.current.onApi?.(null);
     };
   }, [split]);

@@ -1,0 +1,9 @@
+name = "downkit-sayac"
+main = "worker.js"
+compatibility_date = "2026-09-28"
+
+# 4. adımda `wrangler d1 create downkit-sayac` çıktısındaki kimliği buraya yaz.
+[[d1_databases]]
+binding = "DB"
+database_name = "downkit-sayac"
+database_id = "BURAYA-D1-KIMLIGI-GELECEK"

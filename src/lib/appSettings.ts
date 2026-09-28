@@ -71,6 +71,14 @@ export interface AppSettings {
   sponsorBlock: boolean;
   /** Renk teması (bkz. themes.ts). */
   theme: ThemeId;
+  /** Anonim kullanım sayacı: rastgele kurulum kimliği (kişisel veri değildir). */
+  installId: string | null;
+  /** Son anonim ping zamanı (ms); günde bir kez atılır. */
+  lastHeartbeat: number | null;
+  /** Sayaç sunucusuna anonim ping gönderilsin mi (Ayarlar → Sayaç). */
+  counterOptIn: boolean;
+  /** "Yenilikler" penceresinin en son gösterildiği program sürümü. */
+  lastSeenVersion: string | null;
   /** Kayıtlı ayarların biçim sürümü; tek seferlik geçişler için (bkz. normalizeSettings). */
   settingsVersion: number;
 }
@@ -102,6 +110,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pageTours: true,
   sponsorBlock: false,
   theme: DEFAULT_THEME,
+  installId: null,
+  lastHeartbeat: null,
+  counterOptIn: true,
+  lastSeenVersion: null,
   settingsVersion: SETTINGS_VERSION,
 };
 
@@ -162,6 +174,10 @@ export function normalizeSettings(raw: unknown, legacyDir: string | null = null)
     pageTours: bool(r.pageTours, d.pageTours),
     sponsorBlock: bool(r.sponsorBlock, d.sponsorBlock),
     theme: isThemeId(r.theme) ? r.theme : d.theme,
+    installId: typeof r.installId === "string" ? r.installId : null,
+    lastHeartbeat: typeof r.lastHeartbeat === "number" ? r.lastHeartbeat : null,
+    counterOptIn: bool(r.counterOptIn, d.counterOptIn),
+    lastSeenVersion: typeof r.lastSeenVersion === "string" ? r.lastSeenVersion : null,
     settingsVersion: SETTINGS_VERSION,
   };
 }
