@@ -122,9 +122,7 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
   const cards = tab === "screens" ? screens : windows;
 
   function toggleScreen(number: number) {
-    const next = picked.includes(number)
-      ? picked.filter((n) => n !== number)
-      : [...picked, number];
+    const next = picked.includes(number) ? picked.filter((n) => n !== number) : [...picked, number];
     setDraft(next);
   }
 

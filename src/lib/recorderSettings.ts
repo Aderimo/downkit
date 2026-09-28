@@ -12,7 +12,8 @@ export type RecorderSource =
   | { kind: "window"; exe: string; title: string };
 
 /** Sistem geneli kısayollar (kayıt ve ekran görüntüsü aynı düzende kaydedilir). */
-export type RecorderHotkey = "record" | "saveReplay" | "toggleReplay" | "snip" | "snipFull" | "snipTranslate";
+export type RecorderHotkey =
+  "record" | "saveReplay" | "toggleReplay" | "snip" | "snipFull" | "snipTranslate";
 
 /** Anlık tekrar süresi kaydırıcıyla: 10 sn – 10 dk, 5 sn adım. */
 export const REPLAY_MIN_SECONDS = 10;

@@ -41,9 +41,7 @@ function useSampleImage(): string | null {
   // İmleçteki klip ve onun kaynağı (kaynaklar her zaman clip.sourceId'den gelir).
   const { clip, entry } = useMemo(() => {
     const found = clipAt(clips, currentTime);
-    const owner = found
-      ? (sources.find((s) => s.id === found.sourceId) ?? sources[0])
-      : sources[0];
+    const owner = found ? (sources.find((s) => s.id === found.sourceId) ?? sources[0]) : sources[0];
     return { clip: found, entry: owner };
   }, [clips, currentTime, sources]);
 

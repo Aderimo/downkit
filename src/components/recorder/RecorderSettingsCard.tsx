@@ -23,7 +23,12 @@ import {
   type RecorderSource,
 } from "../../lib/recorderSettings";
 import { resolveOutputDir } from "../../lib/recorder";
-import { monitorLabel, monitorsBounds, resolveMonitors, resolveSource } from "../../lib/recorderLogic";
+import {
+  monitorLabel,
+  monitorsBounds,
+  resolveMonitors,
+  resolveSource,
+} from "../../lib/recorderLogic";
 import { chooseDownloadDir, openFolder } from "../../lib/tauri-api";
 import { Select, type SelectOption } from "../ui/Select";
 import { Switch } from "../ui/Switch";
@@ -98,7 +103,9 @@ const WINDOW_SEP = String.fromCharCode(0);
 
 function sourceValue(source: RecorderSource): string {
   if (source.kind === "monitors") return "m:multi";
-  return source.kind === "monitor" ? `m:${source.number}` : `w:${source.exe}${WINDOW_SEP}${source.title}`;
+  return source.kind === "monitor"
+    ? `m:${source.number}`
+    : `w:${source.exe}${WINDOW_SEP}${source.title}`;
 }
 
 export function RecorderSettingsCard() {

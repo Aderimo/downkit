@@ -31,7 +31,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       fixed: [
         "Klip düzenleyicide ikinci videoya geçince oynatmanın donması",
         "Ekran kaydında tek monitörde ekran seçiminin onaylanmaması",
-        "Bazı sistemlerdeki \"Ekran yakalanamadı\" hatası (otomatik yedek yakalama yolu)",
+        'Bazı sistemlerdeki "Ekran yakalanamadı" hatası (otomatik yedek yakalama yolu)',
         "Ekran görüntüsü silinirken programın kapanması",
       ],
     },
@@ -45,7 +45,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       fixed: [
         "Playback freezing when the clip editor moved to the second video",
         "Screen selection not being applied on single-monitor setups",
-        "\"Screen could not be captured\" error on some systems (automatic fallback capture path)",
+        '"Screen could not be captured" error on some systems (automatic fallback capture path)',
         "App closing when a screenshot was deleted",
       ],
     },

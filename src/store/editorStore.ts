@@ -304,7 +304,11 @@ function restorePatch(snap: Snapshot): Partial<EditorState> {
     patch.stream = null;
     patch.activeSourceId = null;
     patch.duration = 0;
-  } else if (active.id !== st.activeSourceId || active.source !== st.source || active.stream !== st.stream) {
+  } else if (
+    active.id !== st.activeSourceId ||
+    active.source !== st.source ||
+    active.stream !== st.stream
+  ) {
     patch.source = active.source;
     patch.stream = active.stream;
     patch.activeSourceId = active.id;
@@ -353,7 +357,12 @@ function appendSource(entry: EditorSourceEntry) {
     future: [],
     view: clampView(st.view, timelineExtent(clips, st.duration)),
     ...(first
-      ? { source: entry.source, stream: entry.stream, activeSourceId: entry.id, duration: entry.duration }
+      ? {
+          source: entry.source,
+          stream: entry.stream,
+          activeSourceId: entry.id,
+          duration: entry.duration,
+        }
       : {}),
   });
 }

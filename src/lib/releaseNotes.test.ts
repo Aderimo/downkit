@@ -24,7 +24,9 @@ describe("RELEASE_NOTES", () => {
       const a = first.version.split(".").map(Number);
       const b = note.version.split(".").map(Number);
       const newer =
-        a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]) || (a[0] === b[0] && a[1] === b[1] && a[2] > b[2]);
+        a[0] > b[0] ||
+        (a[0] === b[0] && a[1] > b[1]) ||
+        (a[0] === b[0] && a[1] === b[1] && a[2] > b[2]);
       expect(newer).toBe(true);
     }
   });

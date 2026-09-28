@@ -1,16 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  Cpu,
-  Film,
-  FolderOpen,
-  Mic,
-  Monitor,
-  Rewind,
-  Save,
-  Square,
-  Volume2,
-} from "lucide-react";
+import { Cpu, Film, FolderOpen, Mic, Monitor, Rewind, Save, Square, Volume2 } from "lucide-react";
 import { useRecorderStore } from "../../store/recorderStore";
 import {
   REPLAY_MAX_SECONDS,
@@ -27,7 +17,14 @@ import {
   toggleReplay,
 } from "../../lib/recorder";
 import { formatBytes, formatDuration } from "../../lib/format";
-import { hotkeyLabel, resolveSource, resolveMonitors, monitorsBounds, isMonitor, monitorLabel } from "../../lib/recorderLogic";
+import {
+  hotkeyLabel,
+  resolveSource,
+  resolveMonitors,
+  monitorsBounds,
+  isMonitor,
+  monitorLabel,
+} from "../../lib/recorderLogic";
 import { meterFraction, readLevel, SILENT_METER, stepMeter } from "../../lib/levels";
 import { Button } from "../ui/Button";
 import { Switch } from "../ui/Switch";

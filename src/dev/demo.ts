@@ -334,8 +334,26 @@ export function applyDemo(scene: string, lang: string | null): void {
     useRecorderStore.setState({
       sources: {
         monitors: [
-          { hmonitor: 65537, ddaIndex: 0, x: 0, y: 0, width: 2560, height: 1440, primary: true, number: 1 },
-          { hmonitor: 65539, ddaIndex: 1, x: 2560, y: 0, width: 1920, height: 1080, primary: false, number: 2 },
+          {
+            hmonitor: 65537,
+            ddaIndex: 0,
+            x: 0,
+            y: 0,
+            width: 2560,
+            height: 1440,
+            primary: true,
+            number: 1,
+          },
+          {
+            hmonitor: 65539,
+            ddaIndex: 1,
+            x: 2560,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            primary: false,
+            number: 2,
+          },
         ],
         windows: [
           {

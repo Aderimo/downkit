@@ -85,11 +85,7 @@ export function splitByChapters() {
 
 /** İmleci, kaynaktaki bu anın zaman çizelgesindeki yerine götürür. */
 export function jumpToSource(sourceTime: number): boolean {
-  const t = timelineTimeOfSource(
-    editor().clips,
-    sourceTime,
-    editor().activeSourceId ?? undefined,
-  );
+  const t = timelineTimeOfSource(editor().clips, sourceTime, editor().activeSourceId ?? undefined);
   if (t === null) return false;
   seekTimeline(t);
   return true;

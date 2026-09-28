@@ -2,12 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { useEditorStore, type EditorSourceEntry } from "../store/editorStore";
 import { usePlayerStore, type PlayerApi } from "../store/playerStore";
 import type { SeqClip } from "./sequence";
-import {
-  onSourceTime,
-  playerReady,
-  seekTimeline,
-  togglePlayback,
-} from "./sequencePlayer";
+import { onSourceTime, playerReady, seekTimeline, togglePlayback } from "./sequencePlayer";
 
 // Çoklu kaynak oynatma geçişi: 1. kaynağın parçası bitince 2. kaynağa geçişte
 // oynatma devam etmeli (kaynak değişimi oynatıcıyı yeniden kurar).
