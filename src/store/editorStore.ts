@@ -78,10 +78,15 @@ export type PanelTab = "clip" | "export";
 
 const HISTORY_LIMIT = 100;
 
-/** Geri alma adımı: klipler ve yazılar birlikte. */
+/** Geri alma adımı: kaynaklar, klipler ve yazılar birlikte. Kaynak girişleri
+ * referans olarak saklanır (değişmez güncellendikleri için ucuzdur); silinen
+ * bir kaynak geri alınca önizleme oturumuyla birlikte geri gelir. */
 export interface Snapshot {
+  sources: EditorSourceEntry[];
   clips: SeqClip[];
   texts: TextItem[];
+  /** Adım anındaki önizlenen kaynak; geri alınca o da geri gelir. */
+  activeSourceId: string | null;
 }
 
 interface EditorState {
@@ -282,7 +287,49 @@ function sameClips(a: SeqClip[], b: SeqClip[]): boolean {
   return a.length === b.length && a.every((c, i) => c === b[i]);
 }
 
-/** Eklenen kaynağı listeye ve zaman çizelgesinin sonuna (tek parça klip) koyar. */
+/** Anlık görüntüye dönüldüğünde uygulanacak alanlar: kaynak listesi, klipler,
+ * yazılar ve — etkin kaynak bu adımda yoksa ya da yenilenmişse — önizleme
+ * alanları (source/stream/activeSourceId/duration). */
+function restorePatch(snap: Snapshot): Partial<EditorState> {
+  const st = useEditorStore.getState();
+  const patch: Partial<EditorState> = {
+    sources: snap.sources,
+    clips: snap.clips,
+    texts: snap.texts,
+  };
+  // Adım anında önizlenen kaynağa dönülür; o adımda yoksa ilk kaynağa düşülür.
+  const active = snap.sources.find((s) => s.id === snap.activeSourceId) ?? snap.sources[0];
+  if (!active) {
+    patch.source = null;
+    patch.stream = null;
+    patch.activeSourceId = null;
+    patch.duration = 0;
+  } else if (active.id !== st.activeSourceId || active.source !== st.source || active.stream !== st.stream) {
+    patch.source = active.source;
+    patch.stream = active.stream;
+    patch.activeSourceId = active.id;
+    patch.duration = active.duration;
+  }
+  return patch;
+}
+
+/** O anki hâlin geri alma anlık görüntüsü. */
+function snapshotOf(st: {
+  sources: EditorSourceEntry[];
+  clips: SeqClip[];
+  texts: TextItem[];
+  activeSourceId: string | null;
+}): Snapshot {
+  return {
+    sources: st.sources,
+    clips: st.clips,
+    texts: st.texts,
+    activeSourceId: st.activeSourceId,
+  };
+}
+
+/** Eklenen kaynağı listeye ve zaman çizelgesinin sonuna (tek parça klip) koyar.
+ * Geri alınabilir adım kaydedilir: Ctrl+Z kaynağı ve klibini geri kaldırır. */
 function appendSource(entry: EditorSourceEntry) {
   const st = useEditorStore.getState();
   const start = sequenceEnd(st.clips);
@@ -302,6 +349,8 @@ function appendSource(entry: EditorSourceEntry) {
     sources: [...st.sources, entry],
     addingSource: false,
     clips,
+    past: first ? st.past : [...st.past, snapshotOf(st)].slice(-HISTORY_LIMIT),
+    future: [],
     view: clampView(st.view, timelineExtent(clips, st.duration)),
     ...(first
       ? { source: entry.source, stream: entry.stream, activeSourceId: entry.id, duration: entry.duration }
@@ -501,13 +550,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const firstId = st.sources[0]?.id;
     const clips = st.clips.filter((c) => (c.sourceId ?? firstId) !== id);
-    // Yapısal değişiklik: geri alma geçmişi kaldırılan kaynağa işaret eden
-    // klipleri geri getirmesin diye temizlenir.
+    // Geri alınabilir adım: kaynak, klipleriyle birlikte geri getirilebilir
+    // (girişler referans olarak saklandığı için önizleme oturumu da geri gelir).
     const patch: Partial<EditorState> = {
       sources,
       clips,
       selectedIds: [],
-      past: [],
+      past: [...st.past, snapshotOf(st)].slice(-HISTORY_LIMIT),
       future: [],
     };
     if (st.activeSourceId === id) {
@@ -546,31 +595,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   apply: (change) => {
-    const { clips, texts, past, selectedIds } = get();
+    const { clips, past, selectedIds } = get();
     const next = change(clips);
     if (sameClips(clips, next)) return;
     const ids = new Set(next.map((c) => c.id));
     set({
       clips: next,
-      past: [...past, { clips, texts }].slice(-HISTORY_LIMIT),
+      past: [...past, snapshotOf(get())].slice(-HISTORY_LIMIT),
       future: [],
       selectedIds: selectedIds.filter((id) => ids.has(id)),
     });
   },
 
   applyTexts: (change) => {
-    const { clips, texts, past, selectedTextId } = get();
+    const { texts, past, selectedTextId } = get();
     const next = change(texts);
     if (next.length === texts.length && next.every((t, i) => t === texts[i])) return;
     set({
       texts: next,
-      past: [...past, { clips, texts }].slice(-HISTORY_LIMIT),
+      past: [...past, snapshotOf(get())].slice(-HISTORY_LIMIT),
       future: [],
       selectedTextId: next.some((t) => t.id === selectedTextId) ? selectedTextId : null,
     });
   },
 
-  beginDrag: () => set({ dragOrigin: { clips: get().clips, texts: get().texts } }),
+  beginDrag: () => set({ dragOrigin: snapshotOf(get()) }),
   dragTo: (clips) => set({ clips }),
   dragTexts: (texts) => set({ texts }),
   endDrag: () => {
@@ -585,27 +634,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, clips, texts, future } = get();
+    const { past, future } = get();
     const previous = past.at(-1);
     if (!previous) return;
     set({
-      clips: previous.clips,
-      texts: previous.texts,
+      ...restorePatch(previous),
       past: past.slice(0, -1),
-      future: [{ clips, texts }, ...future],
+      future: [snapshotOf(get()), ...future],
       selectedIds: [],
       selectedTextId: null,
     });
   },
 
   redo: () => {
-    const { past, clips, texts, future } = get();
+    const { past, future } = get();
     const next = future[0];
     if (!next) return;
     set({
-      clips: next.clips,
-      texts: next.texts,
-      past: [...past, { clips, texts }],
+      ...restorePatch(next),
+      past: [...past, snapshotOf(get())],
       future: future.slice(1),
       selectedIds: [],
       selectedTextId: null,
@@ -626,7 +673,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   renameClip: (id, name) =>
-    set({ clips: get().clips.map((c) => (c.id === id ? { ...c, name } : c)) }),
+    get().apply((clips) => clips.map((c) => (c.id === id && c.name !== name ? { ...c, name } : c))),
 
   setSnapping: (snapping) => set({ snapping }),
   setView: (view) => {
@@ -645,8 +692,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 const SESSION_KEY = "downkit.editorSession";
 
 type SavedSource =
-  | { kind: "remote"; url: string; title: string; thumbnailUrl: string | null }
-  | { kind: "local"; path: string; title: string };
+  | { kind: "remote"; id?: string; url: string; title: string; thumbnailUrl: string | null }
+  | { kind: "local"; id?: string; path: string; title: string };
 
 export interface SavedSession {
   /** Eklenme sırasıyla; kimlikler geri yüklenince aynı sırayla s1, s2… olur. */
@@ -683,8 +730,15 @@ export function forgetSession() {
   }
 }
 
-/** Son projeyi açar: kaynaklar sırayla yüklenir, sonra klipler geri konur
- * (kimlikler aynı sırayla üretildiği için sourceId'ler eşleşir). */
+/** Kayıtlı kaynağın kimliği: yeni kayıtlarda `id` alanından, eski kayıtlarda
+ * sıradan (s1, s2…) varsayılır. */
+function savedSourceId(saved: SavedSource, index: number): string {
+  return saved.id ?? `s${index + 1}`;
+}
+
+/** Son projeyi açar: kaynaklar sırayla yüklenir; açılamayanlar atlanır ve
+ * kliplerin sourceId'leri, kaydedilen kimliklerden çalışma zamanı kimliklerine
+ * eşlenerek geri konur (düşen kaynağın klipleri de düşer). */
 export async function resumeSession(): Promise<void> {
   const session = loadSession();
   if (!session) return;
@@ -692,20 +746,45 @@ export async function resumeSession(): Promise<void> {
   const [first, ...rest] = session.sources;
   if (first.kind === "remote") await editor.openUrl(first.url);
   else await editor.openFile(first.path);
-  if (useEditorStore.getState().phase !== "ready") return;
-  for (const source of rest) {
-    const st = useEditorStore.getState();
-    if (source.kind === "remote") await st.addSourceUrl(source.url);
-    else await st.addSourceFile(source.path);
-    if (useEditorStore.getState().addError) return;
+  let st = useEditorStore.getState();
+  if (st.phase !== "ready" || st.sources.length === 0) return;
+  const idMap = new Map<string, string>();
+  idMap.set(savedSourceId(first, 0), st.sources[0].id);
+  const skipped: string[] = [];
+  for (let i = 0; i < rest.length; i += 1) {
+    const saved = rest[i];
+    const before = useEditorStore.getState().sources.length;
+    if (saved.kind === "remote") await useEditorStore.getState().addSourceUrl(saved.url);
+    else await useEditorStore.getState().addSourceFile(saved.path);
+    st = useEditorStore.getState();
+    if (st.sources.length > before) {
+      idMap.set(savedSourceId(saved, i + 1), st.sources[st.sources.length - 1].id);
+    } else {
+      skipped.push(saved.title);
+    }
+    // Ekleme hatası panelde kalıp sonraki eklemeleri engellemesin.
+    if (st.addError) useEditorStore.setState({ addError: null });
   }
+  const clips = session.clips.flatMap((clip) => {
+    if (!clip.sourceId) return [clip];
+    const mapped = idMap.get(clip.sourceId);
+    return mapped ? [{ ...clip, sourceId: mapped }] : [];
+  });
   useEditorStore.setState({
-    clips: session.clips,
+    clips,
     texts: session.texts ?? [],
     tracks: session.tracks ?? {},
     selectedIds: [],
     past: [],
     future: [],
+    ...(skipped.length > 0
+      ? {
+          addError: {
+            message: i18n.t("editor.resumeSkipped", { titles: skipped.join(", ") }),
+            detail: null,
+          },
+        }
+      : {}),
   });
 }
 
@@ -732,11 +811,12 @@ useEditorStore.subscribe((state, previous) => {
         entry.source.kind === "remote"
           ? {
               kind: "remote",
+              id: entry.id,
               url: entry.source.url,
               title: entry.title,
               thumbnailUrl: entry.thumbnailUrl,
             }
-          : { kind: "local", path: entry.source.path, title: entry.title },
+          : { kind: "local", id: entry.id, path: entry.source.path, title: entry.title },
       ),
       clips,
       texts,

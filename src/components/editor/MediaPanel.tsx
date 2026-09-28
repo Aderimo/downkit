@@ -126,6 +126,13 @@ export function MediaPanel() {
 /** Tek kaynak kartı: küçük resim + süre rozeti + ad; tıkla → önizleme ona
  * geçer, artı → tamamı zaman çizelgesinin sonuna eklenir, çarpı → kaldır.
  * Kart tutulup zaman çizelgesine sürüklenebilir. */
+
+// Yerel dosya küçük resimleri dosya yoluna göre modül düzeyinde önbelleklenir:
+// kart yeniden kurulunca ya da aynı dosya tekrar eklenince ffmpeg yeniden
+// çalışmaz. `null` = "küçük resmi yok" (tekrar denenmez).
+const localThumbCache = new Map<string, string | null>();
+const localThumbPending = new Set<string>();
+
 function SourceCard({
   entry,
   index,
@@ -140,26 +147,32 @@ function SourceCard({
   const activateSource = useEditorStore((s) => s.activateSource);
   const removeSource = useEditorStore((s) => s.removeSource);
   const [confirm, setConfirm] = useState(false);
-  const [localThumb, setLocalThumb] = useState<string | null>(null);
 
   const local = entry.source.kind === "local";
+  const path = entry.source.kind === "local" ? entry.source.path : null;
+  const [localThumb, setLocalThumb] = useState<string | null>(
+    path ? (localThumbCache.get(path) ?? null) : null,
+  );
   const hasVideo = entry.source.kind === "local" ? entry.source.info.videoCodec !== null : true;
   const clipCount = clips.filter((c) => (c.sourceId ?? sources[0]?.id) === entry.id).length;
   const active = entry.id === activeId;
 
   // Yerel dosyaların küçük resmi ffmpeg ile üretilir (kayıt kitaplığıyla aynı yol).
   useEffect(() => {
-    if (!local || localThumb) return;
+    if (!path || localThumbCache.has(path) || localThumbPending.has(path)) return;
+    localThumbPending.add(path);
     let alive = true;
-    recordingThumbnail(entry.source.kind === "local" ? entry.source.path : "")
+    recordingThumbnail(path)
       .then((url) => {
+        localThumbCache.set(path, url);
         if (alive && url) setLocalThumb(url);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => localThumbPending.delete(path));
     return () => {
       alive = false;
     };
-  }, [local, localThumb, entry.source]);
+  }, [path]);
 
   const thumb = entry.thumbnailUrl ?? localThumb;
 

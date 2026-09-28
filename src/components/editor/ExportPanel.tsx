@@ -26,6 +26,7 @@ import {
 } from "../../lib/sequence";
 import { toOverlays } from "../../lib/textItems";
 import { isDefaultLook, normalizeLook } from "../../lib/clipLook";
+import { localizeGroupInputs } from "../../lib/exportPlan";
 import type { EditClip } from "../../types/edit";
 import type { MediaMetadata } from "../../types/media";
 import { Button } from "../ui/Button";
@@ -219,14 +220,12 @@ export function ExportPanel() {
             name: clipName(segment),
           }))
         : [{ clips: ranges, pieces, name: baseName }];
-    // Dışa aktarım isteğindeki kaynaklar (sıra = kliplerdeki `source` indeksi).
-    const inputs = usedInputs.map((e) =>
-      e.source.kind === "remote"
-        ? { inputPath: null, url: e.source.url }
-        : { inputPath: e.source.path, url: null },
-    );
 
     const ids = groups.map((group) => {
+      // Her grup yalnızca kendi kullandığı kaynakları gönderir: tek kaynaklı
+      // grup tek girdili istek olur, arka uç hızlı (yeniden kodlamasız) yola düşer.
+      const localized = localizeGroupInputs(group.clips, usedInputs);
+      const firstGroupInput = localized.inputs[0];
       const label =
         group.clips.length === 1
           ? `${formatTimecode(group.clips[0].start, 0)}–${formatTimecode(group.clips[0].end, 0)}`
@@ -245,11 +244,10 @@ export function ExportPanel() {
       return enqueueEdit(
         {
           kind: "edit",
-          inputPath:
-            firstInput?.source.kind === "local" ? firstInput.source.path : null,
-          url: firstInput?.source.kind === "remote" ? firstInput.source.url : null,
-          inputs,
-          clips: group.clips,
+          inputPath: firstGroupInput?.inputPath ?? null,
+          url: firstGroupInput?.url ?? null,
+          inputs: localized.inputs,
+          clips: localized.clips,
           destinationDir: dir,
           outputName: group.name,
           audioOnly: audio,
@@ -457,6 +455,10 @@ export function ExportPanel() {
             {options.precise ? t("trim.preciseDesc") : t("trim.fastDesc")}
           </p>
         </div>
+      ) : null}
+
+      {!remote && multiSource && !audio && !gif ? (
+        <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.preciseMultiHint")}</p>
       ) : null}
 
       {multiple ? (

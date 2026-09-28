@@ -451,6 +451,10 @@ function PlayerArea() {
   const [failed, setFailed] = useState(false);
   const [copy, setCopy] = useState<{ percent: number | null; error: string | null } | null>(null);
 
+  // Akış değişince (kaynak geçişi, yeniden deneme) hata durumu sıfırlanır.
+  // (Bileşen zaten token'a göre yeniden kurulur; bu, ek güvencedir.)
+  useEffect(() => setFailed(false), [stream?.token]);
+
   // Oynatıcı değişince ses ayarları yeni öğeye de uygulanır.
   useEffect(() => {
     const { api, muted } = usePlayerStore.getState();

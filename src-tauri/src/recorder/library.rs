@@ -214,8 +214,19 @@ pub async fn thumbnail(ffmpeg_dir: &Path, cache_dir: &Path, path: &Path) -> Opti
 }
 
 /// Geri Dönüşüm Kutusu'na taşır (kalıcı silmez; oradan geri alınabilir).
+///
+/// trash crate'i COM'u STA olarak başlatır ve başarısızlıkta `panic!` atar.
+/// Tokio'nun paylaşılan engelleme havuzundaki bir iş parçacığı daha önce
+/// WinRT/OCR ile MTA olarak başlatıldıysa (ör. ekran görüntüsü yakalama)
+/// CoInitializeEx RPC_E_CHANGED_MODE döndürür → panik → uygulama çökerdi.
+/// Silme bu yüzden her seferinde COM durumu temiz, yeni bir iş parçacığında
+/// çalışır; olası bir panik join üzerinden yakalanıp hataya çevrilir.
 pub fn move_to_trash(path: &Path) -> Result<(), String> {
-    trash::delete(path).map_err(|e| format!("Silinemedi: {e}"))
+    let path = path.to_path_buf();
+    std::thread::spawn(move || trash::delete(path))
+        .join()
+        .map_err(|_| "Silme işlemi beklenmedik biçimde kesildi.".to_string())?
+        .map_err(|e| format!("Silinemedi: {e}"))
 }
 
 #[cfg(test)]
@@ -243,6 +254,30 @@ mod tests {
         let found = check_inside(&dir.join("a.mp4"), &dir).unwrap();
         assert!(!found.to_string_lossy().starts_with(r"\\?\"));
         assert!(found.ends_with("a.mp4"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cope_tasima_dosyayi_kaldirir_ve_cokmez() {
+        // COM durumu daha önce MTA olarak başlatılmış bir iş parçacığında bile
+        // (WinRT/OCR sonrası havuz iş parçacıkları gibi) panik olmamalı.
+        let dir = std::env::temp_dir().join(format!("dk-cop-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("goruntu.png");
+        std::fs::write(&file, b"x").unwrap();
+
+        // MTA başlatması taklit edilir: bu iş parçacığında COM'u MTA yap.
+        unsafe {
+            let _ = windows::Win32::System::Com::CoInitializeEx(
+                None,
+                windows::Win32::System::Com::COINIT_MULTITHREADED,
+            );
+        }
+        move_to_trash(&file).unwrap();
+        assert!(!file.exists());
+        unsafe {
+            windows::Win32::System::Com::CoUninitialize();
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

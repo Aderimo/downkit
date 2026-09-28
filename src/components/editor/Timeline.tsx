@@ -41,6 +41,7 @@ import {
   sourceDurationOf,
   timelineExtent,
   useEditorStore,
+  type EditorSourceEntry,
 } from "../../store/editorStore";
 import { usePlayerStore } from "../../store/playerStore";
 import {
@@ -73,8 +74,13 @@ import {
   zoomView,
   type TimelineView,
 } from "../../lib/timeline";
-import { nearestFromEntries, requestThumbs, useThumbStore } from "../../lib/thumbCache";
-import { getEditorWaveform } from "../../lib/tauri-api";
+import {
+  ensureWaveform,
+  nearestFromEntries,
+  requestThumbs,
+  useThumbStore,
+  useWaveStore,
+} from "../../lib/thumbCache";
 import { savePlayheadFrame } from "../../lib/frameSave";
 import { localizeError } from "../../lib/errors";
 import { refreshPlayback, seekTimeline } from "../../lib/sequencePlayer";
@@ -192,16 +198,67 @@ type TileSource =
   | { kind: "thumbs"; token: string; entries: Record<string, string>; keys: number[] }
   | { kind: "none" };
 
+/** Bir kaynağın zaman çizelgesi görseli: kareler, dalga formu, bölümler, kare
+ * oranı ve süre. Her klip kendi kaynağınınkini kullanır; önizlemede hangi
+ * kaynağın oynadığı (activeSourceId) bunu etkilemez. */
+interface SourceVisuals {
+  tiles: TileSource;
+  waveform: number[] | null;
+  chapters: Chapter[];
+  aspect: number;
+  duration: number;
+}
+
+/** Kaynak kimliği → görsel paket. Storyboard'u olmayan her kaynak için kaba
+ * kare seti ve dalga formu istenir (kendi önizleme token'ı üzerinden). */
+function useSourceVisuals(sources: EditorSourceEntry[]): Map<string, SourceVisuals> {
+  const byToken = useThumbStore((s) => s.byToken);
+  const waves = useWaveStore((s) => s.byToken);
+
+  useEffect(() => {
+    for (const entry of sources) {
+      const storyboard = entry.source.kind === "remote" ? entry.source.metadata.storyboard : null;
+      const token = entry.stream?.token;
+      if (storyboard || !token || entry.duration <= 0) continue;
+      requestThumbs(token, thumbTimes(entry.duration, 36));
+      ensureWaveform(token, entry.duration);
+    }
+  }, [sources]);
+
+  return useMemo(() => {
+    const map = new Map<string, SourceVisuals>();
+    for (const entry of sources) {
+      const storyboard = entry.source.kind === "remote" ? entry.source.metadata.storyboard : null;
+      const token = entry.stream?.token ?? null;
+      let tiles: TileSource = { kind: "none" };
+      if (storyboard) {
+        tiles = { kind: "storyboard", storyboard };
+      } else if (token) {
+        const entries = byToken[token] ?? {};
+        const keys = Object.keys(entries)
+          .map(Number)
+          .sort((a, b) => a - b);
+        tiles = { kind: "thumbs", token, entries, keys };
+      }
+      map.set(entry.id, {
+        tiles,
+        waveform: token ? (waves[token] ?? null) : null,
+        chapters: sourceChapters(entry.source),
+        aspect: frameAspect(storyboard, entry.source),
+        duration: entry.duration,
+      });
+    }
+    return map;
+  }, [sources, byToken, waves]);
+}
+
 export function Timeline() {
   const { t } = useTranslation();
   const clips = useEditorStore((s) => s.clips);
   const sources = useEditorStore((s) => s.sources);
-  const activeSourceId = useEditorStore((s) => s.activeSourceId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const view = useEditorStore((s) => s.view);
   const duration = useEditorStore((s) => s.duration);
-  const source = useEditorStore((s) => s.source);
-  const stream = useEditorStore((s) => s.stream);
   const areaRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(areaRef);
   const [snapLine, setSnapLine] = useState<number | null>(null);
@@ -215,12 +272,8 @@ export function Timeline() {
   const tracksHeight = textRow + rows.reduce((h, r) => h + r.height, 0);
   const extent = timelineExtent(clips, duration);
   const secondsPerPx = width > 0 ? (view.end - view.start) / width : 0;
-  const storyboard = source?.kind === "remote" ? source.metadata.storyboard : null;
-  const aspect = frameAspect(storyboard, source);
-  const token = stream?.token ?? null;
-  const waveform = useWaveform(token, duration);
-  const tiles = useTileSource(storyboard, token, duration);
-  const chapters = useMemo(() => sourceChapters(source), [source]);
+  // Her kaynağın kareleri/dalga formu/bölümleri kendi token'ından beslenir.
+  const visuals = useSourceVisuals(sources);
   const firstClipId = useMemo(
     () => [...clips].sort((a, b) => a.start - b.start || a.track - b.track)[0]?.id ?? null,
     [clips],
@@ -250,27 +303,30 @@ export function Timeline() {
   }, []);
 
   // Görünür karelerin kaynak anları toplanıp eksikler istenir (storyboard yoksa):
-  // yakınlaştırdıkça kareler ayrıntılanır.
+  // yakınlaştırdıkça kareler ayrıntılanır. Her klip kendi kaynağının token'ına
+  // istek atar; kaynak başına ayrı kare genişliği (oranı) kullanılır.
   useEffect(() => {
-    if (tiles.kind !== "thumbs" || width === 0) return;
-    const tileWidth = Math.max(24, (TRACK_H - 4) * aspect);
-    const times: number[] = [];
+    if (width === 0) return;
+    const byToken = new Map<string, number[]>();
     for (const clip of clips) {
-      // Kare önbelleği yalnızca önizlenen kaynağı tanır; başka kaynakların
-      // kliplerine kare istenmez.
-      if ((clip.sourceId ?? sources[0]?.id) !== activeSourceId) continue;
+      const clipSourceId = clip.sourceId ?? sources[0]?.id;
+      const visual = clipSourceId ? visuals.get(clipSourceId) : undefined;
+      if (!visual || visual.tiles.kind !== "thumbs") continue;
+      const tileWidth = Math.max(24, (TRACK_H - 4) * visual.aspect);
       const left = timeToX(clip.start, view, width);
       const right = timeToX(clipEnd(clip), view, width);
       if (right < 0 || left > width) continue;
       const first = Math.max(0, Math.floor(-left / tileWidth));
       const last = Math.ceil((Math.min(width, right) - left) / tileWidth);
+      const times = byToken.get(visual.tiles.token) ?? [];
       for (let i = first; i < last; i += 1) {
         const tt = clip.start + (i + 0.5) * tileWidth * secondsPerPx;
         times.push(clip.srcStart + (tt - clip.start) * clip.speed);
       }
+      byToken.set(visual.tiles.token, times);
     }
-    requestThumbs(tiles.token, times);
-  }, [tiles, clips, view, width, aspect, secondsPerPx, sources, activeSourceId]);
+    for (const [token, times] of byToken) requestThumbs(token, times);
+  }, [visuals, clips, view, width, secondsPerPx, sources]);
 
   function timeAt(clientX: number): number {
     const rect = areaRef.current?.getBoundingClientRect();
@@ -520,17 +576,12 @@ export function Timeline() {
                     height={row.height - 4}
                     selected={selectedIds.includes(clip.id)}
                     secondsPerPx={secondsPerPx}
-                    aspect={aspect}
-                    ownSource={clipSourceId === activeSourceId}
                     sourceBadge={
                       sources.length > 1
                         ? sources.findIndex((s) => s.id === clipSourceId) + 1
                         : null
                     }
-                    tiles={tiles}
-                    waveform={waveform}
-                    chapters={chapters}
-                    duration={sourceDurationOf(sources, clip.sourceId)}
+                    visuals={clipSourceId ? visuals.get(clipSourceId) : undefined}
                     onDrag={startClipDrag}
                     onMenu={openMenu}
                   />
@@ -558,56 +609,13 @@ export function Timeline() {
 
 function frameAspect(
   storyboard: Storyboard | null,
-  source: ReturnType<typeof useEditorStore.getState>["source"],
+  source: EditorSourceEntry["source"] | null,
 ): number {
   if (storyboard) return storyboard.width / storyboard.height;
   const w = source?.kind === "local" ? source.info.width : source?.metadata.sourceWidth;
   const h = source?.kind === "local" ? source.info.height : source?.metadata.sourceHeight;
   // Dikey videolarda kareler çok daralmasın.
   return w && h ? Math.min(Math.max(w / h, 0.56), 2.4) : 16 / 9;
-}
-
-function useTileSource(
-  storyboard: Storyboard | null,
-  token: string | null,
-  duration: number,
-): TileSource {
-  const entries = useThumbStore((s) => s.entries);
-  const cacheToken = useThumbStore((s) => s.token);
-  // İlk açılışta tüm videoya yayılmış kaba bir kare seti istenir.
-  useEffect(() => {
-    if (!storyboard && token && duration > 0) requestThumbs(token, thumbTimes(duration, 36));
-  }, [storyboard, token, duration]);
-  return useMemo((): TileSource => {
-    if (storyboard) return { kind: "storyboard", storyboard };
-    if (!token) return { kind: "none" };
-    const usable = cacheToken === token ? entries : {};
-    const keys = Object.keys(usable)
-      .map(Number)
-      .sort((a, b) => a - b);
-    return { kind: "thumbs", token, entries: usable, keys };
-  }, [storyboard, token, entries, cacheToken]);
-}
-
-function useWaveform(token: string | null, duration: number): number[] | null {
-  const [state, setState] = useState<{ key: string | null; peaks: number[] }>({
-    key: null,
-    peaks: [],
-  });
-  useEffect(() => {
-    if (!token || duration <= 0) return;
-    let disposed = false;
-    // Saniyede 8 kova; 1 saatlik videoda üst sınır 24 bin.
-    getEditorWaveform(token, duration, Math.min(24000, Math.ceil(duration * 8)))
-      .then((peaks) => {
-        if (!disposed) setState({ key: token, peaks });
-      })
-      .catch(() => {});
-    return () => {
-      disposed = true;
-    };
-  }, [token, duration]);
-  return state.key === token && state.peaks.length > 0 ? state.peaks : null;
 }
 
 interface ClipBlockProps {
@@ -621,15 +629,10 @@ interface ClipBlockProps {
   height: number;
   selected: boolean;
   secondsPerPx: number;
-  aspect: number;
-  /** Kareler/dalga formu/bölümler yalnızca önizlenen kaynağın kliplerinde. */
-  ownSource: boolean;
   /** Birden çok kaynakta klibin kaynak numarası (1'den başlar); tek kaynakta null. */
   sourceBadge: number | null;
-  tiles: TileSource;
-  waveform: number[] | null;
-  chapters: Chapter[];
-  duration: number;
+  /** Klibin kendi kaynağının görseli (kare/dalga formu/bölüm/oran/süre). */
+  visuals: SourceVisuals | undefined;
   onDrag: (e: ReactPointerEvent, clip: SeqClip, mode: "move" | "start" | "end") => void;
   onMenu: (e: ReactMouseEvent, clip: SeqClip) => void;
 }
@@ -644,23 +647,20 @@ function ClipBlock({
   height,
   selected,
   secondsPerPx,
-  aspect,
-  ownSource,
   sourceBadge,
-  tiles,
-  waveform,
-  chapters,
-  duration,
+  visuals,
   onDrag,
   onMenu,
 }: ClipBlockProps) {
   const color = TRACK_COLORS[clip.track % TRACK_COLORS.length];
   // Geçiş sürüklenirken bırakılacak uç: kenara yakınsa o uç (ve oradaki kesim), ortadaysa iki uç.
   const [dropEdge, setDropEdge] = useState<TransitionEdge | null>(null);
-  // Başka kaynağın klibinde kare/dalga formu gösterilmez (önizleme önbelleği
-  // yalnızca önizlenen kaynağı tanır).
-  const showTiles = ownSource;
-  const waveHeight = waveform && ownSource ? 14 : 0;
+  const tiles = visuals?.tiles ?? ({ kind: "none" } as TileSource);
+  const waveform = visuals?.waveform ?? null;
+  const chapters = visuals?.chapters ?? [];
+  const aspect = visuals?.aspect ?? 16 / 9;
+  const duration = visuals?.duration ?? clip.srcEnd;
+  const waveHeight = waveform ? 14 : 0;
   const tileHeight = height - 4 - waveHeight;
   const tileWidth = Math.max(24, tileHeight * aspect);
   const first = Math.max(0, Math.floor(-left / tileWidth));
@@ -746,9 +746,9 @@ function ClipBlock({
       title={`${label} · ${formatTimecode(clip.srcStart, 1)} → ${formatTimecode(clip.srcEnd, 1)}`}
     >
       <div className="absolute inset-x-0 top-0 overflow-hidden" style={{ height: tileHeight }}>
-        {showTiles ? tileNodes : null}
+        {tileNodes}
       </div>
-      {waveform && ownSource ? (
+      {waveform ? (
         <ClipWave
           clip={clip}
           peaks={waveform}
@@ -771,7 +771,7 @@ function ClipBlock({
       ) : null}
       <ChapterMarks
         clip={clip}
-        chapters={ownSource ? chapters : []}
+        chapters={chapters}
         secondsPerPx={secondsPerPx}
         width={width}
         bottom={waveHeight + 4}

@@ -1,6 +1,6 @@
 [package]
 name = "downkit"
-version = "0.2.1"
+version = "0.3.0"
 description = "Video indirme, düzenleme, dönüştürme ve ekran kaydı"
 authors = ["aderimo"]
 edition = "2021"
@@ -54,5 +54,7 @@ trash = "5"
 codegen-units = 16
 lto = "thin"
 opt-level = 3
-panic = "abort"
+# panic = "abort" bilinçli olarak YOK: bir komutta panik olursa tüm uygulama
+# sessizce kapanıyordu (ör. Geri Dönüşüm Kutusu'na taşıma). unwind ile panik
+# yakalanıp kullanıcıya hata olarak gösterilir; uygulama ayakta kalır.
 strip = true

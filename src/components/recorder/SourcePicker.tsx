@@ -215,9 +215,10 @@ export function SourcePicker({ onClose }: { onClose: () => void }) {
               type="button"
               aria-pressed={card.selected}
               onClick={() => {
-                // Ekranlar seçim biriktirir (birden çok seçilebilir); pencere
-                // tek seçilir ve pencere kapanır.
-                if (tab === "screens" && card.source.kind === "monitor") {
+                // Birden çok ekran varsa ekranlar seçim biriktirir (alt bardaki
+                // Uygula düğmesiyle onaylanır); tek ekran ya da pencere
+                // tıklanınca hemen uygulanır ve seçici kapanır.
+                if (tab === "screens" && card.source.kind === "monitor" && monitors.length > 1) {
                   toggleScreen(card.source.number);
                 } else {
                   update({ source: card.source });

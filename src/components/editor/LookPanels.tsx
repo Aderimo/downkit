@@ -31,30 +31,38 @@ function useTargetLook(): { look: ClipLook; hasTarget: boolean; targetName: stri
   };
 }
 
-/** Filtre kartlarındaki örnek görüntü: imleçteki video karesi (yerel dosyalarda
- * zaman çizelgesi önbelleğinden), uzak kaynaklarda kapak resmi. */
+/** Filtre kartlarındaki örnek görüntü: imleçteki klibin KENDİ kaynağından kare
+ * (zaman çizelgesi önbelleğinden), uzak kaynaklarda o kaynağın kapak resmi. */
 function useSampleImage(): string | null {
-  const remote = useEditorStore((s) =>
-    s.source?.kind === "remote" ? (s.source.metadata.thumbnailUrl ?? null) : null,
-  );
-  const token = useEditorStore((s) => s.stream?.token ?? null);
   const clips = useEditorStore((s) => s.clips);
+  const sources = useEditorStore((s) => s.sources);
   const currentTime = usePlayerStore((s) => s.currentTime);
-  const entries = useThumbStore((s) => s.entries);
-  const cacheToken = useThumbStore((s) => s.token);
+
+  // İmleçteki klip ve onun kaynağı (kaynaklar her zaman clip.sourceId'den gelir).
+  const { clip, entry } = useMemo(() => {
+    const found = clipAt(clips, currentTime);
+    const owner = found
+      ? (sources.find((s) => s.id === found.sourceId) ?? sources[0])
+      : sources[0];
+    return { clip: found, entry: owner };
+  }, [clips, currentTime, sources]);
+
+  const remote =
+    entry?.source.kind === "remote" ? (entry.source.metadata.thumbnailUrl ?? null) : null;
+  const token = entry?.stream?.token ?? null;
+  const entries = useThumbStore((s) => (token ? s.byToken[token] : undefined));
 
   // İmlecin karşılık geldiği kaynak anı
   const sourceTime = useMemo(() => {
-    const clip = clipAt(clips, currentTime);
     return clip ? clip.srcStart + (currentTime - clip.start) * clip.speed : currentTime;
-  }, [clips, currentTime]);
+  }, [clip, currentTime]);
 
   useEffect(() => {
     if (!remote && token) requestThumbs(token, [sourceTime]);
   }, [remote, token, sourceTime]);
 
   if (remote) return remote;
-  if (!token || cacheToken !== token) return null;
+  if (!entries) return null;
   const keys = Object.keys(entries)
     .map(Number)
     .sort((a, b) => a - b);

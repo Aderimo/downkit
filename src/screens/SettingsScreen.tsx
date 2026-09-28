@@ -13,7 +13,9 @@ import {
   GraduationCap,
   Heart,
   RefreshCw,
+  ScrollText,
   Sparkles,
+  BarChart3,
   HardDrive,
   History,
   Info,
@@ -59,6 +61,8 @@ import { Select } from "../components/ui/Select";
 import { Switch } from "../components/ui/Switch";
 import { ThemeSection } from "../components/ThemePicker";
 import { FolderSettings } from "../components/FolderSettings";
+import { CounterPanel } from "../components/CounterPanel";
+import { PatchNotesPanel } from "../components/PatchNotesPanel";
 
 const TEMPLATE_LABEL_KEYS: Record<(typeof FILENAME_TEMPLATES)[number], string> = {
   "{title}": "settings.templateTitle",
@@ -387,6 +391,15 @@ export function SettingsScreen() {
               onChange={(autoSubtitles) => settings.update({ autoSubtitles })}
             />
           </Section>
+
+          <Section
+            tour="settings-counter"
+            icon={<BarChart3 size={18} />}
+            title={t("settings.counter")}
+          >
+            <p className="-mt-2 text-xs text-[var(--dk-text-muted)]">{t("settings.counterHint")}</p>
+            <CounterPanel />
+          </Section>
         </div>
 
         <div className="space-y-5">
@@ -582,6 +595,14 @@ export function SettingsScreen() {
           </Section>
         </div>
       </div>
+
+      <Section
+        tour="settings-notes"
+        icon={<ScrollText size={18} />}
+        title={t("settings.releaseNotes")}
+      >
+        <PatchNotesPanel />
+      </Section>
 
       <Section tour="settings-about" icon={<Info size={18} />} title={t("settings.about")}>
         <div className="grid gap-4 lg:grid-cols-3">

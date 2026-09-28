@@ -14,6 +14,7 @@ import { ScreenshotScreen } from "./screens/ScreenshotScreen";
 import { useSnipStore } from "./store/snipStore";
 import { Tutorial } from "./components/Tutorial";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { WhatsNewDialog } from "./components/WhatsNewDialog";
 import { tourForRoute, useTutorialStore } from "./lib/tutorial";
 import { initDeepLinks } from "./lib/deepLink";
 import { useEditorStore } from "./store/editorStore";
@@ -107,6 +108,7 @@ function App() {
       </div>
       <Tutorial />
       <UpdateDialog />
+      <WhatsNewDialog />
     </div>
   );
 }

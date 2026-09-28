@@ -2,9 +2,10 @@
 //! zaman çizelgesi için kare şeridi ve dalga formu, tarayıcının oynatamadığı
 //! dosyalar için hafif önizleme kopyası.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use base64::Engine;
@@ -32,8 +33,26 @@ const PREVIEW_CACHE_DAYS: u64 = 3;
 /// Uzak akışta arama yavaş olabilir; kare alma bu süreyi aşmasın.
 const FRAME_TIMEOUT: Duration = Duration::from_secs(90);
 
-/// Yeni bir kare şeridi isteği başlayınca eskisinin kalan kareleri üretilmez.
-static THUMB_GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Kare şeridi isteklerinin nesli, kaynak (token) başına: bir kaynağın yeni
+/// isteği yalnızca kendi eski isteğini iptal eder. Çoklu kaynakta başka
+/// kaynağın kareleri üretilmeye devam eder.
+fn thumb_generations() -> &'static Mutex<HashMap<String, u64>> {
+    static GENERATIONS: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+    GENERATIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Kaynağın neslini bir ileri taşır ve yeni değeri döner.
+fn next_thumb_generation(token: &str) -> u64 {
+    let mut map = thumb_generations().lock().unwrap();
+    let next = map.get(token).copied().unwrap_or(0) + 1;
+    map.insert(token.to_string(), next);
+    next
+}
+
+/// Bu istek hâlâ kaynağın güncel isteği mi?
+fn is_current_thumb_generation(token: &str, generation: u64) -> bool {
+    thumb_generations().lock().unwrap().get(token).copied() == Some(generation)
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,20 +134,21 @@ pub async fn editor_thumbnails(
     let ffmpeg_exe = ffmpeg::binary::ensure_ffmpeg(&app)
         .await?
         .join("ffmpeg.exe");
-    let generation = THUMB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let generation = next_thumb_generation(&token);
 
     tauri::async_runtime::spawn(async move {
         futures_util::stream::iter(times.into_iter().enumerate().take(MAX_THUMBS))
             .for_each_concurrent(THUMB_CONCURRENCY, |(index, seconds)| {
-                let (app, ffmpeg_exe, input, headers, request_id) = (
+                let (app, ffmpeg_exe, input, headers, request_id, token) = (
                     app.clone(),
                     ffmpeg_exe.clone(),
                     input.clone(),
                     headers.clone(),
                     request_id.clone(),
+                    token.clone(),
                 );
                 async move {
-                    if THUMB_GENERATION.load(Ordering::SeqCst) != generation {
+                    if !is_current_thumb_generation(&token, generation) {
                         return;
                     }
                     let jpeg = grab_frame(&ffmpeg_exe, &input, &headers, seconds, height).await;
