@@ -97,6 +97,32 @@ function toEditClip(segment: Segment): EditClip {
   };
 }
 
+/** Parçaların kullandığı kaynakları ilk geçtikleri sırayla toplar ve her klibe
+ * kaynak indeksini yazar. Saf modül fonksiyonudur: render sırasında kapanım
+ * değişkeni değiştirmez (react-hooks/immutability). */
+function buildRanges(
+  pieces: ExportPiece[],
+  sources: EditorSourceEntry[],
+): { usedInputs: EditorSourceEntry[]; ranges: EditClip[] } {
+  const inputs: EditorSourceEntry[] = [];
+  const ranges: EditClip[] = pieces.map((piece) => {
+    if (piece.kind !== "clip") return pieceClip(piece);
+    const id = piece.segment.sourceId ?? sources[0]?.id;
+    let index = inputs.findIndex((s) => s.id === id);
+    if (index < 0) {
+      const entry = sources.find((s) => s.id === id) ?? sources[0];
+      if (!entry) {
+        index = 0;
+      } else {
+        inputs.push(entry);
+        index = inputs.length - 1;
+      }
+    }
+    return { ...pieceClip(piece), source: index };
+  });
+  return { usedInputs: inputs, ranges };
+}
+
 /** Dışa aktarma: görüntü ya da yalnızca ses, biçim/kalite, birleştir ya da ayrı dosyalar. */
 export function ExportPanel() {
   const { t } = useTranslation();
@@ -119,21 +145,12 @@ export function ExportPanel() {
   const pieces = exportPieces(segments);
   // Parçaların kullandığı kaynaklar, ilk geçtikleri sırayla: dışa aktarım
   // isteğindeki `inputs` bu sırayla kurulur; her klip kaynak indeksini taşır.
-  const usedInputs: EditorSourceEntry[] = [];
-  const inputIndex = (sourceId: string | undefined): number => {
+  const { usedInputs, ranges } = buildRanges(pieces, sources);
+  // start() içinde (render sonrası) aynı eşleme salt-okunur aramayla bulunur.
+  const sourceIndex = (sourceId: string | undefined): number => {
     const id = sourceId ?? sources[0]?.id;
-    const found = usedInputs.findIndex((s) => s.id === id);
-    if (found >= 0) return found;
-    const entry = sources.find((s) => s.id === id) ?? sources[0];
-    if (!entry) return 0;
-    usedInputs.push(entry);
-    return usedInputs.length - 1;
+    return Math.max(0, usedInputs.findIndex((s) => s.id === id));
   };
-  const ranges: EditClip[] = pieces.map((piece) =>
-    piece.kind === "clip"
-      ? { ...pieceClip(piece), source: inputIndex(piece.segment.sourceId) }
-      : pieceClip(piece),
-  );
   const total = piecesDuration(pieces);
   const multiSource = usedInputs.length > 1;
   const remote = usedInputs.some((e) => e.source.kind === "remote");
@@ -215,7 +232,7 @@ export function ExportPanel() {
     const groups: { clips: EditClip[]; pieces: ExportPiece[]; name: string }[] =
       separate || (segments.length === 1 && !hasGaps)
         ? segments.map((segment) => ({
-            clips: [{ ...toEditClip(segment), source: inputIndex(segment.sourceId) }],
+            clips: [{ ...toEditClip(segment), source: sourceIndex(segment.sourceId) }],
             pieces: exportPieces([segment], false),
             name: clipName(segment),
           }))

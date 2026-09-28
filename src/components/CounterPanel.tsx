@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, Download, RefreshCw } from "lucide-react";
 import { COUNTER_URL, fetchActiveUsers, fetchDownloadStats } from "../lib/counter";
@@ -14,22 +14,32 @@ export function CounterPanel() {
   const [downloads, setDownloads] = useState<number | null>(null);
   const [active, setActive] = useState<number | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
-
-  const load = useCallback(async () => {
-    setState("loading");
-    try {
-      const [stats, activeUsers] = await Promise.all([fetchDownloadStats(), fetchActiveUsers()]);
-      setDownloads(stats.total);
-      setActive(activeUsers);
-      setState("ok");
-    } catch {
-      setState("error");
-    }
-  }, []);
+  // Yenile düğmesi bunu artırır; yükleme tek yerden (effect) yapılır.
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let alive = true;
+    // setState yalnızca promise geri çağrılarında olur (react-hooks/set-state-in-effect).
+    Promise.all([fetchDownloadStats(), fetchActiveUsers()])
+      .then(([stats, activeUsers]) => {
+        if (!alive) return;
+        setDownloads(stats.total);
+        setActive(activeUsers);
+        setState("ok");
+      })
+      .catch(() => {
+        if (alive) setState("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
+
+  // Yenile düğmesi: olay işleyicide eşzamanlı setState serbesttir.
+  const reload = () => {
+    setState("loading");
+    setTick((n) => n + 1);
+  };
 
   const fmt = (n: number) => n.toLocaleString(i18n.language);
   const value = (n: number | null) =>
@@ -87,7 +97,7 @@ export function CounterPanel() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={reload}
           disabled={state === "loading"}
           className="flex items-center gap-1.5 rounded-lg border border-[var(--dk-border-strong)] px-2.5 py-1.5 text-xs hover:border-[var(--dk-accent)] disabled:opacity-50"
         >

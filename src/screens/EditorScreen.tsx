@@ -452,8 +452,14 @@ function PlayerArea() {
   const [copy, setCopy] = useState<{ percent: number | null; error: string | null } | null>(null);
 
   // Akış değişince (kaynak geçişi, yeniden deneme) hata durumu sıfırlanır.
-  // (Bileşen zaten token'a göre yeniden kurulur; bu, ek güvencedir.)
-  useEffect(() => setFailed(false), [stream?.token]);
+  // (Bileşen zaten token'a göre yeniden kurulur; bu, ek güvencedir. Effect yerine
+  // render sırasında önceki token'la karşılaştırılarak yapılır: React'in önerdiği
+  // "derived state" düzenidir.)
+  const [failedToken, setFailedToken] = useState(stream?.token);
+  if (failedToken !== stream?.token) {
+    setFailedToken(stream?.token);
+    setFailed(false);
+  }
 
   // Oynatıcı değişince ses ayarları yeni öğeye de uygulanır.
   useEffect(() => {
