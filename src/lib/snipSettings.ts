@@ -62,9 +62,7 @@ export function normalizeSnipSettings(raw: unknown): SnipSettings {
     delaySeconds: pick<number>(r.delaySeconds, CAPTURE_DELAYS, d.delaySeconds),
     translateDirection: pick(r.translateDirection, TRANSLATE_DIRECTIONS, d.translateDirection),
     translateOpensEditor:
-      typeof r.translateOpensEditor === "boolean"
-        ? r.translateOpensEditor
-        : d.translateOpensEditor,
+      typeof r.translateOpensEditor === "boolean" ? r.translateOpensEditor : d.translateOpensEditor,
   };
 }
 

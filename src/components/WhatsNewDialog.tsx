@@ -65,7 +65,11 @@ export function WhatsNewDialog() {
                 <Group title={t("whatsNew.added")} icon={<Plus size={14} />} items={notes.added} />
               ) : null}
               {notes.fixed.length > 0 ? (
-                <Group title={t("whatsNew.fixed")} icon={<Wrench size={14} />} items={notes.fixed} />
+                <Group
+                  title={t("whatsNew.fixed")}
+                  icon={<Wrench size={14} />}
+                  items={notes.fixed}
+                />
               ) : null}
             </>
           )}
@@ -82,15 +86,7 @@ export function WhatsNewDialog() {
   );
 }
 
-function Group({
-  title,
-  icon,
-  items,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  items: string[];
-}) {
+function Group({ title, icon, items }: { title: string; icon: React.ReactNode; items: string[] }) {
   return (
     <section>
       <h3 className="flex items-center gap-1.5 text-sm font-medium text-[var(--dk-accent-hover)]">

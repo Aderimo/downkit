@@ -1041,7 +1041,11 @@ function Toolbar() {
           <SkipForward size={16} />
         </ToolButton>
         <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
-        <ToolButton label={t("editor.saveFrame")} onClick={() => void saveFrame()} disabled={frameBusy}>
+        <ToolButton
+          label={t("editor.saveFrame")}
+          onClick={() => void saveFrame()}
+          disabled={frameBusy}
+        >
           <ImageDown size={16} />
         </ToolButton>
         <p className="ml-2 font-mono text-xs whitespace-nowrap tabular-nums">

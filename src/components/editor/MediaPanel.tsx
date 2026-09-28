@@ -44,7 +44,10 @@ export function MediaPanel() {
     [importFiles],
   );
   const onRejected = useCallback(() => setRejected(true), []);
-  useFileDrop(useCallback(() => {}, []), { onFiles, onHover: setHovering, onRejected });
+  useFileDrop(
+    useCallback(() => {}, []),
+    { onFiles, onHover: setHovering, onRejected },
+  );
 
   async function choose() {
     const paths = await chooseLocalMediaFiles();
@@ -233,12 +236,7 @@ function SourceCard({
         }`}
       >
         {thumb ? (
-          <img
-            src={thumb}
-            alt=""
-            draggable={false}
-            className="h-full w-full object-cover"
-          />
+          <img src={thumb} alt="" draggable={false} className="h-full w-full object-cover" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-[var(--dk-text-muted)]">
             {hasVideo ? <Film size={22} /> : <Music size={22} />}

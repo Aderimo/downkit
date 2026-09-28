@@ -498,11 +498,7 @@ export function SettingsScreen() {
             />
             <Row label={t("settings.appUpdate")} hint={updateHint}>
               {update.status === "available" && update.latest ? (
-                <Button
-                  size="sm"
-                  icon={<Sparkles size={14} />}
-                  onClick={() => update.openDialog()}
-                >
+                <Button size="sm" icon={<Sparkles size={14} />} onClick={() => update.openDialog()}>
                   {t("update.download", { version: update.latest.version })}
                 </Button>
               ) : (

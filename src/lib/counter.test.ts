@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  BASELINE_DOWNLOADS,
-  COUNTER_URL,
-  fetchActiveUsers,
-  fetchDownloadStats,
-} from "./counter";
+import { BASELINE_DOWNLOADS, COUNTER_URL, fetchActiveUsers, fetchDownloadStats } from "./counter";
 
 const releases = (data: unknown, ok = true, status = 200) =>
   ({ ok, status, json: () => Promise.resolve(data) }) as Response;

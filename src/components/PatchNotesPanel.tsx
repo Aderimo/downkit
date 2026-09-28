@@ -37,15 +37,7 @@ export function PatchNotesPanel() {
   );
 }
 
-function List({
-  title,
-  icon,
-  items,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  items: string[];
-}) {
+function List({ title, icon, items }: { title: string; icon: React.ReactNode; items: string[] }) {
   return (
     <div className="mt-2.5">
       <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--dk-accent-hover)]">

@@ -149,7 +149,10 @@ export function ExportPanel() {
   // start() içinde (render sonrası) aynı eşleme salt-okunur aramayla bulunur.
   const sourceIndex = (sourceId: string | undefined): number => {
     const id = sourceId ?? sources[0]?.id;
-    return Math.max(0, usedInputs.findIndex((s) => s.id === id));
+    return Math.max(
+      0,
+      usedInputs.findIndex((s) => s.id === id),
+    );
   };
   const total = piecesDuration(pieces);
   const multiSource = usedInputs.length > 1;
