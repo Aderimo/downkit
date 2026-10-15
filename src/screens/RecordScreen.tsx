@@ -11,7 +11,13 @@ import { formatBytes, formatDuration } from "../lib/format";
 import { revealInFolder } from "../lib/tauri-api";
 
 /** Ekran kaydı: kayıt, geriye dönük kayıt (anlık tekrar), ayarlar ve kayıtlar. */
-export function RecordScreen({ onOpenInEditor }: { onOpenInEditor: (path: string) => void }) {
+export function RecordScreen({
+  onOpenInEditor,
+  onMontage,
+}: {
+  onOpenInEditor: (path: string) => void;
+  onMontage: (paths: string[]) => void;
+}) {
   const { t } = useTranslation();
   const error = useRecorderStore((s) => s.error);
   const lastSaved = useRecorderStore((s) => s.lastSaved);
@@ -102,7 +108,7 @@ export function RecordScreen({ onOpenInEditor }: { onOpenInEditor: (path: string
         <ReplayCard />
       </div>
       <RecorderSettingsCard />
-      <RecordingsLibrary onOpenInEditor={onOpenInEditor} />
+      <RecordingsLibrary onOpenInEditor={onOpenInEditor} onMontage={onMontage} />
     </div>
   );
 }

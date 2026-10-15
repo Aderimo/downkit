@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Geriye dönük kayıtta bir parçanın süresi (saniye); anahtar kare aralığı da bu.
 pub const SEGMENT_SECONDS: u32 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Encoder {
     Nvenc,
@@ -35,12 +35,32 @@ impl Encoder {
         }
     }
 
+    /// Önbellek ve arayüz için kısa ad (serde adıyla aynı).
+    pub fn id(self) -> &'static str {
+        match self {
+            Encoder::Nvenc => "nvenc",
+            Encoder::Amf => "amf",
+            Encoder::Qsv => "qsv",
+            Encoder::X264 => "x264",
+        }
+    }
+
     pub fn is_hardware(self) -> bool {
         self != Encoder::X264
     }
 
+    /// Kodlayıcının bulunduğu ekran kartının üretici kimliği (işlemci için yok).
+    pub fn vendor_id(self) -> Option<u32> {
+        match self {
+            Encoder::Nvenc => Some(super::gpu::VENDOR_NVIDIA),
+            Encoder::Amf => Some(super::gpu::VENDOR_AMD),
+            Encoder::Qsv => Some(super::gpu::VENDOR_INTEL),
+            Encoder::X264 => None,
+        }
+    }
+
     /// Ekran kartındaki (D3D11) kareyi indirmeden alabilir mi?
-    fn takes_gpu_frames(self) -> bool {
+    pub fn takes_gpu_frames(self) -> bool {
         matches!(self, Encoder::Nvenc | Encoder::Amf)
     }
 }
@@ -60,6 +80,53 @@ impl Quality {
             Quality::Balanced => 1,
             Quality::Small => 2,
         }
+    }
+}
+
+/// Kodlayıcı hızı: hız ↔ sıkıştırma dengesi. Zayıf ekran kartında "performans"
+/// oyunu daha az etkiler; "kalite" aynı bit hızında daha net görüntü verir.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Speed {
+    Performance,
+    #[default]
+    Balanced,
+    Quality,
+}
+
+impl Speed {
+    fn nvenc(self) -> &'static str {
+        match self {
+            Speed::Performance => "p2",
+            Speed::Balanced => "p4",
+            Speed::Quality => "p6",
+        }
+    }
+
+    fn amf(self) -> &'static str {
+        match self {
+            Speed::Performance => "speed",
+            Speed::Balanced => "balanced",
+            Speed::Quality => "quality",
+        }
+    }
+
+    fn qsv(self) -> &'static str {
+        match self {
+            Speed::Performance | Speed::Balanced => "veryfast",
+            Speed::Quality => "faster",
+        }
+    }
+
+    /// x264: 60 fps'te bir kademe hızlısı (veryfast çoğu işlemciye ağır gelir).
+    fn x264(self, high_fps: bool) -> &'static str {
+        const LADDER: [&str; 4] = ["ultrafast", "superfast", "veryfast", "faster"];
+        let base = match self {
+            Speed::Performance => 1,
+            Speed::Balanced => 2,
+            Speed::Quality => 3,
+        };
+        LADDER[base - usize::from(high_fps)]
     }
 }
 
@@ -121,8 +188,16 @@ impl CaptureTarget {
             CaptureTarget::Window { width, height, .. } => (width, height),
             CaptureTarget::Monitors { ref monitors } => {
                 // Sanal masaüstünün kaplayan kutusu.
-                let right = monitors.iter().map(|m| m.x + m.width as i32).max().unwrap_or(0);
-                let bottom = monitors.iter().map(|m| m.y + m.height as i32).max().unwrap_or(0);
+                let right = monitors
+                    .iter()
+                    .map(|m| m.x + m.width as i32)
+                    .max()
+                    .unwrap_or(0);
+                let bottom = monitors
+                    .iter()
+                    .map(|m| m.y + m.height as i32)
+                    .max()
+                    .unwrap_or(0);
                 let left = monitors.iter().map(|m| m.x).min().unwrap_or(0);
                 let top = monitors.iter().map(|m| m.y).min().unwrap_or(0);
                 ((right - left).max(2) as u32, (bottom - top).max(2) as u32)
@@ -143,6 +218,15 @@ pub struct VideoOptions {
     /// Verilirse kalite ön ayarı yerine bu bit hızı (kbps) hedeflenir.
     #[serde(default)]
     pub bitrate_kbps: Option<u32>,
+    /// Kullanıcının seçtiği kodlayıcı; yoksa otomatik (ilk çalışan).
+    #[serde(default)]
+    pub encoder: Option<Encoder>,
+    #[serde(default)]
+    pub speed: Speed,
+    /// Kodlayıcı ekranı süren karttan farklı bir kartta (hibrit dizüstü): kareler
+    /// önce belleğe indirilir. Arayüzden gelmez, Rust tarafında belirlenir.
+    #[serde(skip)]
+    pub download_frames: bool,
 }
 
 fn yes() -> bool {
@@ -187,12 +271,17 @@ fn capture_inputs(target: &CaptureTarget, video: &VideoOptions) -> Vec<String> {
     let cursor = bool01(video.cursor);
     let sources: Vec<String> = match *target {
         CaptureTarget::Monitor {
-            hmonitor,
             dda_index: Some(index),
             ..
-        } => vec![format!("ddagrab=output_idx={index}:framerate={fps}:draw_mouse={cursor}")],
+        } => vec![format!(
+            "ddagrab=output_idx={index}:framerate={fps}:draw_mouse={cursor}"
+        )],
         CaptureTarget::Monitor { hmonitor, .. } => {
-            vec![gfx_source(&format!("hmonitor={hmonitor}"), target.size(), video)]
+            vec![gfx_source(
+                &format!("hmonitor={hmonitor}"),
+                target.size(),
+                video,
+            )]
         }
         CaptureTarget::Monitors { ref monitors } => monitors
             .iter()
@@ -204,9 +293,7 @@ fn capture_inputs(target: &CaptureTarget, video: &VideoOptions) -> Vec<String> {
     };
     let mut args = Vec::new();
     for source in sources {
-        args.extend(
-            ["-fpsprobesize", "0", "-f", "lavfi", "-i", source.as_str()].map(String::from),
-        );
+        args.extend(["-fpsprobesize", "0", "-f", "lavfi", "-i", source.as_str()].map(String::from));
     }
     args
 }
@@ -232,7 +319,11 @@ enum VideoFilter {
 }
 
 /// Kodlayıcıdan önceki filtreler (gerekmiyorsa yok).
-fn video_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder) -> Option<VideoFilter> {
+fn video_filter(
+    target: &CaptureTarget,
+    video: &VideoOptions,
+    encoder: Encoder,
+) -> Option<VideoFilter> {
     if let CaptureTarget::Monitors { monitors } = target {
         return Some(VideoFilter::Complex(stack_filter(monitors, video, encoder)));
     }
@@ -246,7 +337,7 @@ fn single_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder)
         None
     };
     let mut steps: Vec<String> = Vec::new();
-    if scale.is_some() || !encoder.takes_gpu_frames() {
+    if scale.is_some() || !encoder.takes_gpu_frames() || video.download_frames {
         steps.push("hwdownload".into());
         steps.push("format=bgra".into());
     }
@@ -266,8 +357,16 @@ fn single_filter(target: &CaptureTarget, video: &VideoOptions, encoder: Encoder)
 fn stack_filter(monitors: &[MonitorRegion], video: &VideoOptions, encoder: Encoder) -> String {
     let left = monitors.iter().map(|m| m.x).min().unwrap_or(0);
     let top = monitors.iter().map(|m| m.y).min().unwrap_or(0);
-    let right = monitors.iter().map(|m| m.x + m.width as i32).max().unwrap_or(0);
-    let bottom = monitors.iter().map(|m| m.y + m.height as i32).max().unwrap_or(0);
+    let right = monitors
+        .iter()
+        .map(|m| m.x + m.width as i32)
+        .max()
+        .unwrap_or(0);
+    let bottom = monitors
+        .iter()
+        .map(|m| m.y + m.height as i32)
+        .max()
+        .unwrap_or(0);
     let bbox = ((right - left).max(2) as u32, (bottom - top).max(2) as u32);
 
     let mut chains: Vec<String> = (0..monitors.len())
@@ -298,7 +397,7 @@ fn stack_filter(monitors: &[MonitorRegion], video: &VideoOptions, encoder: Encod
 const MIN_BITRATE_KBPS: u32 = 1_000;
 const MAX_BITRATE_KBPS: u32 = 100_000;
 
-fn bitrate_args(encoder: Encoder, kbps: u32) -> Vec<String> {
+fn bitrate_args(encoder: Encoder, kbps: u32, speed: Speed, high_fps: bool) -> Vec<String> {
     let k = kbps.clamp(MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
     let rate = |v: u32| format!("{v}k");
     let (target, peak, buffer) = (rate(k), rate(k), rate(k * 2));
@@ -307,7 +406,7 @@ fn bitrate_args(encoder: Encoder, kbps: u32) -> Vec<String> {
             "-c:v",
             "h264_nvenc",
             "-preset",
-            "p4",
+            speed.nvenc(),
             "-rc",
             "cbr",
             "-spatial-aq",
@@ -319,12 +418,12 @@ fn bitrate_args(encoder: Encoder, kbps: u32) -> Vec<String> {
             "-usage",
             "transcoding",
             "-quality",
-            "balanced",
+            speed.amf(),
             "-rc",
             "cbr",
         ],
-        Encoder::Qsv => &["-c:v", "h264_qsv", "-preset", "veryfast"],
-        Encoder::X264 => &["-c:v", "libx264", "-preset", "veryfast"],
+        Encoder::Qsv => &["-c:v", "h264_qsv", "-preset", speed.qsv()],
+        Encoder::X264 => &["-c:v", "libx264", "-preset", speed.x264(high_fps)],
     };
     head.iter()
         .map(|s| s.to_string())
@@ -343,7 +442,7 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
     let q = video.quality.level();
     let gop = (video.fps() * SEGMENT_SECONDS).to_string();
     let args: Vec<String> = match (encoder, video.bitrate_kbps) {
-        (_, Some(kbps)) => bitrate_args(encoder, kbps),
+        (_, Some(kbps)) => bitrate_args(encoder, kbps, video.speed, video.fps() > 30),
         _ => match encoder {
             Encoder::Nvenc => {
                 let cq = ["19", "23", "28"][q];
@@ -351,7 +450,7 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
                     "-c:v",
                     "h264_nvenc",
                     "-preset",
-                    "p4",
+                    video.speed.nvenc(),
                     "-rc",
                     "vbr",
                     "-cq",
@@ -372,7 +471,7 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
                     "-usage",
                     "transcoding",
                     "-quality",
-                    "balanced",
+                    video.speed.amf(),
                     "-rc",
                     "cqp",
                     "-qp_i",
@@ -389,7 +488,7 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
                     "-c:v",
                     "h264_qsv",
                     "-preset",
-                    "veryfast",
+                    video.speed.qsv(),
                     "-global_quality",
                     gq,
                 ]
@@ -398,12 +497,7 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
             }
             Encoder::X264 => {
                 let crf = ["19", "23", "27"][q];
-                // 60 fps'te veryfast çoğu işlemciye ağır gelir.
-                let preset = if video.fps() > 30 {
-                    "superfast"
-                } else {
-                    "veryfast"
-                };
+                let preset = video.speed.x264(video.fps() > 30);
                 ["-c:v", "libx264", "-preset", preset, "-crf", crf]
                     .map(String::from)
                     .to_vec()
@@ -415,11 +509,28 @@ fn encoder_args(encoder: Encoder, video: &VideoOptions) -> Vec<String> {
     args
 }
 
-/// Sesin geldiği boru (Rust tarafındaki karıştırıcı yazar): 48 kHz, stereo, f32.
-fn audio_input(pipe: &str) -> Vec<String> {
-    ["-f", "f32le", "-ar", "48000", "-ac", "2", "-i", pipe]
-        .map(String::from)
-        .to_vec()
+/// Rust tarafındaki karıştırıcının yazdığı ses borusu (48 kHz, f32).
+#[derive(Debug, Clone, Copy)]
+pub struct AudioIn<'a> {
+    pub pipe: &'a str,
+    /// Boruda 4 kanal var: 1-2 karışım, 3-4 yalnızca mikrofon. Dosyaya iki ses izi yazılır.
+    pub mic_track: bool,
+}
+
+fn audio_input(audio: AudioIn) -> Vec<String> {
+    let channels = if audio.mic_track { "4" } else { "2" };
+    [
+        "-f", "f32le", "-ar", "48000", "-ac", channels, "-i", audio.pipe,
+    ]
+    .map(String::from)
+    .to_vec()
+}
+
+/// 4 kanallı borudan iki stereo iz: [amix] (her şey) ve [amic] (yalnızca mikrofon).
+fn split_audio(input: usize) -> String {
+    format!(
+        "[{input}:a]asplit=2[sa][sb];[sa]pan=stereo|c0=c0|c1=c1[amix];[sb]pan=stereo|c0=c2|c1=c3[amic]"
+    )
 }
 
 /// Kayıt ve geriye dönük kaydın ortak kısmı: girişler, eşleme, kodlama, ilerleme.
@@ -427,26 +538,46 @@ fn common(
     target: &CaptureTarget,
     video: &VideoOptions,
     encoder: Encoder,
-    audio_pipe: Option<&str>,
+    audio: Option<AudioIn>,
     keyframes_every_segment: bool,
 ) -> Vec<String> {
     let mut args: Vec<String> = ["-hide_banner", "-loglevel", "warning", "-y"]
         .map(String::from)
         .to_vec();
     args.extend(capture_inputs(target, video));
-    if let Some(pipe) = audio_pipe {
-        args.extend(audio_input(pipe));
+    if let Some(audio) = audio {
+        args.extend(audio_input(audio));
     }
+    let split = audio
+        .filter(|a| a.mic_track)
+        .map(|_| split_audio(target.input_count()));
     let filter = video_filter(target, video, encoder);
-    if let Some(VideoFilter::Complex(f)) = &filter {
-        args.extend(["-filter_complex".into(), f.clone()]);
+    let complex = match (&filter, &split) {
+        (Some(VideoFilter::Complex(f)), Some(s)) => Some(format!("{f};{s}")),
+        (Some(VideoFilter::Complex(f)), None) => Some(f.clone()),
+        (_, Some(s)) => Some(s.clone()),
+        _ => None,
+    };
+    if let Some(graph) = complex {
+        args.extend(["-filter_complex".into(), graph]);
     }
     // Çoklu ekranda birleştirilmiş çıkış, tekilde ilk girişin görüntüsü eşlenir.
     match &filter {
         Some(VideoFilter::Complex(_)) => args.extend(["-map".into(), "[vout]".into()]),
         _ => args.extend(["-map".into(), "0:v".into()]),
     }
-    if audio_pipe.is_some() {
+    if split.is_some() {
+        args.extend(["-map", "[amix]", "-map", "[amic]"].map(String::from));
+        args.extend(
+            [
+                "-metadata:s:a:0",
+                "title=Mix",
+                "-metadata:s:a:1",
+                "title=Microphone",
+            ]
+            .map(String::from),
+        );
+    } else if audio.is_some() {
         // Ses borusu görüntü girişlerinden sonra gelir.
         args.extend(["-map".into(), format!("{}:a", target.input_count())]);
     }
@@ -466,7 +597,7 @@ fn common(
             format!("expr:gte(t,n_forced*{SEGMENT_SECONDS})"),
         ]);
     }
-    if audio_pipe.is_some() {
+    if audio.is_some() {
         args.extend(["-c:a".into(), "aac".into(), "-b:a".into(), "160k".into()]);
     }
     args.extend(["-progress", "pipe:1", "-stats_period", "0.5", "-nostats"].map(String::from));
@@ -479,10 +610,10 @@ pub fn recording_args(
     target: &CaptureTarget,
     video: &VideoOptions,
     encoder: Encoder,
-    audio_pipe: Option<&str>,
+    audio: Option<AudioIn>,
     output_mkv: &str,
 ) -> Vec<String> {
-    let mut args = common(target, video, encoder, audio_pipe, false);
+    let mut args = common(target, video, encoder, audio, false);
     args.extend(["-f".into(), "matroska".into(), output_mkv.into()]);
     args
 }
@@ -493,11 +624,11 @@ pub fn replay_args(
     target: &CaptureTarget,
     video: &VideoOptions,
     encoder: Encoder,
-    audio_pipe: Option<&str>,
+    audio: Option<AudioIn>,
     dir: &str,
     wrap: u32,
 ) -> Vec<String> {
-    let mut args = common(target, video, encoder, audio_pipe, true);
+    let mut args = common(target, video, encoder, audio, true);
     let sep = if dir.ends_with(['\\', '/']) { "" } else { "\\" };
     args.extend([
         "-f".into(),
@@ -523,13 +654,16 @@ pub fn replay_args(
 }
 
 /// Bu yakalama + kodlayıcı bu bilgisayarda çalışıyor mu? (birkaç kare, çıktı yok)
-pub fn probe_args(target: &CaptureTarget, encoder: Encoder) -> Vec<String> {
+pub fn probe_args(target: &CaptureTarget, encoder: Encoder, download_frames: bool) -> Vec<String> {
     let video = VideoOptions {
         fps: 30,
         max_height: None,
         quality: Quality::Balanced,
         cursor: false,
         bitrate_kbps: None,
+        encoder: None,
+        speed: Speed::Balanced,
+        download_frames,
     };
     let mut args: Vec<String> = ["-hide_banner", "-loglevel", "error"]
         .map(String::from)
@@ -538,7 +672,12 @@ pub fn probe_args(target: &CaptureTarget, encoder: Encoder) -> Vec<String> {
     match video_filter(target, &video, encoder) {
         Some(VideoFilter::Simple(filter)) => args.extend(["-vf".into(), filter]),
         Some(VideoFilter::Complex(filter)) => {
-            args.extend(["-filter_complex".into(), filter, "-map".into(), "[vout]".into()]);
+            args.extend([
+                "-filter_complex".into(),
+                filter,
+                "-map".into(),
+                "[vout]".into(),
+            ]);
         }
         None => {}
     }
@@ -623,6 +762,13 @@ pub fn thumbnail_args(input: &str, seconds: f64, output: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
+    fn stereo(pipe: &str) -> Option<AudioIn<'_>> {
+        Some(AudioIn {
+            pipe,
+            mic_track: false,
+        })
+    }
+
     fn monitor(dda: Option<u32>) -> CaptureTarget {
         CaptureTarget::Monitor {
             hmonitor: 65537,
@@ -639,6 +785,9 @@ mod tests {
             quality: Quality::Balanced,
             cursor: true,
             bitrate_kbps: None,
+            encoder: None,
+            speed: Speed::Balanced,
+            download_frames: false,
         }
     }
 
@@ -650,6 +799,9 @@ mod tests {
             quality: Quality::Balanced,
             cursor: true,
             bitrate_kbps: Some(12_000),
+            encoder: None,
+            speed: Speed::Balanced,
+            download_frames: false,
         };
         let nvenc = encoder_args(Encoder::Nvenc, &video).join(" ");
         assert!(nvenc.contains("-rc cbr"));
@@ -733,7 +885,7 @@ mod tests {
             &monitor(Some(0)),
             &video(None),
             Encoder::Nvenc,
-            Some(r"\\.\pipe\dk"),
+            stereo(r"\\.\pipe\dk"),
             "k.mkv",
         )
         .join(" ");
@@ -761,7 +913,7 @@ mod tests {
 
     #[test]
     fn deneme_birkac_kareyi_bosa_kodlar() {
-        let args = probe_args(&monitor(Some(0)), Encoder::Qsv).join(" ");
+        let args = probe_args(&monitor(Some(0)), Encoder::Qsv, false).join(" ");
         assert!(args.contains("-vf hwdownload,format=bgra,format=nv12"));
         assert!(args.ends_with("-frames:v 1 -f null -"));
     }
@@ -788,8 +940,14 @@ mod tests {
                 },
             ],
         };
-        let args = recording_args(&target, &video(None), Encoder::Nvenc, Some(r"\\.\pipe\dk"), "k.mkv")
-            .join(" ");
+        let args = recording_args(
+            &target,
+            &video(None),
+            Encoder::Nvenc,
+            stereo(r"\\.\pipe\dk"),
+            "k.mkv",
+        )
+        .join(" ");
         // Her ekran kendi girişinden yakalanır; ses borusu onlardan sonra gelir.
         assert!(args.contains("-i ddagrab=output_idx=1:framerate=60:draw_mouse=1"));
         assert!(args.contains("gfxcapture=hmonitor=22:max_framerate=60"));
@@ -826,10 +984,73 @@ mod tests {
             ],
         };
         // 3840×1080 kaplayan kutu 1080p sınırını aşmaz: küçültme olmaz.
-        let args = recording_args(&target, &video(Some(1080)), Encoder::X264, None, "k.mkv").join(" ");
+        let args =
+            recording_args(&target, &video(Some(1080)), Encoder::X264, None, "k.mkv").join(" ");
         assert!(args.contains("xstack=inputs=2:layout=0_0|1920_0,scale=trunc"));
-        let args = recording_args(&target, &video(Some(720)), Encoder::X264, None, "k.mkv").join(" ");
+        let args =
+            recording_args(&target, &video(Some(720)), Encoder::X264, None, "k.mkv").join(" ");
         assert!(args.contains("xstack=inputs=2:layout=0_0|1920_0,scale=2560:720:flags=bilinear"));
         assert!(args.contains("format=yuv420p[vout]"));
+    }
+
+    #[test]
+    fn mikrofon_ayri_iz_iki_ses_akisi_yazar() {
+        let audio = Some(AudioIn {
+            pipe: r"\.pipedk",
+            mic_track: true,
+        });
+        let args =
+            recording_args(&monitor(None), &video(None), Encoder::Nvenc, audio, "k.mkv").join(" ");
+        assert!(args.contains("-ac 4"), "{args}");
+        assert!(args.contains("[1:a]asplit=2[sa][sb]"), "{args}");
+        assert!(args.contains("-map [amix] -map [amic]"), "{args}");
+        assert!(!args.contains("-map 1:a"), "{args}");
+    }
+}
+
+#[cfg(test)]
+mod speed_tests {
+    use super::*;
+
+    fn video(speed: Speed, fps: u32) -> VideoOptions {
+        VideoOptions {
+            fps,
+            max_height: None,
+            quality: Quality::Balanced,
+            cursor: true,
+            bitrate_kbps: None,
+            encoder: None,
+            speed,
+            download_frames: false,
+        }
+    }
+
+    #[test]
+    fn hiz_secimi_kodlayici_on_ayarina_yansir() {
+        let nvenc = encoder_args(Encoder::Nvenc, &video(Speed::Performance, 60)).join(" ");
+        assert!(nvenc.contains("-preset p2"));
+        let amf = encoder_args(Encoder::Amf, &video(Speed::Quality, 60)).join(" ");
+        assert!(amf.contains("-quality quality"));
+        // Dengeli, eski sabit değerlerle aynı kalır.
+        let x264_30 = encoder_args(Encoder::X264, &video(Speed::Balanced, 30)).join(" ");
+        let x264_60 = encoder_args(Encoder::X264, &video(Speed::Balanced, 60)).join(" ");
+        assert!(x264_30.contains("-preset veryfast") && x264_60.contains("-preset superfast"));
+    }
+
+    #[test]
+    fn baska_karta_giden_kareler_indirilir() {
+        let target = CaptureTarget::Monitor {
+            hmonitor: 1,
+            dda_index: Some(0),
+            width: 1920,
+            height: 1080,
+        };
+        let mut v = video(Speed::Balanced, 60);
+        assert_eq!(single_filter(&target, &v, Encoder::Nvenc), None);
+        v.download_frames = true;
+        assert_eq!(
+            single_filter(&target, &v, Encoder::Nvenc).as_deref(),
+            Some("hwdownload,format=bgra")
+        );
     }
 }

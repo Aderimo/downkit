@@ -3,19 +3,46 @@
 // tıkla uygular. Hazır ayarlar .json dosyası olarak dışa/içe aktarılıp
 // paylaşılabilir.
 
+import { isTextAnim, isTextStyle } from "./textFx";
 import { create } from "zustand";
 import { normalizeLook, type ClipLook } from "./clipLook";
 import type { TextItem } from "./textItems";
+import { parseGradient, parseSplit, type SplitLayout } from "./splitLayout";
 
 const STORAGE_KEY = "downkit.editorPresets";
 
-export type TextStyle = Pick<TextItem, "x" | "y" | "size" | "color" | "box" | "bold">;
+export type TextStyle = Pick<
+  TextItem,
+  "x" | "y" | "size" | "color" | "box" | "bold" | "style" | "anim"
+>;
+
+/** Çıkış çerçevesi (editorStore `FrameAspect` ile aynı değerler). */
+export const CHANNEL_FRAMES = ["original", "9:16", "1:1", "4:5", "16:9"] as const;
+export type ChannelFrame = (typeof CHANNEL_FRAMES)[number];
+
+/** Kanal şablonu: bir kanalın bütün kliplerinde aynı kalan görünüm. Bir kez
+ * kaydedilir, her yeni projeye tek tıkla uygulanır. */
+export interface ChannelTemplate {
+  frame: {
+    aspect: ChannelFrame;
+    fit: boolean;
+    blur: boolean;
+    position: number;
+    /** Kamera + oyun düzeni (yayın kaydından dikey video). */
+    split?: SplitLayout;
+    gradient?: [string, string];
+  };
+  look?: ClipLook;
+  text?: TextStyle;
+  logo?: { path: string; name: string; x: number; y: number; size: number; opacity: number };
+}
 
 export type EditorPreset =
   | { id: string; name: string; kind: "look"; look: ClipLook }
-  | { id: string; name: string; kind: "text"; style: TextStyle };
+  | { id: string; name: string; kind: "text"; style: TextStyle }
+  | { id: string; name: string; kind: "channel"; channel: ChannelTemplate };
 
-/** Paylaşılan dosyanın biçimi (başka DownKit'lerde açılabilsin). */
+/** Paylaşılan dosyanın biçimi (başka DownKit'lerde açılabilsin; eski DownKit dosyaları da okunur). */
 export interface PresetFile {
   app: "DownKit";
   type: "editor-presets";
@@ -36,7 +63,42 @@ function textStyle(raw: unknown): TextStyle | null {
     color: typeof r.color === "string" && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : "#ffffff",
     box: r.box === true,
     bold: r.bold !== false,
+    ...(isTextStyle(r.style) ? { style: r.style } : {}),
+    ...(isTextAnim(r.anim) ? { anim: r.anim } : {}),
   };
+}
+
+function channel(raw: unknown): ChannelTemplate | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const f = (r.frame && typeof r.frame === "object" ? r.frame : {}) as Record<string, unknown>;
+  const out: ChannelTemplate = {
+    frame: {
+      aspect: CHANNEL_FRAMES.includes(f.aspect as ChannelFrame)
+        ? (f.aspect as ChannelFrame)
+        : "original",
+      fit: f.fit === true,
+      blur: f.blur === true,
+      position: clamp(f.position, 0, 1, 0.5),
+      ...(parseSplit(f.split) ? { split: parseSplit(f.split)! } : {}),
+      ...(parseGradient(f.gradient) ? { gradient: parseGradient(f.gradient)! } : {}),
+    },
+  };
+  if (r.look && typeof r.look === "object") out.look = normalizeLook(r.look as ClipLook);
+  const text = textStyle(r.text);
+  if (r.text && text) out.text = text;
+  const l = r.logo as Record<string, unknown> | undefined;
+  if (l && typeof l === "object" && typeof l.path === "string" && l.path) {
+    out.logo = {
+      path: l.path,
+      name: typeof l.name === "string" ? l.name : "",
+      x: clamp(l.x, 0, 1, 0.88),
+      y: clamp(l.y, 0, 1, 0.1),
+      size: clamp(l.size, 0.02, 1, 0.18),
+      opacity: clamp(l.opacity, 0, 1, 1),
+    };
+  }
+  return out;
 }
 
 /** Dosyadan ya da depodan gelen listeyi doğrular; bozuk kayıtlar atlanır. */
@@ -58,6 +120,9 @@ export function parsePresets(raw: unknown): EditorPreset[] {
     else if (p.kind === "text") {
       const style = textStyle(p.style);
       if (style) out.push({ id, name, kind: "text", style });
+    } else if (p.kind === "channel") {
+      const template = channel(p.channel);
+      if (template) out.push({ id, name, kind: "channel", channel: template });
     }
   }
   return out;

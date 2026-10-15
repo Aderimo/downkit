@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- DownKit ikonu "Gece mavisi": suda yüzen lastik ördek, kanadı indirme oku. Tasarım: aderimo. -->
+  <!-- DownKit ikonu "Gece mavisi": suda yüzen lastik ördek. Tasarım: aderimo. -->
   <defs>
     <clipPath id="tile">
       <rect x="32" y="32" width="960" height="960" rx="232"/>

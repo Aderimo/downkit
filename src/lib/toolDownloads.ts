@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { onToolDownload, prepareTools, type ToolDownloadPayload } from "./tauri-api";
 
-// İlk açılışta indirilen araçların (yt-dlp, FFmpeg, Deno) ilerlemesi; durum
+// İlk açılışta indirilen FFmpeg'in ilerlemesi; durum
 // çubuğunda gösterilir ki program donmuş sanılmasın.
 
 interface ToolDownloadState {
@@ -27,7 +27,7 @@ export async function initToolDownloads() {
       }, HIDE_AFTER_MS);
     }
   });
-  // İlk iş araçları beklemesin: yoksa açılışta arka planda indirilir.
+  // İlk kayıt ya da dışa aktarım FFmpeg'i beklemesin: yoksa açılışta arka planda indirilir.
   prepareTools().catch(() => {
     // Çevrimdışıysa ilk iş yeniden dener; hata o işin satırında görünür.
   });

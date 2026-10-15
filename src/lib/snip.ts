@@ -101,14 +101,6 @@ export function groupOcrBlocks(lines: readonly OcrLine[]): OcrBlock[] {
   return blocks.map(({ lines: _lines, ...rest }) => rest);
 }
 
-/** OCR sonucunu düz metne çevirir: paragraf içi satırlar boşlukla, paragraflar
- * boş satırla ayrılır (çeviri paragraf yapısını korur). */
-export function ocrText(lines: readonly OcrLine[]): string {
-  return groupOcrBlocks(lines)
-    .map((b) => b.text)
-    .join("\n\n");
-}
-
 /** Sürükleme (ekran noktaları) → görüntü pikseli dikdörtgeni. `scale`: bir CSS
  * pikselinin kaç görüntü pikseli olduğu. Yön fark etmez, görüntü dışı kırpılır. */
 export function selectionToPixels(

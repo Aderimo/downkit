@@ -50,13 +50,17 @@ describe("renk temaları", () => {
     expect(theme.mode).toBe("light");
     expect(root.dataset.mode).toBe("light");
     expect(root.style.getPropertyValue("--dk-bg")).toBe(themeVariables(theme)["--dk-bg"]);
-    expect(themeVariables(getTheme("graphite"))["--dk-gradient"]).toContain("linear-gradient");
+    // C tasarımında renk geçişi yok; her temanın çizgi ve gölge rengi var.
+    const graphite = themeVariables(getTheme("graphite"));
+    expect(graphite["--dk-gradient"]).not.toContain("gradient(");
+    expect(graphite["--dk-line"]).toBeTruthy();
+    expect(themeVariables(getTheme("ordekLight"))["--dk-shadow"]).toBe("#111111");
   });
 
   it("bilinmeyen tema varsayılana döner", () => {
     expect(isThemeId("yok")).toBe(false);
-    expect(getTheme("yok").id).toBe("midnight");
-    expect(normalizeSettings({ theme: "yok" }).theme).toBe("midnight");
+    expect(getTheme("yok").id).toBe("calm");
+    expect(normalizeSettings({ theme: "yok" }).theme).toBe("calm");
     expect(normalizeSettings({ theme: "sakura" }).theme).toBe("sakura");
   });
 });

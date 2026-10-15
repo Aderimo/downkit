@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Copy, Languages, Maximize, PenLine, Save, X } from "lucide-react";
-import "@fontsource/nunito/latin-800.css";
+import "@fontsource-variable/bricolage-grotesque";
 import "../styles/globals.css";
 import { onSnipOpen, snipFinish, snipShow, snipState } from "../lib/tauri-api";
 import { selectionToPixels } from "../lib/snip";
@@ -12,7 +12,7 @@ interface Point {
   y: number;
 }
 
-/** Donmuş ekran görüntüsü üzerinde alan seçimi (Lightshot gibi). Sürükle → araç
+/** Donmuş ekran görüntüsü üzerinde alan seçimi. Sürükle → araç
  * çubuğu: Düzenle, Çevir, Kopyala, Kaydet. Enter: pencerenin açılış işi (düzenle
  * ya da hızlı çeviride çevir), Esc: vazgeç. */
 export function SnipApp() {
@@ -92,7 +92,7 @@ export function SnipApp() {
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) {
-      // Sağ tık: seçim varsa temizler, yoksa kapatır (Lightshot gibi).
+      // Sağ tık: seçim varsa temizler, yoksa kapatır.
       if (hasSelection) {
         setStart(null);
         setEnd(null);

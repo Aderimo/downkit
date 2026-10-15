@@ -28,12 +28,12 @@ import {
   startDownload,
   startEdit,
   startResize,
-  startTrim,
   updateYtdlp,
 } from "./tauri-api";
 import { isAudioFormat, type MediaMetadata } from "../types/media";
 import { formatClock, rangeLabel, type TimeRange } from "./timeRange";
 import { PLATFORM_LABEL, isSupportedPlatform } from "./platforms";
+import { openInEditorPath } from "./navigation";
 import type { LocalMediaInfo } from "../types/convert";
 import type { EditClip } from "../types/edit";
 import {
@@ -45,7 +45,7 @@ import {
   type JobRequest,
 } from "../types/jobs";
 
-// Tüm işleri (indirme, dönüştürme, sıkıştırma, boyutlandırma) yöneten tek motor.
+// Tüm işleri (indirme, dönüştürme, sıkıştırma, boyutlandırma, dışa aktarma) yöneten tek motor.
 // Olaylara uygulama başında bir kez abone olunur; hangi sayfanın açık olduğu
 // önemli değildir, böylece sayfa değiştirince ilerleme/bitiş kaybolmaz.
 
@@ -113,8 +113,10 @@ export function enqueueDownload(input: {
   metadata: MediaMetadata | null;
   /** Oynatma listesinden eklenirken analizden önce görünecek başlık/küçük resim. */
   preview?: EntryPreview;
+  /** Bitince düzenleyicide aç. */
+  thenEdit?: boolean;
 }): string {
-  const { url, destinationDir, options, metadata, preview } = input;
+  const { url, destinationDir, options, metadata, preview, thenEdit } = input;
   const job = baseJob(
     { kind: "download", url, destinationDir, options, needsAnalyze: metadata === null },
     {
@@ -131,6 +133,7 @@ export function enqueueDownload(input: {
       totalBytesEstimate: metadata ? estimateDownloadSize(metadata, options) : null,
       audioBytesEstimate: metadata?.audioOption?.estimatedSizeBytes ?? null,
       pendingSteps: buildChainSteps(options),
+      ...(thenEdit ? { thenEdit: true } : {}),
     },
   );
   useJobsStore.getState().add(job);
@@ -173,13 +176,14 @@ export function enqueueEdit(
   display: {
     title: string;
     thumbnailUrl: string | null;
-    platform: string;
+    platform?: string;
     formatLabel: string;
     qualityLabel: string | null;
     totalBytesEstimate: number | null;
   },
 ): string {
   const job = baseJob(request, {
+    platform: "local",
     ...display,
     durationSeconds: totalClipSeconds(request.clips),
   });
@@ -197,29 +201,25 @@ export function enqueueLocal(
   request: Exclude<JobRequest, { kind: "download" | "edit" }>,
   info: LocalMediaInfo,
 ): string {
-  const format =
-    request.kind === "convert"
-      ? request.targetContainer.toUpperCase()
-      : request.kind === "trim" && !request.precise
-        ? info.container.toUpperCase()
-        : "MP4";
+  const format = request.kind === "convert" ? request.targetContainer.toUpperCase() : "MP4";
   const quality =
-    request.kind === "resize"
-      ? `${request.targetWidth}×${request.targetHeight}`
-      : request.kind === "trim"
-        ? `${formatClock(request.startSeconds)}–${formatClock(request.endSeconds)}`
-        : null;
+    request.kind === "resize" ? `${request.targetWidth}×${request.targetHeight}` : null;
   const job = baseJob(request, {
     title: info.fileName,
     platform: "local",
-    durationSeconds:
-      request.kind === "trim" ? request.endSeconds - request.startSeconds : info.durationSeconds,
+    durationSeconds: info.durationSeconds,
     qualityLabel: quality,
     formatLabel: format,
   });
   useJobsStore.getState().add(job);
   pump();
   return job.id;
+}
+
+function exportRunning(): boolean {
+  return useJobsStore
+    .getState()
+    .jobs.some((j) => j.kind === "edit" && ACTIVE_STATUSES.includes(j.status));
 }
 
 function activeCount(): number {
@@ -237,6 +237,9 @@ export function pump() {
   const queued = [...useJobsStore.getState().jobs].reverse().filter((j) => j.status === "queued");
   for (const job of queued) {
     if (activeCount() >= limit) break;
+    // Dışa aktarma tek seferde bir tane: kayıt da ekran kartını kullandığı için
+    // ikisini birden zorlamak oyunu ve kaydı yavaşlatır.
+    if (job.kind === "edit" && exportRunning()) continue;
     void startJob(job.id);
   }
   refreshTaskbar();
@@ -324,16 +327,9 @@ async function startJob(id: string) {
       case "resize":
         backendJobId = await startResize(request);
         break;
-      case "trim":
-        backendJobId = await startTrim(request);
-        break;
       case "edit":
         // Arka uç bilinmeyen "kind" alanını yok sayar.
-        backendJobId = await startEdit({
-          ...request,
-          rateLimitKbps: getSettings().rateLimitKbps,
-          workKey: id,
-        });
+        backendJobId = await startEdit({ ...request, workKey: id });
         break;
     }
     // Süreç başlatılırken İptal/Duraklat'a basıldıysa arka uçtaki işi de durdur.
@@ -374,7 +370,6 @@ function stageKeyFor(request: JobRequest): string {
     convert: "jobs.stageConverting",
     compress: "jobs.stageCompressing",
     resize: "jobs.stageResizing",
-    trim: "jobs.stageTrimming",
   }[request.kind];
 }
 
@@ -624,7 +619,8 @@ export async function initJobEngine() {
           etaSeconds: null,
         });
         void notifyIfBackground(i18n.t("jobs.notifyDone"), job.title);
-        if (getSettings().revealOnComplete) void revealInFolder(p.filePath);
+        if (job.thenEdit) openInEditorPath(p.filePath);
+        else if (getSettings().revealOnComplete) void revealInFolder(p.filePath);
         pump();
       }),
     onError: (p) =>

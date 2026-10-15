@@ -4,9 +4,8 @@ import type { CompressPreset } from "./compress";
 import type { TimeRange } from "../lib/timeRange";
 import type { EditRequest } from "./edit";
 
-/** "trim": eski "Video Kes" aracı; kayıtlı işler okunabilsin diye duruyor.
- * Yeni kesimler Klip Düzenleyici üzerinden "edit" olarak gelir. */
-export type JobKind = "download" | "convert" | "compress" | "resize" | "trim" | "edit";
+/** İndirme, yerel dosya araçları ve klip düzenleyicinin dışa aktarımı. */
+export type JobKind = "download" | "convert" | "compress" | "resize" | "edit";
 
 export type JobStatus =
   "queued" | "preparing" | "running" | "postprocessing" | "paused" | "done" | "error" | "canceled";
@@ -75,16 +74,7 @@ export type JobRequest =
       targetHeight: number;
       fitMode: FitMode;
     }
-  | {
-      kind: "trim";
-      inputPath: string;
-      destinationDir: string;
-      startSeconds: number;
-      endSeconds: number;
-      /** Tam karede kes (yeniden kodla); false ise kopyalayarak hızlı kes. */
-      precise: boolean;
-    }
-  | ({ kind: "edit" } & Omit<EditRequest, "rateLimitKbps">);
+  | ({ kind: "edit" } & EditRequest);
 
 /** Kuyrukta bir satır. `id` yereldir ve duraklat/devam boyunca sabit kalır;
  * `backendJobId` o an çalışan Rust işinin kimliğidir. */
@@ -123,6 +113,8 @@ export interface Job {
 
   request: JobRequest;
   pendingSteps: ChainStep[];
+  /** Bitince dosya düzenleyicide açılır ("İndir ve düzenle"). */
+  thenEdit?: boolean;
   pauseRequested: boolean;
   createdAt: number;
 }

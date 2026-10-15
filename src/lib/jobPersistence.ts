@@ -4,16 +4,11 @@ const STORAGE_KEY = "downkit.jobs";
 const MAX_SAVED = 100;
 const SAVE_DELAY_MS = 1000;
 
-/** Önceki oturumdan kalan işleri güvenle geri yükler.
- *
- * Uygulama kapanınca çalışan süreçler de kapanır (bkz. Rust `process_guard`), bu
- * yüzden yarıda kalan işler "çalışıyor" olarak geri gelemez:
- * - sırada/çalışan indirmeler ve dosya işleri → Duraklatıldı ("Devam et" ile
- *   indirme yarım `.part` dosyasından sürer, dosya işi baştan başlar);
- * - indirme bitmiş ama zincir adımı (boyutlandır/sıkıştır) yarıda kalmışsa →
- *   Başarısız (`interruptedMessage`), "Tekrar dene" ile baştan yapılır.
- * Bitmiş/başarısız/iptal edilmiş işler olduğu gibi kalır. */
-export function restoreJobs(raw: unknown, interruptedMessage: string): Job[] {
+/** Önceki oturumdan kalan dışa aktarımları güvenle geri yükler. Uygulama
+ * kapanınca süreçler de kapanır (bkz. Rust `process_guard`): sırada ya da
+ * çalışır durumda kalan işler "Duraklatıldı" olur ve "Devam et" ile biten
+ * bölümlerden sürer. Bitmiş/başarısız/iptal edilmiş işler olduğu gibi kalır. */
+export function restoreJobs(raw: unknown, _interruptedMessage: string): Job[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(isJobLike).map((job): Job => {
     const reset = {
@@ -24,40 +19,25 @@ export function restoreJobs(raw: unknown, interruptedMessage: string): Job[] {
       stageParam: null,
       pauseRequested: false,
       notice: job.notice ?? null,
-      partialTarget: job.partialTarget ?? null,
-      audioBytesEstimate: job.audioBytesEstimate ?? null,
     };
-    switch (job.status) {
-      case "queued":
-      case "preparing":
-      case "running":
-        return { ...job, ...reset, status: "paused" };
-      case "postprocessing":
-        return {
-          ...job,
-          ...reset,
-          status: "error",
-          errorMessage: interruptedMessage,
-          errorDetail: null,
-        };
-      default:
-        return { ...job, ...reset };
-    }
+    return job.status === "queued" || job.status === "running"
+      ? { ...job, ...reset, status: "paused" }
+      : { ...job, ...reset };
   });
 }
 
 function isJobLike(value: unknown): value is Job {
   if (!value || typeof value !== "object") return false;
   const j = value as Partial<Job>;
+  // Eski DownKit indirme işleri (kind !== "edit") DownKit'e taşınmaz.
   return (
+    j.kind === "edit" &&
     typeof j.id === "string" &&
     typeof j.status === "string" &&
-    typeof j.kind === "string" &&
     typeof j.title === "string" &&
     !!j.request &&
     typeof j.request === "object" &&
-    Array.isArray(j.outputs) &&
-    Array.isArray(j.pendingSteps)
+    Array.isArray(j.outputs)
   );
 }
 

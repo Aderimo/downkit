@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
-import type Hls from "hls.js";
 import { Music } from "lucide-react";
 import type { PlayerApi } from "../../store/playerStore";
 
 export interface PlayableStream {
-  kind: "file" | "hls" | "split";
+  kind: "file" | "split";
   url: string;
   audioUrl: string | null;
   hasVideo: boolean;
@@ -28,15 +27,11 @@ interface MediaPlayerProps {
   onError?: () => void;
 }
 
-// Geçici ağ hatasında hls.js birkaç kez yeniden denenir; sonra önizleme "açılamadı" olur.
-const HLS_MAX_RETRIES = 3;
-const PREVIEW_MAX_HEIGHT = 720;
 // Ayrı ses öğesi görüntüden bu kadar saparsa yeniden hizalanır (saniye).
 const SPLIT_DRIFT = 0.25;
 
-/** Linkten ya da dosyadan gelen akışı oynatır:
+/** Dosyadan gelen akışı oynatır:
  * - "file": tek dosya (`<video src>`)
- * - "hls": HLS listesi, hls.js ile (WebView2 HLS'i kendisi oynatamıyor)
  * - "split": sessiz görüntü + ayrı ses dosyası, eşzamanlı tutulur */
 export function MediaPlayer({
   stream,
@@ -60,62 +55,12 @@ export function MediaPlayer({
 
   const split = stream.kind === "split" && stream.audioUrl !== null;
 
-  // Kaynağı bağla (HLS ise hls.js'i yalnızca gerektiğinde yükle).
+  // Kaynağı bağla.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    let hls: Hls | null = null;
-    let cancelled = false;
-
-    // Chromium (WebView2 dahil) artık HLS için canPlayType "maybe" diyor ama
-    // YouTube'un ayrı ses/görüntü akışlı listelerini oynatamıyor; MSE varsa her
-    // zaman hls.js kullanılır, yerel HLS yalnızca son çaredir.
-    if (stream.kind === "hls") {
-      void import("hls.js").then(({ default: HlsClass }) => {
-        if (cancelled) return;
-        if (!HlsClass.isSupported()) {
-          if (video.canPlayType("application/vnd.apple.mpegurl")) video.src = stream.url;
-          else callbacks.current.onError?.();
-          return;
-        }
-        let retries = 0;
-        const instance = new HlsClass({
-          // Oynatıcı boyutundan büyük çözünürlük indirilmez: önizleme hızlı açılır.
-          capLevelToPlayerSize: true,
-          maxBufferLength: 30,
-        });
-        instance.on(HlsClass.Events.ERROR, (_event, data) => {
-          if (!data.fatal) return;
-          if (data.type === HlsClass.ErrorTypes.NETWORK_ERROR && retries < HLS_MAX_RETRIES) {
-            retries += 1;
-            instance.startLoad();
-          } else if (data.type === HlsClass.ErrorTypes.MEDIA_ERROR && retries < HLS_MAX_RETRIES) {
-            retries += 1;
-            instance.recoverMediaError();
-          } else {
-            callbacks.current.onError?.();
-          }
-        });
-        // Önizleme için 720p yeter; 4K listelerde gereksiz bant/işlemci harcanmasın.
-        instance.on(HlsClass.Events.MANIFEST_PARSED, (_event, data) => {
-          const capped = data.levels.reduce(
-            (best, level, index) =>
-              level.height > 0 && level.height <= PREVIEW_MAX_HEIGHT ? index : best,
-            -1,
-          );
-          if (capped >= 0) instance.autoLevelCapping = capped;
-        });
-        instance.loadSource(stream.url);
-        instance.attachMedia(video);
-        hls = instance;
-      });
-    } else {
-      video.src = stream.url;
-    }
-
+    video.src = stream.url;
     return () => {
-      cancelled = true;
-      hls?.destroy();
       video.removeAttribute("src");
       video.load();
     };
@@ -231,6 +176,9 @@ export function MediaPlayer({
         autoPlay={autoPlay}
         muted={split}
         playsInline
+        // Önizleme sunucusu çapraz köken izni verir: kare tuvale çizilip okunabilsin
+        // (renk kapsamları, damlalık).
+        crossOrigin="anonymous"
         preload="metadata"
         className="h-full w-full object-contain"
       />

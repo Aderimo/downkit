@@ -56,6 +56,8 @@ export function checkSupportedUrl(rawUrl: string): UrlCheckResult {
   return { status: "unsupported" };
 }
 
+// Düzenleyiciye sürüklenen ya da seçilen dosyanın medya olup olmadığı.
+
 export const MEDIA_EXTENSIONS = [
   "mp4",
   "webm",

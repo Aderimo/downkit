@@ -5,25 +5,22 @@
 // videosu ekran görüntülerinde görünmesin diye.
 
 import i18n from "../i18n";
-import { useWorkspaceStore } from "../store/workspaceStore";
 import { useJobsStore } from "../store/jobsStore";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useRecorderStore } from "../store/recorderStore";
 import { useSnipStore } from "../store/snipStore";
 import { useTutorialStore } from "../lib/tutorial";
-import { useHistoryStore } from "../lib/downloadHistory";
-import { useSearchStore } from "../lib/recentSearches";
 import { useSettingsStore } from "../lib/appSettings";
-import { defaultDownloadOptions } from "../lib/jobPlanning";
 import { useUpdateStore } from "../lib/updateCheck";
 import { setLevels } from "../lib/levels";
+import { useMarkersStore } from "../lib/markers";
+import { isXfadeKind, type XfadeKind } from "../lib/xfade";
 import type { Job } from "../types/jobs";
-import type { MediaMetadata, PlaylistInfo, Storyboard } from "../types/media";
+import type { EditorSourceEntry } from "../store/editorStore";
 
 const MB = 1024 * 1024;
 const thumb = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
-const watch = (id: string) => `https://www.youtube.com/watch?v=${id}`;
 
 const MOVIES = [
   {
@@ -42,121 +39,52 @@ const MOVIES = [
   { id: "mN0zPOpADL4", title: "Agent 327: Operation Barbershop", duration: 231 },
 ];
 
-const bunny: MediaMetadata = {
-  platform: "youtube",
-  title: MOVIES[0].title,
-  uploader: "Blender",
-  durationSeconds: 634,
-  thumbnailUrl: `https://i.ytimg.com/vi/${MOVIES[0].id}/maxresdefault.jpg`,
-  sourceWidth: 3840,
-  sourceHeight: 2160,
-  fps: 60,
-  description:
-    "Big Buck Bunny tells the story of a giant rabbit with a heart bigger than himself. Licensed under Creative Commons Attribution 3.0.",
-  viewCount: 16_400_000,
-  uploadDate: "20140310",
-  preview: null,
-  storyboard: null,
-  chapters: [
-    { start: 0, end: 84, title: "Opening" },
-    { start: 84, end: 262, title: "Meet Bunny" },
-    { start: 262, end: 488, title: "The bullies" },
-    { start: 488, end: 610, title: "The plan" },
-    { start: 610, end: 634, title: "Credits" },
-  ],
-  qualityOptions: [
-    { height: 2160, container: "mp4", estimatedSizeBytes: 1920 * MB },
-    { height: 1440, container: "mp4", estimatedSizeBytes: 960 * MB },
-    { height: 1080, container: "mp4", estimatedSizeBytes: 540 * MB },
-    { height: 720, container: "mp4", estimatedSizeBytes: 285 * MB },
-    { height: 480, container: "mp4", estimatedSizeBytes: 150 * MB },
-    { height: 360, container: "mp4", estimatedSizeBytes: 95 * MB },
-  ],
-  audioOption: { container: "m4a", bitrateKbps: 129, estimatedSizeBytes: 10 * MB },
-  formats: [
-    {
-      formatId: "401",
-      container: "mp4",
-      height: 2160,
-      isAudioOnly: false,
-      codecLabel: "AV1",
-      bitrateKbps: null,
-      estimatedSizeBytes: 1820 * MB,
+/** Düzenleyici sahnesi için yerel bir video kaynağı. */
+function bunnySource(previewUrl: string, lang: string): EditorSourceEntry {
+  const fileName = lang === "en" ? "Game recording.mp4" : "Oyun kaydı.mp4";
+  return {
+    id: "s1",
+    source: {
+      kind: "local",
+      path: `C:\\Users\\aderimo\\Videos\\DownKit\\${fileName}`,
+      info: {
+        fileName,
+        filePath: fileName,
+        fileSizeBytes: 640 * MB,
+        durationSeconds: 634,
+        width: 3840,
+        height: 2160,
+        fps: 60,
+        videoCodec: "h264",
+        audioCodec: "aac",
+        container: "mp4",
+        // Bölüm listesi ve "Bölümlerden böl" denensin diye örnek bölümler.
+        chapters: [
+          { start: 0, end: 70, title: "Opening" },
+          { start: 70, end: 262, title: "Meet Bunny" },
+          { start: 262, end: 420, title: "The bullies" },
+          { start: 420, end: 600, title: "The plan" },
+          { start: 600, end: 634, title: "Ending" },
+        ],
+      },
     },
-    {
-      formatId: "299",
-      container: "mp4",
-      height: 1080,
-      isAudioOnly: false,
-      codecLabel: "H.264",
-      bitrateKbps: null,
-      estimatedSizeBytes: 520 * MB,
-    },
-    {
-      formatId: "136",
-      container: "mp4",
-      height: 720,
-      isAudioOnly: false,
-      codecLabel: "H.264",
-      bitrateKbps: null,
-      estimatedSizeBytes: 270 * MB,
-    },
-  ],
-  flacEligible: false,
-};
-
-// YouTube'un bu video için verdiği gerçek kare sayfaları (zaman çizelgesi şeridi).
-const BUNNY_STORYBOARD: Storyboard = {
-  width: 160,
-  height: 90,
-  rows: 5,
-  columns: 5,
-  interval: 4.9609375,
-  sheets: [
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M0.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 0,
-      duration: 124.0234375,
-    },
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M1.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 124.023,
-      duration: 124.0234375,
-    },
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M2.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 248.047,
-      duration: 124.0234375,
-    },
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M3.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 372.07,
-      duration: 124.0234375,
-    },
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M4.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 496.094,
-      duration: 124.0234375,
-    },
-    {
-      url: "https://i.ytimg.com/sb/aqz-KE-bpKQ/storyboard3_L2/M5.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgjEj7SoBg==&sigh=rs$AOn4CLC9nRwSugHSXO3o99N1OLx6MOkrlA",
-      start: 620.117,
-      duration: 14.8828125,
-    },
-  ],
-};
+    stream: { kind: "file", url: previewUrl, audioUrl: null, token: "demo", hasVideo: true },
+    title: fileName,
+    duration: 634,
+    thumbnailUrl: null,
+  };
+}
 
 function job(partial: Partial<Job> & Pick<Job, "id" | "title" | "status">): Job {
-  const options = defaultDownloadOptions();
   return {
-    kind: "download",
+    kind: "edit",
     backendJobId: null,
     stageKey: null,
     stageParam: null,
     thumbnailUrl: null,
-    platform: "youtube",
+    platform: "local",
     durationSeconds: null,
-    qualityLabel: "1080p",
+    qualityLabel: null,
     formatLabel: "MP4",
     percent: null,
     downloadedBytes: null,
@@ -170,14 +98,20 @@ function job(partial: Partial<Job> & Pick<Job, "id" | "title" | "status">): Job 
     errorDetail: null,
     notice: null,
     partialTarget: null,
-    request: {
-      kind: "download",
-      url: watch("x"),
-      destinationDir: "C:/Videos",
-      options,
-      needsAnalyze: false,
-    },
     pendingSteps: [],
+    request: {
+      kind: "edit",
+      inputPath: "C:/Videos/kayit.mp4",
+      url: null,
+      clips: [],
+      destinationDir: "C:/Videos",
+      outputName: "klip",
+      audioOnly: false,
+      outputFormat: null,
+      maxHeight: null,
+      audioBitrateKbps: null,
+      precise: false,
+    },
     pauseRequested: false,
     createdAt: Date.now(),
     ...partial,
@@ -192,26 +126,11 @@ function demoJobs(): Job[] {
       title: MOVIES[1].title,
       status: "running",
       thumbnailUrl: thumb(MOVIES[1].id),
-      durationSeconds: MOVIES[1].duration,
-      stageKey: "jobs.stageVideo",
-      stageParam: "62",
+      durationSeconds: 48,
+      stageKey: "jobs.stageExporting",
       percent: 58,
-      downloadedBytes: 412 * MB,
-      totalBytesEstimate: 706 * MB,
-      speedBps: 8.4 * MB,
       etaSeconds: 35,
       createdAt: now,
-    }),
-    job({
-      id: "j2",
-      title: MOVIES[2].title,
-      status: "postprocessing",
-      thumbnailUrl: thumb(MOVIES[2].id),
-      durationSeconds: MOVIES[2].duration,
-      stageKey: "jobs.stageResizingFor",
-      stageParam: "resize.presetTiktok",
-      percent: 44,
-      createdAt: now - 1000,
     }),
     job({
       id: "j3",
@@ -225,87 +144,17 @@ function demoJobs(): Job[] {
       fileSizeBytes: 64 * MB,
       createdAt: now - 2000,
     }),
-    job({
-      id: "j4",
-      title: MOVIES[3].title,
-      status: "done",
-      thumbnailUrl: thumb(MOVIES[3].id),
-      durationSeconds: MOVIES[3].duration,
-      percent: 100,
-      outputs: ["C:/Videos/Spring.mp4", "C:/Videos/Spring (1080x1920).mp4"],
-      fileSizeBytes: 312 * MB,
-      createdAt: now - 3000,
-    }),
-    job({
-      id: "j5",
-      title: MOVIES[4].title,
-      status: "queued",
-      thumbnailUrl: thumb(MOVIES[4].id),
-      durationSeconds: MOVIES[4].duration,
-      qualityLabel: "192 kbps",
-      formatLabel: "MP3",
-      createdAt: now - 4000,
-    }),
   ];
 }
-
-const playlist: PlaylistInfo = {
-  platform: "youtube",
-  title: "Blender Open Movies",
-  uploader: "Blender",
-  entries: MOVIES.map((m) => ({
-    url: watch(m.id),
-    title: m.title,
-    durationSeconds: m.duration,
-    thumbnailUrl: thumb(m.id),
-  })),
-  totalCount: MOVIES.length,
-};
 
 export function applyDemo(scene: string, lang: string | null): void {
   if (lang === "en" || lang === "tr") void i18n.changeLanguage(lang);
   useSettingsStore.getState().update({ defaultDownloadDir: "C:\\Users\\aderimo\\Videos\\DownKit" });
   useJobsStore.setState({ jobs: demoJobs() });
-  useSearchStore.setState({
-    entries: MOVIES.slice(1, 4).map((m) => ({
-      url: watch(m.id),
-      title: m.title,
-      thumbnailUrl: thumb(m.id),
-      platform: "youtube",
-      searchedAt: new Date().toISOString(),
-    })),
-  });
-  useHistoryStore.setState({
-    entries: MOVIES.map((m, i) => ({
-      id: m.id,
-      filePath: `C:\\Users\\aderimo\\Videos\\DownKit\\${m.title}.mp4`,
-      fileName: `${m.title}.mp4`,
-      fileSizeBytes: (120 + i * 70) * MB,
-      title: m.title,
-      thumbnailUrl: thumb(m.id),
-      platform: "youtube",
-      operation: i === 2 ? "compress" : i === 4 ? "edit" : "download",
-      formatLabel: i === 1 ? "MP3" : "MP4",
-      sourceUrl: watch(m.id),
-      completedAt: new Date(Date.now() - i * 3_600_000).toISOString(),
-    })),
-  });
-
   // Tarayıcıda uygulama sürümü okunamadığı için güncelleme denetimi "hata" der;
   // görüntüde yanıltmasın diye nötr bırakılır.
   setTimeout(() => useUpdateStore.setState({ status: "idle", latest: null }), 1500);
 
-  const ws = useWorkspaceStore.getState();
-  if (scene === "home") {
-    ws.setUrl(watch(MOVIES[0].id));
-    ws.analyzeSucceeded(watch(MOVIES[0].id), bunny);
-    ws.setOptions({ maxHeight: 1080, section: { start: 84, end: 196 } });
-  }
-  if (scene === "playlist") {
-    ws.setUrl("https://www.youtube.com/playlist?list=PL-blender-open-movies");
-    ws.playlistLoaded("https://www.youtube.com/playlist?list=PL-blender-open-movies", playlist);
-    ws.togglePlaylistEntry(watch(MOVIES[4].id));
-  }
   if (scene === "tutorial") {
     // &step=0…6: turun hangi adımı gösterilsin.
     const step = Number(new URLSearchParams(window.location.search).get("step") ?? 0);
@@ -458,7 +307,8 @@ export function applyDemo(scene: string, lang: string | null): void {
         image: {
           path: `${dir}\\demo.png`,
           // Geliştirme sunucusu proje kökündeki dosyaları olduğu gibi sunar.
-          url: `/docs/screenshots/${lang === "en" ? "en" : "tr"}/home.png`,
+          // Projede örnek ekran görüntüsü yok: düzenleyici logoyla açılır.
+          url: "/logo.svg",
           width: 1440,
           height: 900,
         },
@@ -467,22 +317,21 @@ export function applyDemo(scene: string, lang: string | null): void {
   }
   if (scene === "editor") {
     // Önizleme dosyası yalnızca yerelde (.demo/, git dışı); yoksa oynatıcı uyarı gösterir.
-    // Elle deneme: &clip=/.demo/uzun.mp4 ya da &hls=<aktarıcı adresi>.
-    const editor = useEditorStore.getState();
-    editor.openMetadata(watch(MOVIES[0].id), {
-      ...bunny,
-      preview: {
-        kind: new URLSearchParams(window.location.search).get("hls") ? "hls" : "file",
-        url:
-          new URLSearchParams(window.location.search).get("hls") ??
-          new URLSearchParams(window.location.search).get("clip") ??
-          "/.demo/preview.mp4",
-        audioUrl: null,
-        token: "demo",
-        hasVideo: true,
-      },
-      storyboard: BUNNY_STORYBOARD,
+    // Elle deneme: &clip=/.demo/uzun.mp4
+
+    const params0 = new URLSearchParams(window.location.search);
+    const entry = bunnySource(params0.get("clip") ?? "/.demo/preview.mp4", lang ?? "tr");
+    // Kayıt sırasında konmuş örnek an işaretleri (kaynak saniyesi).
+    useMarkersStore.setState({ byPath: { [entry.source.path]: [130, 175, 290, 520] } });
+    useEditorStore.setState({
+      phase: "ready",
+      sources: [entry],
+      activeSourceId: entry.id,
+      source: entry.source,
+      stream: entry.stream,
+      duration: entry.duration,
     });
+
     // Bölünmüş, bir kısmı silinmiş, biri hızlandırılmış ve üst katmanda bir ara
     // görüntü olan örnek bir zaman çizelgesi.
     const clip = (
@@ -496,7 +345,19 @@ export function applyDemo(scene: string, lang: string | null): void {
     ) => ({ id, track, start, srcStart, srcEnd, speed, name });
     const store = useEditorStore.getState();
     store.apply(() => [
-      { ...clip("c1", 0, 0, 84, 196), fadeIn: 3 },
+      {
+        ...clip("c1", 0, 0, 84, 196),
+        fadeIn: 3,
+        // &xfade=slideleft: ilk kesimde klipler arası geçiş.
+        ...(isXfadeKind(new URLSearchParams(window.location.search).get("xfade"))
+          ? {
+              xfade: {
+                kind: new URLSearchParams(window.location.search).get("xfade") as XfadeKind,
+                duration: 2,
+              },
+            }
+          : {}),
+      },
       clip("c2", 0, 112, 262, 301.5),
       { ...clip("c3", 0, 170, 488, 560, 1.5, "Final"), fadeOut: 4 },
       { ...clip("c4", 1, 60, 610, 622), volume: 0 },
@@ -521,13 +382,18 @@ export function applyDemo(scene: string, lang: string | null): void {
       ]);
     }
     store.setView({ start: 0, end: 240 });
-    usePlayerStore.getState().patch({ currentTime: 130.4 });
+    const at = Number(params0.get("t"));
+    usePlayerStore.getState().patch({ currentTime: Number.isFinite(at) && at > 0 ? at : 130.4 });
     // &tab=export&frame=9:16: dışa aktarma sekmesi ve dikey çerçeve.
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "export") store.setPanelTab("export");
     const frame = params.get("frame");
     if (frame === "9:16" || frame === "1:1" || frame === "4:5" || frame === "16:9") {
-      store.setExportOptions({ frame, framePosition: 0.35 });
+      store.setExportOptions({
+        frame,
+        framePosition: 0.35,
+        frameSplit: params.get("split") === "1",
+      });
     }
   }
 }

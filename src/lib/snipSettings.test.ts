@@ -39,6 +39,7 @@ describe("ekran görüntüsü ayarları", () => {
       delaySeconds: 5,
       translateDirection: "en-tr",
       translateOpensEditor: true,
+      minimizeApp: true,
     };
     expect(normalizeSnipSettings(saved)).toEqual(saved);
   });

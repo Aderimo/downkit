@@ -5,6 +5,9 @@ import { useEditorStore } from "../../store/editorStore";
 import { TEXT_COLORS, TEXT_SIZE, updateText, type TextItem } from "../../lib/textItems";
 import { formatTimecode } from "../../lib/timeline";
 import { deleteSelected } from "../../lib/editorActions";
+import { TEXT_ANIMS, TEXT_STYLES, textStyleCss } from "../../lib/textFx";
+import { clearRichLook, isRichText } from "../../lib/captionStyle";
+import { HelpTip } from "../ui/HelpTip";
 
 const POSITIONS = [
   { id: "top", y: 0.12 },
@@ -23,6 +26,8 @@ export function TextPanel({ item }: { item: TextItem }) {
     const store = useEditorStore.getState();
     store.dragTexts(updateText(store.texts, item.id, patch));
   };
+  // Altyazı stilindeki yazıda klasik stil görünmez: düğmeye basınca o görünüm kalkar.
+  const rich = isRichText(item);
   const commit = (patch: Partial<TextItem>) =>
     useEditorStore.getState().applyTexts((texts) => updateText(texts, item.id, patch));
 
@@ -32,10 +37,11 @@ export function TextPanel({ item }: { item: TextItem }) {
         <p className="flex items-center gap-1.5 text-sm font-medium">
           <Type size={15} className="text-[#c084fc]" />
           {t("editor.textTitle")}
+          <HelpTip title={t("editor.textTitle")} text={t("editor.textHint")} />
         </p>
         <button
           type="button"
-          onClick={deleteSelected}
+          onClick={() => deleteSelected()}
           className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-[var(--dk-error)] hover:bg-[var(--dk-error)]/10"
         >
           <Trash2 size={13} />
@@ -70,6 +76,60 @@ export function TextPanel({ item }: { item: TextItem }) {
           onChange={(e) => live({ size: Number(e.target.value) })}
           className="dk-volume w-full"
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.textStyle")}</p>
+        {rich ? (
+          <p className="text-[11px] leading-snug text-[var(--dk-text-muted)]">
+            {t("editor.textStyleRichHint")}
+          </p>
+        ) : null}
+        <div className="grid grid-cols-3 gap-1.5">
+          {TEXT_STYLES.map((style) => (
+            <button
+              key={style}
+              type="button"
+              aria-pressed={!rich && (item.style ?? "classic") === style}
+              onClick={() => {
+                commit({ style, ...(rich ? clearRichLook() : {}) });
+              }}
+              className={`relative overflow-hidden rounded-lg border px-1 py-2 text-[11px] font-bold transition ${
+                !rich && (item.style ?? "classic") === style
+                  ? "dk-selected"
+                  : "border-[var(--dk-border)] hover:border-[var(--dk-accent)]"
+              }`}
+              style={{ background: "#2a2f3a" }}
+            >
+              <span style={textStyleCss(style, item.color, style === "classic" && item.box)}>
+                {t(`editor.textStyleName.${style}`)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.textAnim")}</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {TEXT_ANIMS.map((anim) => (
+            <button
+              key={anim}
+              type="button"
+              aria-pressed={(item.anim ?? "none") === anim}
+              onClick={() => {
+                commit({ anim });
+              }}
+              className={`relative rounded-lg border px-1 py-1.5 text-[11px] transition ${
+                (item.anim ?? "none") === anim
+                  ? "dk-selected bg-[var(--dk-accent)]/15"
+                  : "border-[var(--dk-border)] hover:border-[var(--dk-accent)]"
+              }`}
+            >
+              {t(`editor.textAnimName.${anim}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -141,7 +201,6 @@ export function TextPanel({ item }: { item: TextItem }) {
           {formatTimecode(item.start, 1)} → {formatTimecode(item.end, 1)}
         </dd>
       </dl>
-      <p className="text-xs text-[var(--dk-text-muted)]">{t("editor.textHint")}</p>
     </div>
   );
 }

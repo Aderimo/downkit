@@ -15,8 +15,16 @@ export const SHORTCUT_ACTIONS = [
   "toEnd",
   "split",
   "deleteClip",
+  "rippleDelete",
   "duplicate",
+  "copyClips",
+  "cutClips",
+  "pasteClips",
+  "groupClips",
+  "ungroupClips",
+  "closeGaps",
   "toggleMute",
+  "detachAudio",
   "trimStart",
   "trimEnd",
   "undo",
@@ -26,6 +34,10 @@ export const SHORTCUT_ACTIONS = [
   "zoomIn",
   "zoomOut",
   "zoomFit",
+  "saveProject",
+  "saveProjectAs",
+  "openProject",
+  "commandPalette",
 ] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
@@ -49,8 +61,16 @@ export const SHORTCUT_GROUPS: { id: string; actions: ShortcutAction[] }[] = [
     actions: [
       "split",
       "deleteClip",
+      "rippleDelete",
       "duplicate",
+      "copyClips",
+      "cutClips",
+      "pasteClips",
+      "groupClips",
+      "ungroupClips",
+      "closeGaps",
       "toggleMute",
+      "detachAudio",
       "trimStart",
       "trimEnd",
       "undo",
@@ -60,6 +80,7 @@ export const SHORTCUT_GROUPS: { id: string; actions: ShortcutAction[] }[] = [
     ],
   },
   { id: "view", actions: ["zoomIn", "zoomOut", "zoomFit"] },
+  { id: "file", actions: ["saveProject", "saveProjectAs", "openProject", "commandPalette"] },
 ];
 
 export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
@@ -75,7 +96,15 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   split: ["S"],
   deleteClip: ["Delete", "Backspace"],
   duplicate: ["Ctrl+D"],
+  rippleDelete: ["Shift+Delete", "Shift+Backspace"],
+  copyClips: ["Ctrl+C"],
+  cutClips: ["Ctrl+X"],
+  pasteClips: ["Ctrl+V"],
+  groupClips: ["Ctrl+G"],
+  ungroupClips: ["Ctrl+Shift+G"],
+  closeGaps: [],
   toggleMute: ["M"],
+  detachAudio: ["Ctrl+L"],
   trimStart: ["Q"],
   trimEnd: ["W"],
   undo: ["Ctrl+Z"],
@@ -85,6 +114,10 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   zoomIn: ["+", "="],
   zoomOut: ["-"],
   zoomFit: ["0"],
+  saveProject: ["Ctrl+S"],
+  saveProjectAs: ["Ctrl+Shift+S"],
+  openProject: ["Ctrl+O"],
+  commandPalette: ["Ctrl+K"],
 };
 
 const MODIFIER_KEYS = ["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock"];

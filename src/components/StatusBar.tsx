@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useJobsStore } from "../store/jobsStore";
+import { JobRow } from "./JobRow";
 import { ACTIVE_STATUSES } from "../types/jobs";
 import { CircleHelp, Rewind, Sparkles } from "lucide-react";
 import { useRecorderStore } from "../store/recorderStore";
@@ -13,8 +14,6 @@ import type { TourId } from "../lib/tutorial";
 import { useTutorialStore } from "../lib/tutorial";
 
 /** `pageTour`: açık sayfanın turu; "?" düğmesi onu başlatır. */
-const TOOL_LABEL: Record<string, string> = { "yt-dlp": "yt-dlp", ffmpeg: "FFmpeg", deno: "Deno" };
-
 export function StatusBar({
   pageTour,
   onOpenRecorder,
@@ -24,6 +23,7 @@ export function StatusBar({
 }) {
   const { t } = useTranslation();
   const [version, setVersion] = useState<string | null>(null);
+  const [jobsOpen, setJobsOpen] = useState(false);
   const jobs = useJobsStore((s) => s.jobs);
   const update = useUpdateStore((s) => s.latest);
   const tools = Object.values(useToolDownloads((s) => s.active));
@@ -42,11 +42,43 @@ export function StatusBar({
 
   return (
     <footer className="flex h-9 shrink-0 items-center justify-between border-t border-[var(--dk-border)] bg-[var(--dk-sidebar)] px-5 text-xs text-[var(--dk-text-muted)]">
-      <span className="flex items-center gap-2">
-        <span
-          className={`h-2 w-2 rounded-full ${running.length > 0 ? "animate-pulse bg-[var(--dk-accent)]" : "bg-[var(--dk-success)]"}`}
-        />
-        {running.length > 0 ? t("status.running", { count: running.length }) : t("status.ready")}
+      <span className="relative flex items-center gap-2">
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded px-1 hover:text-[var(--dk-text)] disabled:hover:text-inherit"
+          disabled={jobs.length === 0}
+          aria-expanded={jobsOpen}
+          title={jobs.length > 0 ? t("status.showJobs") : undefined}
+          onClick={() => setJobsOpen((v) => !v)}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${running.length > 0 ? "animate-pulse bg-[var(--dk-accent)]" : "bg-[var(--dk-success)]"}`}
+          />
+          {running.length > 0 ? t("status.running", { count: running.length }) : t("status.ready")}
+        </button>
+        {jobsOpen && jobs.length > 0 ? (
+          <div
+            className="dk-card absolute bottom-full left-0 z-50 mb-2 max-h-[60vh] w-[420px] space-y-2 overflow-y-auto p-3 shadow-2xl shadow-black/50"
+            data-jobs-popover
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-[var(--dk-text)]">{t("status.jobsTitle")}</p>
+              <button
+                type="button"
+                className="rounded px-1.5 py-0.5 text-xs hover:bg-white/5"
+                onClick={() => setJobsOpen(false)}
+              >
+                {t("media.close")}
+              </button>
+            </div>
+            {[...jobs]
+              .reverse()
+              .slice(0, 8)
+              .map((job) => (
+                <JobRow key={job.id} job={job} compact />
+              ))}
+          </div>
+        ) : null}
         {queued > 0 ? ` · ${t("status.queued", { count: queued })}` : ""}
         {totalSpeed > 0 ? ` · ${formatSpeed(totalSpeed)}` : ""}
         {tools.map((tool) => {
@@ -55,15 +87,15 @@ export function StatusBar({
             <span key={tool.tool} className="ml-3 flex items-center gap-2">
               {tool.state === "failed" ? (
                 <span className="text-[var(--dk-warning)]">
-                  {t("tools.failed", { tool: TOOL_LABEL[tool.tool] })}
+                  {t("tools.failed", { tool: t(`tools.name.${tool.tool}`) })}
                 </span>
               ) : (
                 <>
                   <span className="text-[var(--dk-text)]">
                     {tool.state === "done"
-                      ? t("tools.ready", { tool: TOOL_LABEL[tool.tool] })
+                      ? t("tools.ready", { tool: t(`tools.name.${tool.tool}`) })
                       : t("tools.downloading", {
-                          tool: TOOL_LABEL[tool.tool],
+                          tool: t(`tools.name.${tool.tool}`),
                           percent: percent ?? "…",
                         })}
                   </span>

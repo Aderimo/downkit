@@ -130,6 +130,19 @@ export function SnipSettingsCard() {
             />
           </Field>
           <p className="text-[11px] text-[var(--dk-text-muted)]">{t("snip.delayHint")}</p>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">
+              <span className="block">{t("snip.minimizeApp")}</span>
+              <span className="block text-[11px] text-[var(--dk-text-muted)]">
+                {t("snip.minimizeAppHint")}
+              </span>
+            </span>
+            <Switch
+              checked={settings.minimizeApp}
+              onChange={(minimizeApp) => update({ minimizeApp })}
+              label={t("snip.minimizeApp")}
+            />
+          </label>
         </Group>
 
         <Group icon={<FileImage size={16} />} title={t("snip.fileFormat")}>

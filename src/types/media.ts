@@ -58,10 +58,10 @@ export interface MediaMetadata {
   flacEligible: boolean;
 }
 
-/** Rust `types::PreviewStream`. "file": tek dosya, "hls": HLS listesi (hls.js),
+/** Rust `types::PreviewStream`. "file": tek dosya,
  * "split": ayrı görüntü + ses dosyası (eşzamanlı oynatılır). */
 export interface PreviewStream {
-  kind: "file" | "hls" | "split";
+  kind: "file" | "split";
   url: string;
   audioUrl: string | null;
   /** Kare şeridi gibi sonraki istekler kaynağı bu belirteçle bulur. */

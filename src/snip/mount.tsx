@@ -11,7 +11,8 @@ export async function mountSnip() {
     import("../lib/appSettings"),
     import("../i18n"),
   ]);
-  applyTheme(getSettings().theme);
+  const settings = getSettings();
+  applyTheme(settings.theme, document.documentElement, { custom: settings.customColors });
   document.body.style.background = "#000";
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<SnipApp />);
 }

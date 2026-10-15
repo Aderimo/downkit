@@ -5,7 +5,9 @@ import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   CalendarDays,
+  CheckSquare,
   Clapperboard,
+  ClipboardCopy,
   Film,
   FolderOpen,
   Pencil,
@@ -33,9 +35,11 @@ import {
   recordingRepair,
   recordingTrim,
   revealInFolder,
+  copyFileToClipboard,
 } from "../../lib/tauri-api";
 import type { RecordingFile } from "../../types/recorder";
 import { Button } from "../ui/Button";
+import { DiscordSendButton } from "../DiscordSendButton";
 
 function formatDate(ms: number, lang: string): string {
   return new Date(ms).toLocaleString(lang, {
@@ -171,7 +175,13 @@ function Thumb({ file }: { file: RecordingFile }) {
 }
 
 /** Kayıt klasöründeki videolar; tıklayınca uygulama içinde oynatılır. */
-export function RecordingsLibrary({ onOpenInEditor }: { onOpenInEditor: (path: string) => void }) {
+export function RecordingsLibrary({
+  onOpenInEditor,
+  onMontage,
+}: {
+  onOpenInEditor: (path: string) => void;
+  onMontage: (paths: string[]) => void;
+}) {
   const { t, i18n } = useTranslation();
   const recordings = useRecorderStore((s) => s.recordings);
   const loaded = useRecorderStore((s) => s.recordingsLoaded);
@@ -191,6 +201,33 @@ export function RecordingsLibrary({ onOpenInEditor }: { onOpenInEditor: (path: s
     [recordings, shownFolder, newestLast],
   );
   const listRef = useRef<HTMLDivElement>(null);
+  // Seçim: birden çok kayıt montaj ya da toplu silme için.
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const pickedFiles = recordings
+    .filter((r) => picked.includes(r.path))
+    .sort((a, b) => a.createdMs - b.createdMs);
+  const togglePick = (path: string) =>
+    setPicked((list) => (list.includes(path) ? list.filter((p) => p !== path) : [...list, path]));
+  const stopPicking = () => {
+    setPicking(false);
+    setPicked([]);
+    setConfirmBulk(false);
+  };
+  async function deletePicked() {
+    setBulkBusy(true);
+    try {
+      for (const file of pickedFiles) {
+        await recordingDelete(file.path, outputDir ?? "").catch(() => {});
+      }
+      await refreshRecordings();
+      stopPicking();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   useEffect(() => {
     void refreshRecordings();
@@ -221,6 +258,16 @@ export function RecordingsLibrary({ onOpenInEditor }: { onOpenInEditor: (path: s
             </span>
           ) : null}
         </h2>
+        {recordings.length > 1 ? (
+          <Button
+            variant={picking ? "secondary" : "ghost"}
+            size="sm"
+            icon={picking ? <X size={14} /> : <CheckSquare size={14} />}
+            onClick={() => (picking ? stopPicking() : setPicking(true))}
+          >
+            {picking ? t("recorder.pickDone") : t("recorder.pick")}
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           size="sm"
@@ -249,6 +296,60 @@ export function RecordingsLibrary({ onOpenInEditor }: { onOpenInEditor: (path: s
           </Button>
         ) : null}
       </div>
+
+      {picking ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dk-accent)]/40 bg-[var(--dk-accent)]/10 px-3 py-2">
+          <p className="flex-1 text-sm">
+            {picked.length > 0
+              ? t("recorder.picked", { count: picked.length })
+              : t("recorder.pickHint")}
+          </p>
+          {confirmBulk ? (
+            <>
+              <span className="text-xs">
+                {t("recorder.bulkDeleteConfirm", { count: picked.length })}
+              </span>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 size={14} />}
+                disabled={bulkBusy}
+                onClick={() => void deletePicked()}
+              >
+                {t("recorder.delete")}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmBulk(false)}>
+                {t("recorder.cancel")}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="edit"
+                size="sm"
+                icon={<Clapperboard size={14} />}
+                disabled={pickedFiles.length < 2 || pickedFiles.some((f) => f.needsRepair)}
+                title={t("recorder.montageHint")}
+                onClick={() => {
+                  onMontage(pickedFiles.map((f) => f.path));
+                  stopPicking();
+                }}
+              >
+                {t("recorder.montage", { count: pickedFiles.length })}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 size={14} />}
+                disabled={picked.length === 0}
+                onClick={() => setConfirmBulk(true)}
+              >
+                {t("recorder.delete")}
+              </Button>
+            </>
+          )}
+        </div>
+      ) : null}
 
       {folders.length > 1 || folders[0]?.name ? (
         <div className="flex flex-wrap gap-2">
@@ -290,13 +391,31 @@ export function RecordingsLibrary({ onOpenInEditor }: { onOpenInEditor: (path: s
                     key={file.path}
                     type="button"
                     data-path={file.path}
-                    onClick={() => setOpen(file)}
+                    aria-pressed={picking ? picked.includes(file.path) : undefined}
+                    onClick={() => (picking ? togglePick(file.path) : setOpen(file))}
                     className={`group space-y-2 rounded-2xl p-1.5 text-left transition hover:bg-white/5 ${
-                      file.path === savedPath ? "ring-2 ring-[var(--dk-accent)]" : ""
+                      picking && picked.includes(file.path)
+                        ? "ring-2 ring-[var(--dk-sun)]"
+                        : file.path === savedPath
+                          ? "ring-2 ring-[var(--dk-accent)]"
+                          : ""
                     }`}
                   >
                     <div className="relative">
                       <Thumb file={file} />
+                      {picking ? (
+                        <span
+                          className={`absolute top-2 left-2 flex h-6 w-6 items-center justify-center rounded-md border-2 border-white text-[11px] font-bold ${
+                            picked.includes(file.path)
+                              ? "bg-[var(--dk-sun)] text-black"
+                              : "bg-black/50"
+                          }`}
+                        >
+                          {picked.includes(file.path)
+                            ? pickedFiles.findIndex((f) => f.path === file.path) + 1
+                            : ""}
+                        </span>
+                      ) : null}
                       <span className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100">
                         <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white">
                           {file.needsRepair ? (
@@ -668,6 +787,21 @@ function RecordingPlayer({
               >
                 {t("recorder.showInFolder")}
               </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ClipboardCopy size={14} />}
+                title={t("recorder.copyFileHint")}
+                onClick={() =>
+                  void act(async () => {
+                    await copyFileToClipboard(path);
+                    setNotice(t("recorder.copyFileDone"));
+                  })
+                }
+              >
+                {t("recorder.copyFile")}
+              </Button>
+              <DiscordSendButton path={path} />
               <Button
                 variant="secondary"
                 size="sm"

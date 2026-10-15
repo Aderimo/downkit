@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
+  Check,
+  ClipboardCopy,
   AlertTriangle,
   CircleCheck,
   FileVideo,
@@ -20,12 +22,11 @@ import {
 import type { Job } from "../types/jobs";
 import { formatBytes, formatDuration, formatEta, formatSpeed } from "../lib/format";
 import { cancelJob, pauseJob, resumeJob, retryJob } from "../lib/jobEngine";
-import { openMediaFile, revealInFolder } from "../lib/tauri-api";
+import { copyFileToClipboard, openMediaFile, revealInFolder } from "../lib/tauri-api";
 import { useJobsStore } from "../store/jobsStore";
 import { IconButton } from "./ui/Button";
-import { PlatformIcon } from "./PlatformIcon";
 import { ReportButton } from "./ReportButton";
-import { isSupportedPlatform } from "../lib/platforms";
+import { DiscordSendButton } from "./DiscordSendButton";
 
 const KIND_ICON = {
   download: FileVideo,
@@ -44,10 +45,8 @@ export function JobRow({ job, compact = false }: { job: Job; compact?: boolean }
 
   const lastOutput = job.outputs.at(-1) ?? null;
   const KindIcon = KIND_ICON[job.kind];
-  const isActive = ["preparing", "running", "postprocessing"].includes(job.status);
-  const canPause =
-    (job.kind === "download" || job.kind === "edit") &&
-    (job.status === "running" || job.status === "queued");
+  const isActive = job.status === "running";
+  const canPause = job.status === "running" || job.status === "queued";
   const quality =
     job.qualityLabel === "best"
       ? t("jobs.qualityBest")
@@ -71,13 +70,9 @@ export function JobRow({ job, compact = false }: { job: Job; compact?: boolean }
       {isActive && job.speedBps ? (
         <p className="mt-0.5 text-[var(--dk-text)]">{formatSpeed(job.speedBps)}</p>
       ) : null}
-      {job.downloadedBytes && (isActive || job.status === "paused") ? (
+      {isActive && job.etaSeconds ? (
         <p className="mt-0.5 text-[var(--dk-text-muted)]">
-          {formatBytes(job.downloadedBytes)}
-          {job.totalBytesEstimate ? ` / ~${formatBytes(job.totalBytesEstimate)}` : ""}
-          {isActive && job.etaSeconds
-            ? ` · ${t("jobs.eta", { eta: formatEta(job.etaSeconds) })}`
-            : ""}
+          {t("jobs.eta", { eta: formatEta(job.etaSeconds) })}
         </p>
       ) : null}
       {job.status === "done" && job.fileSizeBytes ? (
@@ -114,16 +109,10 @@ export function JobRow({ job, compact = false }: { job: Job; compact?: boolean }
           {job.title}
         </p>
         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--dk-text-muted)]">
-          {isSupportedPlatform(job.platform) ? (
-            <PlatformIcon platform={job.platform} size={14} />
-          ) : null}
           {meta.join("  ·  ")}
         </p>
         {isActive || job.status === "paused" ? (
-          <ProgressBar
-            percent={job.status === "preparing" ? null : job.percent}
-            paused={job.status === "paused"}
-          />
+          <ProgressBar percent={job.percent} paused={job.status === "paused"} />
         ) : null}
         {compact ? <div className="mt-1 text-xs [&_p]:text-left">{status}</div> : null}
         {job.status === "error" && showDetail && job.errorDetail ? (
@@ -157,6 +146,8 @@ export function JobRow({ job, compact = false }: { job: Job; compact?: boolean }
             >
               <FolderOpen size={16} />
             </IconButton>
+            <CopyFileButton path={lastOutput} />
+            <DiscordSendButton path={lastOutput} title={job.title} />
           </>
         ) : null}
         {job.status === "error" || job.status === "canceled" ? (
@@ -237,9 +228,7 @@ function StatusLine({
               input={{
                 message: job.errorMessage ?? t("jobs.statusError"),
                 detail: job.errorDetail,
-                context: [job.kind, job.platform, job.formatLabel, job.qualityLabel]
-                  .filter(Boolean)
-                  .join(" · "),
+                context: [job.kind, job.formatLabel, job.qualityLabel].filter(Boolean).join(" · "),
               }}
             />
           </span>
@@ -294,5 +283,25 @@ function ProgressBar({ percent, paused }: { percent: number | null; paused: bool
         />
       )}
     </div>
+  );
+}
+
+/** Bitmiş dosyayı panoya kopyalar; iki saniye "kopyalandı" işareti görünür. */
+function CopyFileButton({ path }: { path: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  return (
+    <IconButton
+      label={copied ? t("recorder.copyFileDone") : t("recorder.copyFileHint")}
+      tone={copied ? "accent" : "default"}
+      onClick={() =>
+        void copyFileToClipboard(path).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        })
+      }
+    >
+      {copied ? <Check size={16} /> : <ClipboardCopy size={16} />}
+    </IconButton>
   );
 }

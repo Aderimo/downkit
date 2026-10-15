@@ -26,8 +26,6 @@ const THUMB_TIMEOUT: Duration = Duration::from_secs(25);
 const THUMB_CONCURRENCY: usize = 3;
 const MAX_THUMBS: usize = 160;
 const WAVEFORM_TIMEOUT: Duration = Duration::from_secs(180);
-/// Linkte ses akışı internetten okunur; 1 saatlik video yavaş bağlantıda sürebilir.
-const REMOTE_WAVEFORM_TIMEOUT: Duration = Duration::from_secs(420);
 const MAX_WAVEFORM_BUCKETS: usize = 24_000;
 const PREVIEW_CACHE_DAYS: u64 = 3;
 /// Uzak akışta arama yavaş olabilir; kare alma bu süreyi aşmasın.
@@ -121,14 +119,9 @@ pub async fn editor_thumbnails(
     request_id: String,
 ) -> Result<(), AppError> {
     let (input, headers) = match preview::lookup(&token).ok_or_else(expired)? {
-        PreviewSource::Local { path } => (path.to_string_lossy().into_owned(), Vec::new()),
-        PreviewSource::Remote {
-            headers, thumb_url, ..
-        } => (
-            thumb_url.ok_or_else(|| {
-                AppError::coded("noThumbnails", "Bu kaynak için kare alınamıyor.", None)
-            })?,
-            headers,
+        PreviewSource::Local { path } => (
+            path.to_string_lossy().into_owned(),
+            Vec::<(String, String)>::new(),
         ),
     };
     let ffmpeg_exe = ffmpeg::binary::ensure_ffmpeg(&app)
@@ -212,15 +205,6 @@ pub async fn editor_waveform(
             path.to_string_lossy().into_owned(),
             Vec::new(),
             WAVEFORM_TIMEOUT,
-        ),
-        PreviewSource::Remote {
-            headers, wave_url, ..
-        } => (
-            wave_url.ok_or_else(|| {
-                AppError::coded("noWaveform", "Bu kaynak için dalga formu yok.", None)
-            })?,
-            headers,
-            REMOTE_WAVEFORM_TIMEOUT,
         ),
     };
     let ffmpeg_exe = ffmpeg::binary::ensure_ffmpeg(&app)
@@ -399,14 +383,9 @@ pub async fn editor_save_frame(
             (direct, Vec::new())
         }
         None => match preview::lookup(&token).ok_or_else(expired)? {
-            PreviewSource::Local { path } => (path.to_string_lossy().into_owned(), Vec::new()),
-            PreviewSource::Remote {
-                headers, thumb_url, ..
-            } => (
-                thumb_url.ok_or_else(|| {
-                    AppError::coded("noThumbnails", "Bu kaynak için kare alınamıyor.", None)
-                })?,
-                headers,
+            PreviewSource::Local { path } => (
+                path.to_string_lossy().into_owned(),
+                Vec::<(String, String)>::new(),
             ),
         },
     };

@@ -6,7 +6,7 @@ import { siDiscord, siGithub } from "simple-icons";
 import { buildErrorReport, type ReportInput } from "../lib/errorReport";
 import { recentLog } from "../lib/log";
 import { copyText, getAppVersion, openExternalLink } from "../lib/tauri-api";
-import { DISCORD_URL, ISSUES_URL } from "../lib/links";
+import { DISCORD_URL, newIssueUrl } from "../lib/links";
 
 /** "Hatayı bildir": raporu panoya kopyalar, nereye yapıştırılacağını sorar. */
 export function ReportButton({
@@ -17,7 +17,12 @@ export function ReportButton({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const [menu, setMenu] = useState<{ x: number; y: number; copied: boolean } | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    copied: boolean;
+    report: string;
+  } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -30,12 +35,14 @@ export function ReportButton({
   async function report() {
     const version = await getAppVersion().catch(() => null);
     const log = await recentLog(30);
-    const copied = await copyText(buildErrorReport(input, version, navigator.userAgent, log));
+    const text = buildErrorReport(input, version, navigator.userAgent, log);
+    const copied = await copyText(text);
     const rect = buttonRef.current?.getBoundingClientRect();
     setMenu({
       x: Math.min(rect?.left ?? 0, window.innerWidth - 300),
       y: Math.min((rect?.bottom ?? 0) + 6, window.innerHeight - 170),
       copied,
+      report: text,
     });
   }
 
@@ -79,12 +86,20 @@ export function ReportButton({
                 <button
                   type="button"
                   onClick={() => {
-                    void openExternalLink(ISSUES_URL);
+                    // Rapor GitHub'daki yeni sorun sayfasına hazır gelir; kullanıcı görüp
+                    // başına ne yaptığını yazar, göndermek ona kalır.
+                    const fence = "```";
+                    void openExternalLink(
+                      newIssueUrl(
+                        input.message.slice(0, 80),
+                        `\n\n---\n${fence}\n${menu.report}\n${fence}`,
+                      ),
+                    );
                     setMenu(null);
                   }}
-                  className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--dk-border-strong)] text-xs font-medium text-[var(--dk-text)] hover:border-[var(--dk-accent)]"
+                  className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#24292f] text-xs font-medium text-white hover:brightness-125"
                 >
-                  <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" aria-hidden>
+                  <svg viewBox="0 0 24 24" width={13} height={13} fill="white" aria-hidden>
                     <path d={siGithub.path} />
                   </svg>
                   GitHub

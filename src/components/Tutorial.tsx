@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import {
   ArrowLeft,
   ArrowRight,
@@ -49,15 +50,12 @@ const RICH: Record<string, ReactElement> = {
   b: <strong className="font-semibold text-white" />,
 };
 
-const LOCAL_TOURS: TourId[] = ["convert", "compress", "resize"];
-
 /** Adımın metin anahtarı: karşılama turu `tutorial.*`, sayfa turları `tour.*`;
- * yerel araçlar ortak adımlarda `tour.local.*` kullanır. */
-function textKey(tour: TourId, stepId: string, exists: (key: string) => boolean): string {
+ * Dönüştür sayfasının ortak adımları `tour.local.*`. */
+function textKey(tour: TourId, stepId: string): string {
   if (tour === "welcome") return `tutorial.${stepId}`;
   const own = `tour.${tour}.${stepId}`;
-  if (LOCAL_TOURS.includes(tour) && !exists(`${own}.title`)) return `tour.local.${stepId}`;
-  return own;
+  return tour === "convert" && !i18n.exists(`${own}.title`) ? `tour.local.${stepId}` : own;
 }
 
 interface Layout {
@@ -118,7 +116,7 @@ function TutorialOverlay() {
   const isWelcomeTour = tour === "welcome";
   const welcomeIntro = isWelcomeTour && current.id === "welcome";
   const Icon = isWelcomeTour ? WELCOME_ICON[current.id] : Lightbulb;
-  const key = textKey(tour, current.id, (k) => i18n.exists(k));
+  const key = textKey(tour, current.id);
   const layoutKey = `${tour}:${step}`;
   // Karşılama turunun ilk adımı numaralanmaz.
   const numbered = isWelcomeTour ? steps.slice(1) : steps;

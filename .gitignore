@@ -24,10 +24,14 @@ dist-ssr
 *.sw?
 
 # Derlenmiş uygulama (paketle.bat üretir; GitHub Releases ile dağıtılır)
-/DownKit.exe
-/DownKit-Setup.exe
+/cikti/
 /.demo/
 
 # Playwright arayüz testlerinin çıktıları
 /test-results/
 /playwright-report/
+scripts/tips/raw/
+
+# paketle.bat kokte birakir (GitHub Releases ile dagitilir)
+/DownKit.exe
+/DownKit-Kurulum.exe

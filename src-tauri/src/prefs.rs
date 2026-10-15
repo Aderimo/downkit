@@ -1,4 +1,4 @@
-//! Arayüz ayarlarının kalıcı kopyası: `%APPDATA%\com.downkit.app\prefs.json`.
+//! Arayüz ayarlarının kalıcı kopyası: `%APPDATA%\com.aderimo.downkit\prefs.json`.
 //!
 //! Ayarlar arayüzde localStorage'da tutulur, ama WebView2'nin localStorage
 //! veritabanı bazı makinelerde oturumda yazılanları bir sonraki açılışta

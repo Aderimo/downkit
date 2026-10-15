@@ -1,6 +1,12 @@
 import type { ClipLook } from "../lib/clipLook";
+import type { AudioFx } from "../lib/audioFx";
+import type { MotionId, TransitionStyle } from "../lib/clipFx";
+import type { BlurRegionReq, ImageOverlayReq, MusicTrackReq } from "../lib/layers";
 import type { LocalMediaInfo } from "./convert";
 import type { TextOverlay } from "../lib/textItems";
+import type { ClipXfade } from "../lib/xfade";
+import type { SplitLayout } from "../lib/splitLayout";
+import type { TransformReq } from "../lib/clipTransform";
 
 /** Kaynaktan alınacak parça ve hızı (Rust `ffmpeg::edit::Clip`). */
 export interface EditClip {
@@ -19,6 +25,37 @@ export interface EditClip {
   /** Filtre, renk ve efektler (Rust `Look`). */
   look?: ClipLook;
   fadeWhite?: boolean;
+  /** Hareket (Rust `fx::Motion`), şiddeti ve parçanın klip içindeki yeri. */
+  motion?: MotionId;
+  motionStrength?: number;
+  motionOffset?: number;
+  motionTotal?: number;
+  /** Geçiş stili (Rust `fx::Transition`); yoksa kararma. */
+  transition?: TransitionStyle;
+  /** Bu parçadan sonrakine geçiş (Rust `ffmpeg::xfade::Xfade`). */
+  xfade?: ClipXfade;
+  /** Sesteki gürültüyü azalt (Rust `afftdn`). */
+  denoise?: boolean;
+  /** Hareket bulanıklığı (kare karıştırma). */
+  motionBlur?: boolean;
+  /** Ses onarımı, eşitleyici ve dinamik (Rust `AudioFx`). */
+  audioFx?: AudioFx;
+  /** Dondurulmuş kare: kaynağın bu saniyesindeki kare durur. */
+  freezeAt?: number;
+  /** Ters oynatma. */
+  reverse?: boolean;
+  /** Konum, ölçek, döndürme, saydamlık (Rust `ffmpeg::transform::Transform`). */
+  transform?: TransformReq | null;
+  /** Zamanlı yakınlaştırma (dönüşümden sonra, karenin tamamına). */
+  zoom?: TransformReq | null;
+}
+
+/** Üst izden bindirilen klip (Rust `OverlayRequest`): `source` istekteki girdi sırası. */
+export interface ClipOverlayReq {
+  source: number;
+  clip: EditClip;
+  /** Çıktıdaki başlangıç saniyesi. */
+  at: number;
 }
 
 /** Rust `ffmpeg::edit::GifOptions`. */
@@ -51,12 +88,41 @@ export interface EditRequest {
   rateLimitKbps?: number | null;
   /** Duraklat/sürdür boyunca aynı kalan anahtar (kuyruktaki iş kimliği). */
   workKey?: string;
+  /** İlerleme çubuğu (Rust `ProgressBar`). */
+  progress?: { color: string; height: number; top: boolean } | null;
   /** Verilirse çıktı sessiz, hareketli bir GIF olur. */
   gif?: GifOptions | null;
   /** Verilirse görüntü bu kareye kırpılır ya da sığdırılır (ör. dikey 9:16). */
-  frame?: { width: number; height: number; fit: boolean; position: number } | null;
+  frame?: {
+    width: number;
+    height: number;
+    fit: boolean;
+    blur?: boolean;
+    position: number;
+    /** Kamera + oyun düzeni (Rust `Split`). */
+    split?: SplitLayout;
+    /** Sığdırırken arka plan renk geçişi (yukarıdan aşağı). */
+    gradient?: [string, string] | null;
+    /** Kırpma konumu zamanla (yüz takibi): [çıktı saniyesi, konum]. */
+    track?: [number, number][] | null;
+  } | null;
   /** Görüntüye yazılacak yazılar (zamanlar çıktı saniyesi). */
   texts?: TextOverlay[];
+  /** Çıktı bu boyuta (MB) sığsın. */
+  targetSizeMb?: number | null;
+  /** Ekran kartı kodlayıcısı: nvenc | amf | qsv. */
+  gpuEncoder?: string | null;
+  /** Üste bindirilecek resimler ve müzik izleri. */
+  images?: ImageOverlayReq[];
+  music?: MusicTrackReq[];
+  /** Üst izden bindirilen dönüşümlü klipler (resim içinde resim). */
+  overlays?: ClipOverlayReq[];
+  /** Karışımın hedef ses seviyesi (LUFS, ör. −14). */
+  loudness?: number | null;
+  /** Gizlenecek bölgeler (Rust `BlurRegion`). */
+  blurs?: BlurRegionReq[];
+  /** Zengin yazılar ve kelime vurgulu altyazılar (ASS; zamanlar çıktı saniyesi). */
+  assScript?: string | null;
 }
 
 /** Rust `commands::editor::LocalPreview`. */

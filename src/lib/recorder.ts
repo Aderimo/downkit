@@ -10,6 +10,8 @@ import { formatDuration } from "./format";
 import { localizeError } from "./errors";
 import { logEvent } from "./log";
 import { showHud, type HudKind } from "./hud";
+import { playChime } from "./chime";
+import { getSettings } from "./appSettings";
 import { setLevels } from "./levels";
 import { capture } from "./snipActions";
 import { hotkeyLabel } from "./recorderLogic";
@@ -50,7 +52,19 @@ import {
   replaySave,
   replayStart,
   replayStop,
+  recorderAppRunning,
+  recorderFullscreenApp,
+  textFileWrite,
 } from "./tauri-api";
+import {
+  markRecording,
+  markReplay,
+  markerFile,
+  markersPath,
+  replayMarkersFor,
+  resetRecordingMarkers,
+  takeRecordingMarkers,
+} from "./markers";
 import { useRecorderStore, type RecorderPending } from "../store/recorderStore";
 import type { CaptureOptions, CaptureTarget, SavedRecording } from "../types/recorder";
 
@@ -134,12 +148,17 @@ function resolveCapture(
 async function buildOptions(
   settings: RecorderSettings,
 ): Promise<{ options: CaptureOptions; folderFallback: string | null }> {
-  const sources = await recorderSources();
+  // Ekran kaydında yalnızca ekranlar yeniden okunur; pencere ve aygıt listeleri
+  // eldeki hâliyle korunur. Pencere kaydında pencere tutamacı güncel olmalı.
+  const previous = store().sources;
+  const monitorsOnly = settings.source.kind !== "window" && previous !== null;
+  const fresh = await recorderSources(monitorsOnly);
+  const sources = monitorsOnly ? { ...previous, monitors: fresh.monitors } : fresh;
   patch({ sources });
   const { target, folderFallback } = resolveCapture(settings, sources);
-  if (!store().encoder) {
-    patch({ encoder: await recorderPrepare(target) });
-  }
+  // Her başlatmada sorulur: Rust tarafı sonucu bellekte ve diskte hatırladığı için
+  // anında döner, kodlayıcı seçimi değiştiyse de doğru kodlayıcı gösterilir.
+  patch({ encoder: await recorderPrepare(target, settings.encoder) });
   return {
     folderFallback,
     options: {
@@ -150,6 +169,8 @@ async function buildOptions(
         quality: settings.quality,
         cursor: settings.cursor,
         bitrateKbps: settings.bitrateKbps,
+        encoder: settings.encoder,
+        speed: settings.speed,
       },
       systemAudio: settings.systemAudio,
       systemAudioId: settings.systemAudioId,
@@ -158,6 +179,7 @@ async function buildOptions(
       microphoneId: settings.microphoneId,
       microphoneVolume: settings.microphoneVolume,
       noiseSuppression: settings.noiseSuppression,
+      microphoneSeparate: settings.microphoneSeparate,
     },
   };
 }
@@ -198,6 +220,7 @@ async function syncStatus() {
 }
 
 export async function startRecording(): Promise<void> {
+  resetRecordingMarkers();
   const ok = await run(
     "record",
     async () => {
@@ -263,13 +286,6 @@ export function toggleReplay(): Promise<void> {
   return store().status.replay ? stopReplay() : startReplay();
 }
 
-/** Süre değişince anlık tekrar yeni süreyle yeniden başlar. */
-export async function restartReplay(): Promise<void> {
-  if (!store().status.replay) return;
-  await stopReplay();
-  await startReplay();
-}
-
 /** Anlık tekrarın son N saniyesini kaydeder. Açık değilse kullanıcıya söyler. */
 export async function saveReplay(): Promise<void> {
   if (!store().status.replay) {
@@ -300,6 +316,7 @@ export async function saveReplay(): Promise<void> {
           folderFallback = null;
         }
       }
+      pendingReplaySave = Date.now();
       await replaySave(
         dir,
         `${t("recorder.replayPrefix")} ${fileStamp(new Date())}`,
@@ -339,8 +356,37 @@ function fileName(path: string): string {
   return (path.split(/[\\/]/).pop() ?? path).replace(/\.[^.]+$/, "");
 }
 
+/** Anlık tekrar kaydetme isteğinin anı: işaretler kaydedilen pencereye göre hesaplanır. */
+let pendingReplaySave = 0;
+
+/** Kayıt ya da anlık tekrar sürerken o anı işaretler (kısayol). */
+export async function addMarker(): Promise<void> {
+  const { recording, replay } = store().status;
+  if (!recording && !replay) {
+    void feedback("info", t("recorder.hud.markerNeedsActive"));
+    return;
+  }
+  const now = Date.now();
+  let marked = false;
+  if (recording) marked = markRecording(recording.seconds, now) || marked;
+  if (replay) marked = markReplay(now, getRecorderSettings().replaySeconds) || marked;
+  if (marked) void feedback("info", t("recorder.hud.marked"), t("recorder.hud.markedDetail"));
+}
+
+/** İşaretler videonun yanına yazılır; yazılamazsa kayıt yine sorunsuzdur. */
+function saveMarkers(saved: SavedRecording) {
+  const marks =
+    saved.kind === "replay"
+      ? replayMarkersFor(pendingReplaySave || Date.now(), saved.seconds)
+      : takeRecordingMarkers().filter((m) => m <= saved.seconds + 1);
+  if (marks.length === 0) return;
+  void textFileWrite(markersPath(saved.path), markerFile(marks)).catch(() => {});
+}
+
 function onSaved(saved: SavedRecording) {
+  saveMarkers(saved);
   patch({ lastSaved: saved });
+  if (getSettings().soundOnSave) playChime();
   void refreshRecordings();
   void feedback(
     "saved",
@@ -360,6 +406,7 @@ const HOTKEY_ACTIONS: Record<RecorderHotkey, () => Promise<void>> = {
   snip: () => capture("region"),
   snipFull: () => capture("full"),
   snipTranslate: () => capture("translate"),
+  marker: addMarker,
 };
 
 // Kayıt/kaldırma çağrıları sırayla yapılır: üst üste gelen değişiklikler
@@ -539,5 +586,45 @@ export async function initRecorder(): Promise<void> {
   });
   if (getRecorderSettings().replayOnStartup && !store().status.replay) {
     void startReplay();
+  }
+  setInterval(() => void watchGames(), GAME_POLL_MS);
+}
+
+// ——— Oyun açılınca anlık tekrar ———
+
+const GAME_POLL_MS = 4000;
+/** Kendiliğinden açtığımız anlık tekrarın oyunu: kapanınca anlık tekrar da kapanır. */
+let autoGame: { exe: string; name: string } | null = null;
+let watching = false;
+
+async function watchGames(): Promise<void> {
+  if (watching || !getRecorderSettings().replayOnGame) return;
+  watching = true;
+  try {
+    const { replay, recording } = store().status;
+    if (autoGame) {
+      // Kullanıcı elle kapattıysa artık bizim değil.
+      if (!replay) {
+        autoGame = null;
+        return;
+      }
+      if (!(await recorderAppRunning(autoGame.exe))) {
+        autoGame = null;
+        await stopReplay();
+      }
+      return;
+    }
+    if (replay || recording || store().pending) return;
+    const game = await recorderFullscreenApp();
+    if (!game) return;
+    await startReplay();
+    if (store().status.replay) {
+      autoGame = game;
+      void feedback("replayOn", t("recorder.hud.gameDetected", { name: game.name }));
+    }
+  } catch {
+    // Tauri dışında ya da sorgu başarısızsa sessizce geçilir; bir sonraki turda yeniden denenir.
+  } finally {
+    watching = false;
   }
 }

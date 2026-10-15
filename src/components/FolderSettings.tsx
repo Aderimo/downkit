@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, FolderOpen, Video } from "lucide-react";
+import { Film, FolderOpen, Video } from "lucide-react";
 import { useSettingsStore } from "../lib/appSettings";
 import { changeDestination } from "../lib/destination";
 import { useRecorderSettings } from "../lib/recorderSettings";
@@ -90,8 +90,6 @@ function Toggle({
 export function FolderSettings() {
   const { t } = useTranslation();
   const downloadDir = useSettingsStore((s) => s.defaultDownloadDir);
-  const groupByPlatform = useSettingsStore((s) => s.groupByPlatform);
-  const updateSettings = useSettingsStore((s) => s.update);
   const recordDir = useRecorderStore((s) => s.outputDir);
   const customRecordDir = useRecorderSettings((s) => s.outputDir);
   const byApp = useRecorderSettings((s) => s.byApp);
@@ -105,19 +103,12 @@ export function FolderSettings() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <FolderRow
-        icon={<Download size={16} />}
+        icon={<Film size={16} />}
         title={t("settings.downloadsFolderTitle")}
         path={downloadDir}
         placeholder={t("settings.notSet")}
         onChange={() => void changeDestination()}
-      >
-        <Toggle
-          label={t("settings.groupByPlatform")}
-          hint={t("settings.groupByPlatformHint")}
-          checked={groupByPlatform}
-          onChange={(value) => updateSettings({ groupByPlatform: value })}
-        />
-      </FolderRow>
+      />
       <FolderRow
         icon={<Video size={16} />}
         title={t("settings.recordingsFolder")}

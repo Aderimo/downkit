@@ -1,5 +1,5 @@
 PackageIdentifier: aderimo.DownKit
-PackageVersion: 0.1.0
+PackageVersion: 0.4.0
 PackageLocale: en-US
 Publisher: aderimo
 PublisherUrl: https://gitgit.me/aderimo
@@ -7,8 +7,8 @@ PackageName: DownKit
 PackageUrl: https://github.com/Aderimo/downkit
 License: MIT
 LicenseUrl: https://github.com/Aderimo/downkit/blob/main/LICENSE
-ShortDescription: Free media tool - download, cut, convert, compress and resize videos from YouTube, TikTok, Instagram and more.
-Description: DownKit downloads video or audio from a link, lets you watch it without downloading and cut only the scenes you want, and converts, compresses or resizes files on your computer. No ads, no account.
+ShortDescription: Free, open-source media app - download, convert, edit, record the screen and take screenshots.
+Description: DownKit downloads video or audio from YouTube, TikTok, Instagram and hundreds of sites, converts, compresses and resizes files, edits clips with motion titles and captions, records the screen and takes screenshots. No ads, no account, MIT licensed.
 Tags:
   - downloader
   - video

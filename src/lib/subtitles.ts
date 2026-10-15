@@ -37,3 +37,33 @@ export function parseSrt(text: string): SubtitleCue[] {
   }
   return cues;
 }
+
+// ——— Dışa aktarma: SRT ve VTT ———
+
+function stamp(seconds: number, separator: "," | "."): string {
+  const ms = Math.max(0, Math.round(seconds * 1000));
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  const s = Math.floor((ms % 60_000) / 1000);
+  const p = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${p(h)}:${p(m)}:${p(s)}${separator}${p(ms % 1000, 3)}`;
+}
+
+/** Yazı satırları → SRT (zamana göre sıralı; boş satırlar atlanır). */
+export function toSrt(cues: readonly SubtitleCue[]): string {
+  return [...cues]
+    .filter((c) => c.text.trim() && c.end > c.start)
+    .sort((a, b) => a.start - b.start)
+    .map((c, i) => `${i + 1}\n${stamp(c.start, ",")} --> ${stamp(c.end, ",")}\n${c.text.trim()}\n`)
+    .join("\n");
+}
+
+/** Yazı satırları → WebVTT. */
+export function toVtt(cues: readonly SubtitleCue[]): string {
+  const body = [...cues]
+    .filter((c) => c.text.trim() && c.end > c.start)
+    .sort((a, b) => a.start - b.start)
+    .map((c) => `${stamp(c.start, ".")} --> ${stamp(c.end, ".")}\n${c.text.trim()}\n`)
+    .join("\n");
+  return `WEBVTT\n\n${body}`;
+}

@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
+import { HelpTip } from "../ui/HelpTip";
 import { useTranslation } from "react-i18next";
-import { Film, Link2, Loader2, Music, Plus, Upload, X } from "lucide-react";
+import { Film, Loader2, Music, Plus, Upload, X } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { usePlayerStore } from "../../store/playerStore";
 import { appendWholeSource, SOURCE_DRAG_MIME } from "../../lib/editorActions";
 import { seekTimeline } from "../../lib/sequencePlayer";
-import { chooseLocalMediaFiles, readClipboardText, recordingThumbnail } from "../../lib/tauri-api";
-import { useFileDrop } from "../../lib/useFileDrop";
-import { checkSupportedUrl } from "../../lib/validation";
+import { chooseLocalMediaFiles, recordingThumbnail } from "../../lib/tauri-api";
+import { useEditorDrop } from "../../lib/editorDrop";
 import { formatDuration } from "../../lib/format";
-import { PLATFORM_LABEL, isSupportedPlatform } from "../../lib/platforms";
-import { UrlBar } from "../UrlBar";
 import { ErrorBanner } from "../ErrorBanner";
-import { PlatformIcon } from "../PlatformIcon";
 import { Button } from "../ui/Button";
+import { pointerDrag } from "../../lib/pointerDrag";
 
-/** Clipchamp'taki "Medyam" paneli: projeye eklenen video/linkler küçük
+/** "Medyam" paneli: projeye eklenen videolar küçük
  * resimli kartlar hâlinde listelenir. Birden çok dosya aynı anda seçilebilir
  * ya da pencereye sürüklenip bırakılabilir; kart tıklanınca önizleme o
  * kaynağa geçer, artı düğmesiyle ya da zaman çizelgesine sürüklenerek
@@ -25,10 +23,10 @@ export function MediaPanel() {
   const sources = useEditorStore((s) => s.sources);
   const adding = useEditorStore((s) => s.addingSource);
   const addError = useEditorStore((s) => s.addError);
-  const [url, setUrl] = useState("");
-  const [hovering, setHovering] = useState(false);
-  const [rejected, setRejected] = useState(false);
-  const check = checkSupportedUrl(url);
+  // Pencereye bırakma düzenleyicinin tamamında dinlenir (bkz. editorDrop.ts).
+  const hovering = useEditorDrop((s) => s.hovering);
+  const [query, setQuery] = useState("");
+  const dropMessage = useEditorDrop((s) => s.message);
 
   // Birden çok dosya: sırayla eklenir (her biri probe edilir).
   const importFiles = useCallback(async (paths: string[]) => {
@@ -36,18 +34,6 @@ export function MediaPanel() {
       await useEditorStore.getState().addSourceFile(path);
     }
   }, []);
-  const onFiles = useCallback(
-    (paths: string[]) => {
-      setRejected(false);
-      void importFiles(paths);
-    },
-    [importFiles],
-  );
-  const onRejected = useCallback(() => setRejected(true), []);
-  useFileDrop(
-    useCallback(() => {}, []),
-    { onFiles, onHover: setHovering, onRejected },
-  );
 
   async function choose() {
     const paths = await chooseLocalMediaFiles();
@@ -56,9 +42,12 @@ export function MediaPanel() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div>
+      <div className="flex items-center gap-1.5">
         <h2 className="text-sm font-semibold text-white">{t("editor.mediaTitle")}</h2>
-        <p className="mt-0.5 text-xs text-[var(--dk-text-muted)]">{t("editor.mediaHint")}</p>
+        <HelpTip
+          title={t("editor.mediaTitle")}
+          text={`${t("editor.mediaHint")}\n\n${t("editor.mediaDropHint")}`}
+        />
       </div>
 
       {addError ? (
@@ -78,29 +67,6 @@ export function MediaPanel() {
         {t("editor.mediaImport")}
       </Button>
 
-      <UrlBar
-        value={url}
-        onChange={setUrl}
-        onAnalyze={() => {
-          const link = url.trim();
-          setUrl("");
-          void useEditorStore.getState().addSourceUrl(link);
-        }}
-        onPaste={async () => {
-          const text = await readClipboardText();
-          if (text) setUrl(text.trim());
-        }}
-        canAnalyze={check.status === "ok"}
-        isAnalyzing={adding}
-        actionLabel={t("editor.addSource")}
-        actionIcon={<Link2 size={16} />}
-      />
-      {check.status === "invalid" || check.status === "unsupported" ? (
-        <p className="text-xs text-[var(--dk-warning)]">
-          {check.status === "invalid" ? t("validation.invalid") : t("validation.unsupported")}
-        </p>
-      ) : null}
-
       <div
         className={`grid min-h-24 flex-1 content-start gap-2 rounded-xl border-2 border-dashed p-2 transition-colors ${
           hovering
@@ -108,18 +74,31 @@ export function MediaPanel() {
             : "border-[var(--dk-border)]"
         }`}
       >
+        {sources.length > 4 ? (
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("editor.mediaSearch")}
+            aria-label={t("editor.mediaSearch")}
+            className="col-span-2 h-8 rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)] px-2.5 text-xs outline-none focus:border-[var(--dk-accent)]"
+          />
+        ) : null}
         <div className="col-span-2 grid grid-cols-2 gap-2">
-          {sources.map((entry, index) => (
-            <SourceCard key={entry.id} entry={entry} index={index} />
-          ))}
+          {sources.map((entry, index) =>
+            !query.trim() ||
+            entry.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) ? (
+              <SourceCard key={entry.id} entry={entry} index={index} />
+            ) : null,
+          )}
         </div>
-        <p className="col-span-2 px-1 pt-1 text-center text-xs text-[var(--dk-text-muted)]">
-          {hovering ? t("drop.release") : t("editor.mediaDropHint")}
-        </p>
-        {rejected ? (
-          <p className="col-span-2 text-center text-xs text-[var(--dk-warning)]">
-            {t("drop.rejected")}
+        {hovering ? (
+          <p className="col-span-2 px-1 pt-1 text-center text-xs text-[var(--dk-accent-hover)]">
+            {t("drop.release")}
           </p>
+        ) : null}
+        {dropMessage ? (
+          <p className="col-span-2 text-center text-xs text-[var(--dk-warning)]">{dropMessage}</p>
         ) : null}
       </div>
     </div>
@@ -151,14 +130,14 @@ function SourceCard({
   const removeSource = useEditorStore((s) => s.removeSource);
   const [confirm, setConfirm] = useState(false);
 
-  const local = entry.source.kind === "local";
-  const path = entry.source.kind === "local" ? entry.source.path : null;
+  const path = entry.source.path;
   const [localThumb, setLocalThumb] = useState<string | null>(
     path ? (localThumbCache.get(path) ?? null) : null,
   );
-  const hasVideo = entry.source.kind === "local" ? entry.source.info.videoCodec !== null : true;
+  const hasVideo = entry.source.info.videoCodec !== null;
   const clipCount = clips.filter((c) => (c.sourceId ?? sources[0]?.id) === entry.id).length;
   const active = entry.id === activeId;
+  const resolution = resolutionLabel(entry.source.info.width, entry.source.info.height);
 
   // Yerel dosyaların küçük resmi ffmpeg ile üretilir (kayıt kitaplığıyla aynı yol).
   useEffect(() => {
@@ -222,14 +201,13 @@ function SourceCard({
   return (
     <div className="group min-w-0">
       <div
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData(SOURCE_DRAG_MIME, entry.id);
-          e.dataTransfer.effectAllowed = "copy";
-        }}
+        {...pointerDrag(SOURCE_DRAG_MIME, entry.id, entry.title)}
         onClick={jumpTo}
         title={t("editor.mediaCardHint")}
+        data-unused={clipCount === 0 || undefined}
         className={`relative aspect-video w-full cursor-grab overflow-hidden rounded-lg border bg-black transition-colors active:cursor-grabbing ${
+          clipCount === 0 ? "opacity-60" : ""
+        } ${
           active
             ? "border-[var(--dk-accent)]"
             : "border-[var(--dk-border)] group-hover:border-[var(--dk-border-strong)]"
@@ -249,12 +227,9 @@ function SourceCard({
         <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 font-mono text-[10px] text-white">
           {formatDuration(entry.duration)}
         </span>
-        {!local && isSupportedPlatform(entry.platform) ? (
-          <span
-            className="absolute right-1 bottom-1 text-white/80"
-            title={PLATFORM_LABEL[entry.platform]}
-          >
-            <PlatformIcon platform={entry.platform} size={12} />
+        {resolution ? (
+          <span className="absolute right-1 bottom-1 rounded bg-black/70 px-1 font-mono text-[10px] text-white/85">
+            {resolution}
           </span>
         ) : null}
         {/* Üzerine gelince: ekle / kaldır düğmeleri. */}
@@ -292,4 +267,15 @@ function SourceCard({
       </p>
     </div>
   );
+}
+
+/** Kısa çözünürlük adı: 720p, 1080p, 1440p, 4K (dikey videoda kısa kenara göre). */
+function resolutionLabel(width: number | null, height: number | null): string | null {
+  if (!width || !height) return null;
+  const short = Math.min(width, height);
+  if (short >= 2100) return "4K";
+  if (short >= 1400) return "1440p";
+  if (short >= 1000) return "1080p";
+  if (short >= 700) return "720p";
+  return `${short}p`;
 }

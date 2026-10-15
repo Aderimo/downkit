@@ -1,7 +1,18 @@
 // Düzenleyicideki yazılar (başlık, alt yazı): zaman çizelgesinde kendi satırında
 // durur, dışa aktarımda FFmpeg drawtext ile görüntüye yazılır. Saf fonksiyonlar.
 
-export interface TextItem {
+import type { TextAnimId, TextStyleId } from "./textFx";
+import { isRichText, type RichTextStyle } from "./captionStyle";
+import type { FrameAspect } from "../store/editorStore";
+
+/** Yazının bir biçimdeki yeri (çoklu biçim: lib/multiFormat). */
+export interface TextPlace {
+  x: number;
+  y: number;
+  size: number;
+}
+
+export interface TextItem extends RichTextStyle {
   id: string;
   text: string;
   /** Zaman çizelgesi saniyesi. */
@@ -16,6 +27,19 @@ export interface TextItem {
   /** Arkasında yarı saydam siyah kutu. */
   box: boolean;
   bold: boolean;
+  /** Görünüm (yoksa klasik) ve giriş/çıkış animasyonu (yoksa yok). */
+  style?: TextStyleId;
+  anim?: TextAnimId;
+  /** Otomatik altyazıyla eklendi (yeniden oluşturulunca eskisi silinir). */
+  auto?: boolean;
+  /** Uygulanan hazır altyazı stili (galeride seçili görünsün). */
+  preset?: string;
+  /** Yazının üstünde gösterilen emoji (renkli; dışa aktarmada resim olarak). */
+  emoji?: string;
+  /** Reels şablonundan geldiyse türü (aynı tür yeniden uygulanınca değişir). */
+  tpl?: "layout" | "hook" | "end";
+  /** Önizlenmeyen biçimlerdeki yeri (x/y/boyut her zaman önizlenen biçimin). */
+  at?: Partial<Record<FrameAspect, TextPlace>>;
 }
 
 /** Dışa aktarıma giden yazı: zamanlar çıktı saniyesi (boşluklar atlanmış). */
@@ -28,6 +52,8 @@ export interface TextOverlay {
   color: string;
   box: boolean;
   bold: boolean;
+  style: TextStyleId;
+  anim: TextAnimId;
 }
 
 export const TEXT_COLORS = ["#ffffff", "#ffd43b", "#000000", "#ff5c5c", "#5b7cff", "#4ade80"];
@@ -59,7 +85,9 @@ export function moveText(texts: readonly TextItem[], id: string, start: number):
   return replace(texts, id, (t) => {
     const length = t.end - t.start;
     const s = Math.max(0, start);
-    return { ...t, start: s, end: s + length };
+    const delta = s - t.start;
+    const words = t.words?.map((w) => ({ ...w, start: w.start + delta, end: w.end + delta }));
+    return { ...t, start: s, end: s + length, ...(words ? { words } : {}) };
   });
 }
 
@@ -129,17 +157,22 @@ export function toOverlays(
   texts: readonly TextItem[],
   pieces: readonly { tStart: number; tEnd: number }[],
 ): TextOverlay[] {
-  return texts
-    .filter((t) => t.text.trim())
-    .map((t) => ({
-      text: t.text,
-      ranges: outputRanges(pieces, t.start, t.end),
-      x: t.x,
-      y: t.y,
-      size: t.size,
-      color: t.color,
-      box: t.box,
-      bold: t.bold,
-    }))
-    .filter((o) => o.ranges.length > 0);
+  return (
+    texts
+      // Zengin yazılar (yazı tipi, kontur, kelime vurgusu) ASS ile çizilir (captionAss).
+      .filter((t) => t.text.trim() && !isRichText(t))
+      .map((t) => ({
+        text: t.text,
+        ranges: outputRanges(pieces, t.start, t.end),
+        x: t.x,
+        y: t.y,
+        size: t.size,
+        color: t.color,
+        box: t.box,
+        bold: t.bold,
+        style: t.style ?? "classic",
+        anim: t.anim ?? "none",
+      }))
+      .filter((o) => o.ranges.length > 0)
+  );
 }

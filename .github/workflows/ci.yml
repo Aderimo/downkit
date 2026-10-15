@@ -1,4 +1,5 @@
-# Her push ve pull request'te: tip denetimi, lint, testler, biçim, arayüz testleri ve Rust testleri.
+# Her push ve pull request'te: tip denetimi, lint, birim testleri, biçim, arayüz testleri
+# (Playwright, çalıştırıcıdaki Edge ile) ve Rust (biçim, clippy, testler).
 name: CI
 
 on:
@@ -20,6 +21,8 @@ jobs:
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -30,7 +33,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm format:check
-      # Arayüz akışları gerçek tarayıcıda (çalıştırıcıdaki Edge ile).
+      # Tanıtım sahneleri .demo/preview.mp4 ister (git dışı): 640 sn'lik küçük deneme videosu.
+      - name: Deneme videosu
+        run: |
+          choco install ffmpeg -y --no-progress
+          New-Item -ItemType Directory -Force .demo | Out-Null
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=10:d=640 -f lavfi -i sine=f=440:d=640 -c:v libx264 -preset ultrafast -crf 40 -c:a aac -b:a 32k -shortest .demo/preview.mp4
       - run: pnpm test:e2e
-      - run: cargo test
+      - run: cargo fmt --check
+        working-directory: src-tauri
+      - run: cargo clippy --lib --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test --lib
         working-directory: src-tauri

@@ -1,3 +1,6 @@
+import { LaneMenu } from "./LaneMenu";
+import { ContextMenu } from "../ui/ContextMenu";
+import { allBeatTimes } from "../../lib/beats";
 import {
   useEffect,
   useLayoutEffect,
@@ -10,9 +13,15 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { createPortal } from "react-dom";
+import { isXfadeKind, XFADE_MIME } from "../../lib/xfade";
+import { addMarkers, findHighlights, markerTimes, useMarkersStore } from "../../lib/markers";
 import { useTranslation } from "react-i18next";
 import {
+  Blend,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Zap,
   ChevronsLeft,
   ChevronsRight,
   Copy,
@@ -34,6 +43,10 @@ import {
   VolumeX,
   ZoomIn,
   ZoomOut,
+  Lock,
+  LockOpen,
+  FoldHorizontal,
+  Link2,
 } from "lucide-react";
 import {
   contentEnd,
@@ -84,8 +97,17 @@ import {
 import { savePlayheadFrame } from "../../lib/frameSave";
 import { localizeError } from "../../lib/errors";
 import { refreshPlayback, seekTimeline } from "../../lib/sequencePlayer";
+import { keyTimes } from "../../lib/clipTransform";
+import { zoomFactor, type ZoomSpan } from "../../lib/clipZoom";
+import { placeZoomSpan, selectZoom, useZoomUi, zoomOnTimeline } from "../../lib/zoomActions";
+import { beginTransformEdit, endTransformEdit } from "../../lib/transformActions";
 import {
   dropTransition,
+  dropXfade,
+  nextAdjacent,
+  previewXfade,
+  cutNear,
+  moveXfade,
   deleteSelected,
   duplicateSelected,
   dropSourceClip,
@@ -98,6 +120,14 @@ import {
   addText,
   stepSeconds,
   toggleMuteSelected,
+  toggleAudioLink,
+  rippleDeleteSelected,
+  copySelected,
+  pasteAtPlayhead,
+  hasClipboard,
+  groupSelected,
+  ungroupSelected,
+  closeAllGaps,
   toEnd,
   toStart,
   togglePlay,
@@ -110,6 +140,41 @@ import {
 import { formatCombo, useShortcutStore, type ShortcutAction } from "../../lib/shortcuts";
 import { moveText, trimText, type TextItem } from "../../lib/textItems";
 import { TextMenu } from "./TextMenu";
+import { LaneHeader, LaneRow } from "./LayerLanes";
+import {
+  audioLaneNumbers,
+  LANE_H,
+  laneEnd,
+  laneStart,
+  moveLaneItem,
+  MUSIC_H,
+  packRows,
+  type Lane,
+  type LaneDragMode,
+  type LaneItem,
+  type LaneKind,
+} from "../../lib/laneItems";
+import {
+  removeBlur,
+  removeImage,
+  removeMusic,
+  isBlockSelected,
+  useBlockSelection,
+  useBlurSelection,
+  useLayerSelection,
+  type BlockRef,
+} from "../../lib/layerActions";
+import { useAddTool, useEditTool } from "../../lib/editorPanel";
+import { removeEffect, selectEffectItem, useEffectSelection } from "../../lib/effectActions";
+import type { EffectItem } from "../../lib/effectLane";
+import { silenceKey, useSilenceStore, useTimelineSilences } from "../../lib/silence";
+import { isSelected, useFillers, useFillerStore } from "../../lib/fillers";
+import { useShortenStore } from "../../lib/shorten";
+import { useSuggestStore } from "../../lib/clipSuggest";
+import { moveClips } from "../../lib/clipGroups";
+import { musicLane } from "../../lib/layers";
+import { MAX_AUDIO_LANES } from "../../lib/sequence";
+import { dropFxAtTime, dropFxOnClip, FX_MIME, readFx } from "../../lib/fxDrag";
 import { clipLabel } from "../../lib/sequence";
 import type { Chapter, Storyboard } from "../../types/media";
 
@@ -159,8 +224,10 @@ function drag(
   const up = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
     onEnd?.(moved);
   };
+  window.addEventListener("pointercancel", up);
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
 }
@@ -217,7 +284,7 @@ function useSourceVisuals(sources: EditorSourceEntry[]): Map<string, SourceVisua
 
   useEffect(() => {
     for (const entry of sources) {
-      const storyboard = entry.source.kind === "remote" ? entry.source.metadata.storyboard : null;
+      const storyboard: Storyboard | null = null;
       const token = entry.stream?.token;
       if (storyboard || !token || entry.duration <= 0) continue;
       requestThumbs(token, thumbTimes(entry.duration, 36));
@@ -228,7 +295,7 @@ function useSourceVisuals(sources: EditorSourceEntry[]): Map<string, SourceVisua
   return useMemo(() => {
     const map = new Map<string, SourceVisuals>();
     for (const entry of sources) {
-      const storyboard = entry.source.kind === "remote" ? entry.source.metadata.storyboard : null;
+      const storyboard: Storyboard | null = null;
       const token = entry.stream?.token ?? null;
       let tiles: TileSource = { kind: "none" };
       if (storyboard) {
@@ -252,6 +319,25 @@ function useSourceVisuals(sources: EditorSourceEntry[]): Map<string, SourceVisua
   }, [sources, byToken, waves]);
 }
 
+/** Kayıt sırasında konan an işaretlerinin zaman çizelgesindeki yerleri. */
+function useTimelineMarkers(): number[] {
+  const clips = useEditorStore((s) => s.clips);
+  const sources = useEditorStore((s) => s.sources);
+  const byPath = useMarkersStore((s) => s.byPath);
+  useEffect(() => {
+    for (const entry of sources) useMarkersStore.getState().load(entry.source.path);
+  }, [sources]);
+  return useMemo(() => {
+    const all: number[] = [];
+    for (const entry of sources) {
+      const marks = byPath[entry.source.path];
+      if (marks?.length) all.push(...markerTimes(clips, entry.id, sources[0]?.id, marks));
+    }
+    return all.sort((a, b) => a - b);
+  }, [clips, sources, byPath]);
+}
+
+/** Zaman çizelgesi paneli: yüksekliği çalışma alanındaki panelden gelir. */
 export function Timeline() {
   const { t } = useTranslation();
   const clips = useEditorStore((s) => s.clips);
@@ -264,16 +350,64 @@ export function Timeline() {
   const [snapLine, setSnapLine] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; clipId: string } | null>(null);
   const [textMenu, setTextMenu] = useState<{ x: number; y: number; textId: string } | null>(null);
+  const [xfadeGhost, setXfadeGhost] = useState<number | null>(null);
 
   const texts = useEditorStore((s) => s.texts);
   const selectedTextId = useEditorStore((s) => s.selectedTextId);
-  const textRow = texts.length > 0 ? TEXT_H : 0;
-  const rows = useMemo(() => layoutRows(clips, textRow), [clips, textRow]);
-  const tracksHeight = textRow + rows.reduce((h, r) => h + r.height, 0);
+  // Çakışan yazılar ayrı satırlarda (üst üste binip birbirini örtmesin).
+  const textPack = useMemo(() => packRows(texts), [texts]);
+  const textRow = texts.length > 0 ? TEXT_H * textPack.count : 0;
+  const images = useEditorStore((s) => s.images);
+  const blurs = useEditorStore((s) => s.blurs);
+  const music = useEditorStore((s) => s.music);
+  const effects = useEditorStore((s) => s.effects);
+  const blurSelected = useBlurSelection((s) => s.id);
+  const layerSelected = useLayerSelection((s) => s.id);
+  const blockSelection = useBlockSelection((s) => s.blocks);
+  const [marquee, setMarquee] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [laneMenu, setLaneMenu] = useState<{
+    x: number;
+    y: number;
+    kind: LaneKind;
+    id: string;
+  } | null>(null);
+  const effectSelected = useEffectSelection((s) => s.id);
+  // Üstte: yazı, efekt, logo, gizleme; ortada video izleri; en altta müzik. Çakışan
+  // bloklar şeridin içinde alt satırlara dizilir.
+  const topLanes: Lane[] = [];
+  let laneTop = RULER_H + textRow;
+  const addLane = (kind: LaneKind, items: LaneItem[]) => {
+    if (items.length === 0) return;
+    const pack = packRows(items.map((i) => ({ id: i.id, start: laneStart(i), end: laneEnd(i) })));
+    const height = LANE_H * pack.count;
+    topLanes.push({ kind, top: laneTop, height, items, rows: pack.rows, rowCount: pack.count });
+    laneTop += height;
+  };
+  addLane("effect", effects);
+  addLane("image", images);
+  addLane("blur", blurs);
+  const topOffset = laneTop - RULER_H;
+  const rows = useMemo(() => layoutRows(clips, topOffset), [clips, topOffset]);
+  const videoHeight = topOffset + rows.reduce((h, r) => h + r.height, 0);
+  const audioLanes: Lane[] = audioLaneNumbers(music).map((n, i) => ({
+    kind: "music",
+    audioLane: n,
+    top: RULER_H + videoHeight + i * MUSIC_H,
+    height: MUSIC_H,
+    items: music.filter((m) => musicLane(m) === n),
+  }));
+  const lanes = [...topLanes, ...audioLanes];
+  const tracksHeight = videoHeight + audioLanes.length * MUSIC_H;
   const extent = timelineExtent(clips, duration);
   const secondsPerPx = width > 0 ? (view.end - view.start) / width : 0;
   // Her kaynağın kareleri/dalga formu/bölümleri kendi token'ından beslenir.
   const visuals = useSourceVisuals(sources);
+  const markers = useTimelineMarkers();
   const firstClipId = useMemo(
     () => [...clips].sort((a, b) => a.start - b.start || a.track - b.track)[0]?.id ?? null,
     [clips],
@@ -340,14 +474,81 @@ export function Timeline() {
     if (!e.shiftKey) {
       useEditorStore.getState().select([]);
       useEditorStore.getState().selectText(null);
+      // Efekt / gizleme bloğu seçimi de kalkar: sonraki ayarlar eski bloğa yazılmasın.
+      useEffectSelection.getState().select(null);
+      useBlurSelection.getState().select(null);
+      useLayerSelection.getState().select(null, null);
     }
+    useBlockSelection.getState().set([]);
     seekTimeline(timeAt(e.clientX));
-    drag(e, (ev) => seekTimeline(timeAt(ev.clientX)));
+    const area = areaRef.current?.getBoundingClientRect();
+    const onRuler = !area || e.clientY - area.top < RULER_H;
+    // Cetvelde sürükleme imleci gezdirir; izlerin boş yerinde sürükleme kutu seçimi yapar.
+    if (onRuler) {
+      drag(e, (ev) => seekTimeline(timeAt(ev.clientX)));
+      return;
+    }
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    drag(
+      e,
+      (ev, moved) => {
+        if (!moved || !area) return;
+        setMarquee({
+          left: Math.min(x0, ev.clientX) - area.left,
+          top: Math.min(y0, ev.clientY) - area.top,
+          width: Math.abs(ev.clientX - x0),
+          height: Math.abs(ev.clientY - y0),
+        });
+        selectInRect(x0, y0, ev.clientX, ev.clientY, e.shiftKey);
+      },
+      () => setMarquee(null),
+    );
+  }
+
+  /** Kutu seçimi: dikdörtgene değen klipler ve bloklar seçilir (Shift: eklenir). */
+  function selectInRect(x0: number, y0: number, x1: number, y1: number, add: boolean) {
+    const box = {
+      left: Math.min(x0, x1),
+      right: Math.max(x0, x1),
+      top: Math.min(y0, y1),
+      bottom: Math.max(y0, y1),
+    };
+    const hits = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom;
+    };
+    const root = areaRef.current;
+    if (!root) return;
+    const clipIds = [...root.querySelectorAll("[data-clip]")]
+      .filter(hits)
+      .map((el) => el.getAttribute("data-clip")!)
+      .filter(Boolean);
+    const blocks: BlockRef[] = [
+      ...[...root.querySelectorAll("[data-text]")]
+        .filter(hits)
+        .map((el) => ({ kind: "text" as const, id: el.getAttribute("data-text")! })),
+      ...[...root.querySelectorAll("[data-lane-item]")].filter(hits).map((el) => ({
+        kind: el.getAttribute("data-lane") as BlockRef["kind"],
+        id: el.getAttribute("data-lane-item")!,
+      })),
+    ];
+    const store = useEditorStore.getState();
+    const prevBlocks = add ? useBlockSelection.getState().blocks : [];
+    store.select(add ? [...new Set([...store.selectedIds, ...clipIds])] : clipIds);
+    useBlockSelection
+      .getState()
+      .set([...prevBlocks, ...blocks.filter((b) => !isBlockSelected(prevBlocks, b.kind, b.id))]);
   }
 
   function startClipDrag(e: ReactPointerEvent, clip: SeqClip, mode: "move" | "start" | "end") {
     if (e.button !== 0) return;
     const store = useEditorStore.getState();
+    if (store.tracks[clip.track]?.locked) {
+      e.stopPropagation();
+      store.select([clip.id]);
+      return;
+    }
     if (e.shiftKey || e.ctrlKey) {
       e.stopPropagation();
       store.toggleSelect(clip.id);
@@ -355,17 +556,25 @@ export function Timeline() {
     }
     if (!store.selectedIds.includes(clip.id)) store.select([clip.id]);
     const origin = store.clips;
+    // Birden çok klip seçiliyse (ya da grup) taşırken hepsi birlikte gider.
+    const together = useEditorStore.getState().selectedIds;
+    const multi = mode === "move" && together.length > 1;
     const grab = timeAt(e.clientX) - clip.start;
     const length = clipLength(clip);
     const areaTop = areaRef.current?.getBoundingClientRect().top ?? 0;
     const tolerance = SNAP_PX * secondsPerPx;
-    const candidates = snapCandidates(origin, clip.id, usePlayerStore.getState().currentTime);
+    const candidates = [
+      ...snapCandidates(origin, clip.id, usePlayerStore.getState().currentTime),
+      ...allBeatTimes(store.music),
+    ];
     store.beginDrag();
+    let didMove = false;
 
     drag(
       e,
       (ev, moved) => {
         if (!moved) return;
+        didMove = true;
         const time = timeAt(ev.clientX);
         // Alt basılıyken mıknatıs geçici olarak tersine döner.
         const useSnap = useEditorStore.getState().snapping !== ev.altKey;
@@ -385,7 +594,13 @@ export function Timeline() {
           }
           setSnapLine(line);
           const track = trackAtY(rows, ev.clientY - areaTop);
-          useEditorStore.getState().dragTo(moveClip(origin, clip.id, start, track));
+          useEditorStore
+            .getState()
+            .dragTo(
+              multi
+                ? moveClips(origin, together, start - clip.start, track - clip.track)
+                : moveClip(origin, clip.id, start, track),
+            );
         } else {
           const snapped = useSnap ? snap(time, candidates, tolerance) : time;
           setSnapLine(snapped !== time ? snapped : null);
@@ -407,6 +622,9 @@ export function Timeline() {
       () => {
         setSnapLine(null);
         useEditorStore.getState().endDrag();
+        // Çoklu seçimde bir klibe tıklayıp bırakmak seçimi o klibe (ve grubuna) indirir:
+        // renk/efekt ayarı yalnızca tıklanan klibe yazılsın.
+        if (!didMove && together.length > 1) useEditorStore.getState().select([clip.id]);
       },
     );
   }
@@ -422,6 +640,7 @@ export function Timeline() {
     const candidates = [
       ...snapCandidates(store.clips, "", usePlayerStore.getState().currentTime),
       ...store.texts.filter((t) => t.id !== item.id).flatMap((t) => [t.start, t.end]),
+      ...allBeatTimes(store.music),
     ];
     store.beginDrag();
     drag(
@@ -453,6 +672,136 @@ export function Timeline() {
     );
   }
 
+  /** Sağ tıkta yalnızca seçer (sürükleme başlatmadan). */
+  function startLayerSelectOnly(kind: LaneKind, id: string) {
+    const store = useEditorStore.getState();
+    store.select([]);
+    store.selectText(null);
+    useBlurSelection.getState().select(kind === "blur" ? id : null);
+    useLayerSelection
+      .getState()
+      .select(
+        kind === "music" || kind === "image" ? kind : null,
+        kind === "music" || kind === "image" ? id : null,
+      );
+    if (kind === "effect") selectEffectItem(id);
+    else useEffectSelection.getState().select(null);
+  }
+
+  function openLaneTool(kind: LaneKind) {
+    if (kind === "effect") useEditTool.getState().setTool("effects");
+    else
+      useAddTool
+        .getState()
+        .setTool(kind === "music" ? "music" : kind === "image" ? "images" : "blur");
+  }
+
+  /** Logo, gizleme ve müzik blokları: taşı ya da kenarından kısalt (kliplere ve imlece yapışır). */
+  function startLayerDrag(
+    e: ReactPointerEvent,
+    kind: LaneKind,
+    item: LaneItem,
+    mode: LaneDragMode,
+  ) {
+    if (e.button !== 0) return;
+    const store = useEditorStore.getState();
+    // Blok seçilince klip/yazı seçimi kalkar: Delete ve sağ panel bloğa gider.
+    store.select([]);
+    store.selectText(null);
+    useBlurSelection.getState().select(kind === "blur" ? item.id : null);
+    useLayerSelection
+      .getState()
+      .select(
+        kind === "music" || kind === "image" ? kind : null,
+        kind === "music" || kind === "image" ? item.id : null,
+      );
+    if (kind === "effect") selectEffectItem(item.id);
+    else useEffectSelection.getState().select(null);
+    const key =
+      kind === "music"
+        ? "music"
+        : kind === "image"
+          ? "images"
+          : kind === "effect"
+            ? "effects"
+            : "blurs";
+    const tolerance = SNAP_PX * secondsPerPx;
+    const candidates = [
+      ...snapCandidates(store.clips, "", usePlayerStore.getState().currentTime),
+      ...allBeatTimes(store.music),
+    ];
+    const t0 = timeAt(e.clientX);
+    const length = laneEnd(item) - laneStart(item);
+    store.beginDrag();
+    drag(
+      e,
+      (ev, moved) => {
+        if (!moved) return;
+        const s = useEditorStore.getState();
+        const origin = ((s.dragOrigin?.[key] ?? s[key]) as LaneItem[]).find(
+          (i) => i.id === item.id,
+        );
+        if (!origin) return;
+        let delta = timeAt(ev.clientX) - t0;
+        if (s.snapping !== ev.altKey) {
+          const edges =
+            mode === "end"
+              ? [laneEnd(origin)]
+              : mode === "start"
+                ? [laneStart(origin)]
+                : [laneStart(origin), laneStart(origin) + length];
+          let best = delta;
+          let gap = Infinity;
+          for (const edge of edges) {
+            const snapped = snap(edge + delta, candidates, tolerance) - edge;
+            if (snapped !== delta && Math.abs(snapped - delta) < gap) {
+              gap = Math.abs(snapped - delta);
+              best = snapped;
+            }
+          }
+          delta = best;
+        }
+        // Ses bloğu taşınırken imlecin altındaki ses izine geçer (en alttakinin altı: yeni iz).
+        let lane: number | undefined;
+        if (kind === "music" && mode === "move" && audioLanes.length > 0) {
+          const areaTop = areaRef.current?.getBoundingClientRect().top ?? 0;
+          const y = ev.clientY - areaTop - audioLanes[0].top;
+          const row = Math.floor(y / MUSIC_H);
+          const last = audioLanes[audioLanes.length - 1].audioLane ?? 0;
+          if (row >= 0)
+            lane = Math.min(
+              MAX_AUDIO_LANES - 1,
+              row < audioLanes.length ? (audioLanes[row].audioLane ?? row) : last + 1,
+            );
+        }
+        const list = (s[key] as LaneItem[]).map((i) => {
+          if (i.id !== item.id) return i;
+          const moved = moveLaneItem(i, mode, origin, delta);
+          return lane !== undefined ? { ...moved, lane } : moved;
+        });
+        s.dragLayers({ [key]: list });
+      },
+      (moved) => {
+        useEditorStore.getState().endDrag();
+        if (moved && (kind === "music" || kind === "effect")) refreshPlayback();
+        // Bloğa tıklanınca kendi paneli açılır: filtre bloğu Filtreler'de, diğerleri Efektler'de.
+        if (!moved && kind === "effect")
+          useEditTool.getState().setTool((item as EffectItem).look?.filter ? "filters" : "effects");
+        else if (!moved && kind !== "blur")
+          useAddTool.getState().setTool(kind === "music" ? "music" : "images");
+        if (!moved && kind === "blur") useAddTool.getState().setTool("blur");
+      },
+    );
+  }
+
+  function removeLayer(kind: LaneKind, id: string) {
+    if (kind === "music") removeMusic(id);
+    else if (kind === "image") removeImage(id);
+    else if (kind === "effect") removeEffect(id);
+    else removeBlur(id);
+    refreshPlayback();
+  }
+
   function openMenu(e: ReactMouseEvent, clip: SeqClip) {
     e.preventDefault();
     e.stopPropagation();
@@ -462,24 +811,34 @@ export function Timeline() {
   }
 
   return (
-    <section className="dk-card flex shrink-0 flex-col overflow-hidden" data-tour="editor-timeline">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden" data-tour="editor-timeline">
       <Toolbar />
-      <div className="flex">
-        <TrackHeaders rows={rows} textRow={textRow} height={RULER_H + tracksHeight} />
+      <div className="dk-scroll flex min-h-0 flex-1 overflow-y-auto">
+        <TrackHeaders rows={rows} textRow={textRow} lanes={lanes} height={RULER_H + tracksHeight} />
         <div
           ref={areaRef}
           className="relative min-w-0 flex-1 cursor-default touch-none overflow-hidden select-none"
-          style={{ height: RULER_H + tracksHeight }}
+          // İçerikten kısa kalırsa kabın kalanını da kaplar: boş yerde tıklama ve kutu seçimi çalışır.
+          style={{ minHeight: RULER_H + tracksHeight }}
           onPointerDown={onAreaPointerDown}
           onContextMenu={(e) => e.preventDefault()}
           onDragOver={(e) => {
             // Medya panelinden sürüklenen kaynak: bırakılabilir olduğunu göster.
-            if (e.dataTransfer.types.includes(SOURCE_DRAG_MIME)) {
+            if (
+              e.dataTransfer.types.includes(SOURCE_DRAG_MIME) ||
+              e.dataTransfer.types.includes(FX_MIME)
+            ) {
               e.preventDefault();
               e.dataTransfer.dropEffect = "copy";
             }
           }}
           onDrop={(e) => {
+            const fx = readFx(e.dataTransfer.getData(FX_MIME));
+            if (fx) {
+              e.preventDefault();
+              dropFxAtTime(timeAt(e.clientX), fx);
+              return;
+            }
             const sourceId = e.dataTransfer.getData(SOURCE_DRAG_MIME);
             if (!sourceId) return;
             e.preventDefault();
@@ -487,13 +846,20 @@ export function Timeline() {
             dropSourceClip(sourceId, timeAt(e.clientX), trackAtY(rows, e.clientY - areaTop));
           }}
         >
+          {marquee ? (
+            <div
+              data-marquee
+              className="pointer-events-none absolute z-30 rounded border border-[var(--dk-accent)] bg-[var(--dk-accent)]/15"
+              style={marquee}
+            />
+          ) : null}
           {width > 0 ? (
             <>
               <Ruler view={view} width={width} />
               {textRow > 0 ? (
                 <div
                   className="absolute inset-x-0 border-t border-[var(--dk-border)] bg-[#a855f7]/5"
-                  style={{ top: RULER_H, height: TEXT_H }}
+                  style={{ top: RULER_H, height: textRow }}
                 >
                   {texts.map((item) => {
                     const left = timeToX(item.start, view, width);
@@ -504,10 +870,18 @@ export function Timeline() {
                         key={item.id}
                         data-text={item.id}
                         title={item.text}
-                        className={`absolute top-0.5 flex h-[calc(100%-4px)] cursor-grab items-center overflow-hidden rounded-md bg-[#a855f7]/80 px-2 text-[11px] font-medium whitespace-nowrap text-white active:cursor-grabbing ${
-                          item.id === selectedTextId ? "shadow-[0_0_0_2px_white]" : ""
+                        className={`absolute flex cursor-grab items-center overflow-hidden rounded-md bg-[#a855f7]/80 px-2 text-[11px] font-medium whitespace-nowrap text-white active:cursor-grabbing ${
+                          item.id === selectedTextId ||
+                          isBlockSelected(blockSelection, "text", item.id)
+                            ? "shadow-[0_0_0_2px_white]"
+                            : ""
                         }`}
-                        style={{ left, width: Math.max(4, right - left) }}
+                        style={{
+                          left,
+                          width: Math.max(4, right - left),
+                          top: (textPack.rows.get(item.id) ?? 0) * TEXT_H + 2,
+                          height: TEXT_H - 4,
+                        }}
                         onPointerDown={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const x = e.clientX - rect.left;
@@ -532,6 +906,37 @@ export function Timeline() {
                   })}
                 </div>
               ) : null}
+              {lanes.map((lane) => (
+                <LaneRow
+                  key={`${lane.kind}-${lane.audioLane ?? ""}`}
+                  lane={lane}
+                  view={view}
+                  width={width}
+                  selectedId={
+                    lane.kind === "blur"
+                      ? blurSelected
+                      : lane.kind === "effect"
+                        ? effectSelected
+                        : layerSelected
+                  }
+                  multiSelected={blockSelection}
+                  onMenu={(e, kind, item) => {
+                    startLayerSelectOnly(kind, item.id);
+                    setLaneMenu({ x: e.clientX, y: e.clientY, kind, id: item.id });
+                  }}
+                  onDrag={startLayerDrag}
+                  onRemove={removeLayer}
+                  onOpen={(kind) =>
+                    kind === "effect"
+                      ? useEditTool.getState().setTool("effects")
+                      : useAddTool
+                          .getState()
+                          .setTool(
+                            kind === "music" ? "music" : kind === "image" ? "images" : "blur",
+                          )
+                  }
+                />
+              ))}
               {rows.map((row) => (
                 <div
                   key={row.track}
@@ -587,12 +992,104 @@ export function Timeline() {
                   />
                 );
               })}
+              {xfadeGhost !== null ? (
+                <div
+                  className="pointer-events-none absolute top-0 bottom-0 z-30 w-0.5 -translate-x-1/2 bg-[var(--dk-sun)]"
+                  style={{ left: xfadeGhost }}
+                  data-xfade-ghost
+                />
+              ) : null}
+              {/* Klipler arası geçişler: kesimin üstünde küçük düğme (tıklayınca seçilir,
+                  sürükleyince başka kesime taşınır). */}
+              {clips.map((clip) => {
+                if (!clip.xfade) return null;
+                const row = rows.find((r) => r.track === clip.track);
+                const next = nextAdjacent(clips, clip);
+                if (!row || !next) return null;
+                const cut = timeToX(clipEnd(clip), view, width);
+                if (cut < -12 || cut > width + 12) return null;
+                const half = clip.xfade.duration / 2 / Math.max(secondsPerPx, 1e-9);
+                return (
+                  <button
+                    key={`xf-${clip.id}`}
+                    type="button"
+                    data-xfade={clip.id}
+                    title={t("editor.xfadeMarker", {
+                      name: t(`editor.xfadeName.${clip.xfade.kind}`),
+                      seconds: clip.xfade.duration.toFixed(1),
+                    })}
+                    aria-label={t("editor.xfadeMarker", {
+                      name: t(`editor.xfadeName.${clip.xfade.kind}`),
+                      seconds: clip.xfade.duration.toFixed(1),
+                    })}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return;
+                      // Sürüklenirse bırakılan yere en yakın kesime taşınır; tıklanırsa seçilir.
+                      const area = areaRef.current?.getBoundingClientRect();
+                      let lastX = e.clientX;
+                      drag(
+                        e,
+                        (ev, moved) => {
+                          lastX = ev.clientX;
+                          if (moved && area) setXfadeGhost(ev.clientX - area.left);
+                        },
+                        (moved) => {
+                          setXfadeGhost(null);
+                          if (!moved) {
+                            useEditorStore.getState().select([clip.id]);
+                            previewXfade(clip.id);
+                            return;
+                          }
+                          const target = cutNear(useEditorStore.getState().clips, timeAt(lastX));
+                          if (target) moveXfade(clip.id, target.id);
+                        },
+                      );
+                    }}
+                    onClick={(e) => {
+                      // Klavyeyle (Enter / boşluk): seç ve oynat.
+                      if (e.detail !== 0) return;
+                      useEditorStore.getState().select([clip.id]);
+                      previewXfade(clip.id);
+                    }}
+                    className="absolute z-20 flex -translate-x-1/2 cursor-grab items-center justify-center rounded-md border border-[var(--dk-border-strong)] bg-[var(--dk-sun)] text-[#111] hover:scale-110 active:cursor-grabbing"
+                    style={{
+                      left: cut,
+                      top: row.top + row.height / 2 - 11,
+                      width: Math.max(22, Math.min(2 * half, 60)),
+                      height: 22,
+                    }}
+                  >
+                    <Blend size={13} strokeWidth={2.5} />
+                  </button>
+                );
+              })}
               {snapLine !== null ? (
                 <div
                   className="pointer-events-none absolute top-0 z-20 w-px bg-[#FFD43B]"
                   style={{ left: timeToX(snapLine, view, width), height: RULER_H + tracksHeight }}
                 />
               ) : null}
+              <SilenceBands view={view} width={width} height={tracksHeight} />
+              {/* An işaretleri: cetvelde sarı bayrak, tıklayınca o ana gidilir. */}
+              {markers.map((m) => {
+                const x = timeToX(m, view, width);
+                if (x < -8 || x > width + 8) return null;
+                return (
+                  <button
+                    key={`mk-${m}`}
+                    type="button"
+                    data-marker={m}
+                    title={t("editor.markerAt", { time: formatTimecode(m, 1) })}
+                    aria-label={t("editor.markerAt", { time: formatTimecode(m, 1) })}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => seekTimeline(m)}
+                    className="absolute z-20 -translate-x-1/2 text-[#FFD43B] drop-shadow hover:scale-125"
+                    style={{ left: x, top: 2 }}
+                  >
+                    <Flag size={14} fill="currentColor" />
+                  </button>
+                );
+              })}
               <Playhead view={view} width={width} height={RULER_H + tracksHeight} extent={extent} />
             </>
           ) : null}
@@ -603,7 +1100,132 @@ export function Timeline() {
       </div>
       {menu ? <ClipMenu {...menu} onClose={() => setMenu(null)} /> : null}
       {textMenu ? <TextMenu {...textMenu} onClose={() => setTextMenu(null)} /> : null}
+      {laneMenu ? (
+        <LaneMenu
+          {...laneMenu}
+          onClose={() => setLaneMenu(null)}
+          onOpen={(kind) => openLaneTool(kind)}
+          onRemove={removeLayer}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/** "Kısalt" paneli açıkken bulunan sessizlikler: kesilecekler kırmızı taralı, kalacaklar soluk.
+ * Cetveldeki etikete tıklayınca kes / kalsın değişir. */
+function SilenceBands({
+  view,
+  width,
+  height,
+}: {
+  view: TimelineView;
+  width: number;
+  height: number;
+}) {
+  const { t } = useTranslation();
+  const open = useAddTool((s) => s.tool === "autocut");
+  const ranges = useTimelineSilences();
+  const kept = useSilenceStore((s) => s.kept);
+  const toggleKept = useSilenceStore((s) => s.toggleKept);
+  const fillers = useFillers();
+  const choice = useFillerStore((s) => s.choice);
+  const plan = useShortenStore((s) => s.plan);
+  const skipped = useShortenStore((s) => s.skipped);
+  const sentences = plan?.sentences.filter((x) => !skipped.includes(x.textId)) ?? [];
+  const suggestions = useSuggestStore((s) => s.list) ?? [];
+  if (
+    !open ||
+    (ranges.length === 0 &&
+      fillers.length === 0 &&
+      sentences.length === 0 &&
+      suggestions.length === 0)
+  )
+    return null;
+  return (
+    <>
+      {suggestions.map((x, i) => {
+        const left = timeToX(x.start, view, width);
+        const right = timeToX(x.end, view, width);
+        if (right < 0 || left > width) return null;
+        return (
+          <div
+            key={`g-${x.start}`}
+            data-suggestion-band={i + 1}
+            className="pointer-events-none absolute z-10 rounded-sm border-2 border-[#4ade80] bg-[#4ade80]/10"
+            style={{ left, width: Math.max(4, right - left), top: RULER_H, height }}
+          >
+            <span className="absolute top-0.5 left-0.5 rounded bg-[#4ade80] px-1 text-[9px] font-bold text-[#111]">
+              {i + 1}
+            </span>
+          </div>
+        );
+      })}
+      {sentences.map((x) => {
+        const left = timeToX(x.start, view, width);
+        const right = timeToX(x.end, view, width);
+        if (right < 0 || left > width) return null;
+        return (
+          <div
+            key={`s-${x.textId}`}
+            data-sentence-band={x.textId}
+            title={t("shorten.band", { text: x.text })}
+            className="pointer-events-none absolute z-10 border-x-2 border-[#f87171] bg-[#f87171]/30"
+            style={{ left, width: Math.max(2, right - left), top: RULER_H, height }}
+          />
+        );
+      })}
+      {fillers.map((h) => {
+        if (!isSelected(h, choice)) return null;
+        const left = timeToX(h.start, view, width);
+        const right = timeToX(h.end, view, width);
+        if (right < 0 || left > width) return null;
+        return (
+          <div
+            key={`f-${h.key}`}
+            data-filler-band={h.word}
+            title={t("fillers.band", { word: h.word })}
+            className="pointer-events-none absolute z-10 border-x border-[#fb923c]/80 bg-[#fb923c]/25"
+            style={{ left, width: Math.max(2, right - left), top: RULER_H, height }}
+          />
+        );
+      })}
+      {ranges.map((r) => {
+        const left = timeToX(r.start, view, width);
+        const right = timeToX(r.end, view, width);
+        if (right < 0 || left > width) return null;
+        const key = silenceKey(r);
+        const keep = kept.includes(key);
+        const label = t(keep ? "autoCut.bandKept" : "autoCut.bandCut", {
+          seconds: (r.end - r.start).toFixed(1),
+        });
+        return (
+          <div
+            key={key}
+            className="pointer-events-none absolute top-0 z-10"
+            style={{ left, width: Math.max(2, right - left), height: RULER_H + height }}
+          >
+            <div
+              data-silence-band={key}
+              className={`absolute inset-x-0 bottom-0 border-x ${keep ? "border-white/20 bg-white/5" : "border-[#f87171]/70 bg-[repeating-linear-gradient(135deg,rgba(248,113,113,0.28)_0_6px,rgba(248,113,113,0.12)_6px_12px)]"}`}
+              style={{ top: RULER_H }}
+            />
+            {right - left > 18 ? (
+              <button
+                type="button"
+                title={label}
+                aria-label={label}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => toggleKept(key)}
+                className={`pointer-events-auto absolute top-[3px] left-1/2 -translate-x-1/2 rounded px-1 font-mono text-[9px] leading-[14px] whitespace-nowrap ${keep ? "bg-white/15 text-white/70" : "bg-[#f87171] text-[#111]"}`}
+              >
+                {(r.end - r.start).toFixed(1)}s
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -612,8 +1234,8 @@ function frameAspect(
   source: EditorSourceEntry["source"] | null,
 ): number {
   if (storyboard) return storyboard.width / storyboard.height;
-  const w = source?.kind === "local" ? source.info.width : source?.metadata.sourceWidth;
-  const h = source?.kind === "local" ? source.info.height : source?.metadata.sourceHeight;
+  const w = source?.info.width;
+  const h = source?.info.height;
   // Dikey videolarda kareler çok daralmasın.
   return w && h ? Math.min(Math.max(w / h, 0.56), 2.4) : 16 / 9;
 }
@@ -654,7 +1276,7 @@ function ClipBlock({
 }: ClipBlockProps) {
   const color = TRACK_COLORS[clip.track % TRACK_COLORS.length];
   // Geçiş sürüklenirken bırakılacak uç: kenara yakınsa o uç (ve oradaki kesim), ortadaysa iki uç.
-  const [dropEdge, setDropEdge] = useState<TransitionEdge | null>(null);
+  const [dropEdge, setDropEdge] = useState<TransitionEdge | "fx" | null>(null);
   const tiles = visuals?.tiles ?? ({ kind: "none" } as TileSource);
   const waveform = visuals?.waveform ?? null;
   const chapters = visuals?.chapters ?? [];
@@ -712,7 +1334,7 @@ function ClipBlock({
       data-tour={isFirst ? "editor-clip" : undefined}
       data-clip={clip.id}
       className={`absolute cursor-grab overflow-hidden rounded-lg bg-[var(--dk-surface-2)] active:cursor-grabbing ${
-        dropEdge === "both"
+        dropEdge === "both" || dropEdge === "fx"
           ? "z-10 shadow-[0_0_0_2px_var(--dk-accent),0_0_18px_var(--dk-accent)]"
           : selected
             ? "z-10 shadow-[0_0_0_2px_white]"
@@ -728,7 +1350,18 @@ function ClipBlock({
       onDoubleClick={() => playClip(clip.id)}
       onContextMenu={(e) => onMenu(e, clip)}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes("application/x-downkit-transition")) return;
+        if (e.dataTransfer.types.includes(FX_MIME)) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDropEdge("fx");
+          return;
+        }
+        if (
+          !e.dataTransfer.types.includes("application/x-downkit-transition") &&
+          !e.dataTransfer.types.includes(XFADE_MIME)
+        ) {
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
@@ -737,6 +1370,20 @@ function ClipBlock({
       onDragLeave={() => setDropEdge(null)}
       onDrop={(e) => {
         setDropEdge(null);
+        const fx = readFx(e.dataTransfer.getData(FX_MIME));
+        if (fx) {
+          e.preventDefault();
+          e.stopPropagation();
+          dropFxOnClip(clip.id, fx);
+          return;
+        }
+        const xfade = e.dataTransfer.getData(XFADE_MIME);
+        if (isXfadeKind(xfade)) {
+          e.preventDefault();
+          e.stopPropagation();
+          dropXfade(clip.id, xfade, transitionEdge(e));
+          return;
+        }
         const kind = e.dataTransfer.getData("application/x-downkit-transition");
         if (!kind) return;
         e.preventDefault();
@@ -762,6 +1409,8 @@ function ClipBlock({
         />
       ) : null}
       <FadeMarks clip={clip} secondsPerPx={secondsPerPx} />
+      <KeyMarks clip={clip} secondsPerPx={secondsPerPx} bottom={waveHeight + 2} />
+      <ZoomBands clip={clip} secondsPerPx={secondsPerPx} top={tileHeight - 12} />
       {dropEdge === "start" || dropEdge === "end" ? (
         <div
           className={`pointer-events-none absolute inset-y-0 z-10 w-1.5 bg-[var(--dk-accent)] shadow-[0_0_14px_var(--dk-accent)] ${
@@ -792,6 +1441,9 @@ function ClipBlock({
           {clipVolume(clip) === 0 ? (
             <VolumeX size={12} className="shrink-0 text-[var(--dk-error)]" />
           ) : null}
+          {clip.group ? (
+            <Link2 size={12} className="shrink-0 text-[var(--dk-accent-hover)]" aria-hidden />
+          ) : null}
         </span>
       ) : null}
       <span
@@ -812,6 +1464,128 @@ function transitionEdge(e: ReactDragEvent<HTMLDivElement>): TransitionEdge {
   const x = e.clientX - rect.left;
   const zone = Math.min(rect.width * 0.3, 60);
   return x <= zone ? "start" : x >= rect.width - zone ? "end" : "both";
+}
+
+/** Zamanlı yakınlaştırmalar: klibin üstünde mor bant. Gövdesi taşır, kenarları uzatır;
+ * tıklayınca seçilir (panelde ve videoda düzenlenir). */
+function ZoomBands({
+  clip,
+  secondsPerPx,
+  top,
+}: {
+  clip: SeqClip;
+  secondsPerPx: number;
+  top: number;
+}) {
+  const { t } = useTranslation();
+  const selected = useZoomUi((s) => s.selected);
+  if (secondsPerPx <= 0 || !clip.zooms?.length) return null;
+
+  function drag(e: ReactPointerEvent, zoom: ZoomSpan, mode: "move" | "start" | "end") {
+    e.stopPropagation();
+    e.preventDefault();
+    selectZoom(clip, zoom);
+    const startX = e.clientX;
+    const target = e.currentTarget as Element;
+    target.setPointerCapture(e.pointerId);
+    let began = false;
+    const move = (ev: PointerEvent) => {
+      const delta = (ev.clientX - startX) * secondsPerPx * clip.speed;
+      if (!began) {
+        if (Math.abs(ev.clientX - startX) < 3) return;
+        beginTransformEdit();
+        began = true;
+      }
+      const a = mode === "end" ? zoom.start : zoom.start + delta;
+      const b = mode === "start" ? zoom.end : zoom.end + delta;
+      placeZoomSpan(clip.id, zoom.id, a, b, true, mode === "move" ? "move" : "resize");
+    };
+    const up = () => {
+      target.removeEventListener("pointermove", move as EventListener);
+      target.removeEventListener("pointerup", up);
+      if (began) endTransformEdit();
+    };
+    target.addEventListener("pointermove", move as EventListener);
+    target.addEventListener("pointerup", up);
+  }
+
+  return (
+    <>
+      {clip.zooms.map((zoom) => {
+        const span = zoomOnTimeline(clip, zoom);
+        if (!span) return null;
+        const on = selected?.zoomId === zoom.id;
+        const width = Math.max(6, (span.end - span.start) / secondsPerPx);
+        return (
+          <div
+            key={zoom.id}
+            data-zoom-band={zoom.id}
+            role="button"
+            aria-label={t("zoom.band", { n: zoomFactor(zoom).toFixed(1) })}
+            title={t("zoom.band", { n: zoomFactor(zoom).toFixed(1) })}
+            onPointerDown={(e) => drag(e, zoom, "move")}
+            onClick={(e) => e.stopPropagation()}
+            className={`absolute z-[3] flex h-3 cursor-grab items-center overflow-hidden rounded-sm text-[9px] leading-none font-bold text-white ${
+              on ? "bg-[#a855f7] ring-1 ring-white" : "bg-[#a855f7]/80 hover:bg-[#a855f7]"
+            }`}
+            style={{ left: (span.start - clip.start) / secondsPerPx, width, top }}
+          >
+            <span
+              className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/40"
+              onPointerDown={(e) => drag(e, zoom, "start")}
+            />
+            <span className="min-w-0 flex-1 truncate px-0.5">
+              {width > 34 ? `${zoomFactor(zoom).toFixed(1)}×` : ""}
+            </span>
+            <span
+              className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/40"
+              onPointerDown={(e) => drag(e, zoom, "end")}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** Dönüşümün anahtar kareleri: klibin altında elmaslar; tıklayınca imleç oraya gider. */
+function KeyMarks({
+  clip,
+  secondsPerPx,
+  bottom,
+}: {
+  clip: SeqClip;
+  secondsPerPx: number;
+  bottom: number;
+}) {
+  const { t } = useTranslation();
+  const times = keyTimes(clip.transform).filter(
+    (k) => k >= clip.srcStart - 1e-6 && k <= clip.srcEnd + 1e-6,
+  );
+  if (secondsPerPx <= 0 || times.length === 0) return null;
+  return (
+    <>
+      {times.map((k) => {
+        const at = clip.start + (k - clip.srcStart) / clip.speed;
+        return (
+          <button
+            key={k}
+            type="button"
+            data-key-mark={k}
+            aria-label={t("transform.goToKey", { time: formatTimecode(at, 2) })}
+            title={t("transform.goToKey", { time: formatTimecode(at, 2) })}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              seekTimeline(at);
+            }}
+            className="absolute z-[2] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border border-black bg-[#ffd43b] hover:scale-125"
+            style={{ left: (at - clip.start) / secondsPerPx, bottom }}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 /** Açılma/kararma süresi kadar köşeden köşeye koyulaşan gölge. */
@@ -987,7 +1761,7 @@ function Toolbar() {
           </ToolButton>
           <ToolButton
             label={hint(t("editor.deleteClip"), "deleteClip")}
-            onClick={deleteSelected}
+            onClick={() => deleteSelected()}
             disabled={!hasSelection}
           >
             <Trash2 size={16} />
@@ -998,6 +1772,9 @@ function Toolbar() {
             disabled={!hasSelection}
           >
             <Copy size={16} />
+          </ToolButton>
+          <ToolButton label={hint(t("editor.closeGaps"), "closeGaps")} onClick={closeAllGaps}>
+            <FoldHorizontal size={16} />
           </ToolButton>
         </span>
         <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
@@ -1040,6 +1817,7 @@ function Toolbar() {
         <ToolButton label={hint(t("editor.toEnd"), "toEnd")} onClick={toEnd}>
           <SkipForward size={16} />
         </ToolButton>
+        <MarkerJumps />
         <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
         <ToolButton
           label={t("editor.saveFrame")}
@@ -1130,6 +1908,7 @@ function Ruler({ view, width }: { view: TimelineView; width: number }) {
     <div
       className="absolute inset-x-0 top-0 cursor-pointer bg-[var(--dk-bg)]/60"
       style={{ height: RULER_H }}
+      data-ruler
     >
       {ticks.map(({ time, major }) => {
         const x = timeToX(time, view, width);
@@ -1148,6 +1927,68 @@ function Ruler({ view, width }: { view: TimelineView; width: number }) {
         );
       })}
     </div>
+  );
+}
+
+/** Önceki / sonraki an işaretine atlar (işaret yoksa görünmez). */
+function MarkerJumps() {
+  const { t } = useTranslation();
+  const markers = useTimelineMarkers();
+  const [found, setFound] = useState<number | null>(null);
+  // Ses dalgasından heyecanlı anları bulup işaret koyar (zaman çizelgesinde zaten çizilen veri).
+  const findMoments = () => {
+    const { sources } = useEditorStore.getState();
+    const waves = useWaveStore.getState().byToken;
+    let added = 0;
+    for (const entry of sources) {
+      const peaks = entry.stream ? waves[entry.stream.token] : undefined;
+      if (!peaks) continue;
+      added += addMarkers(entry.source.path, findHighlights(peaks, entry.duration));
+    }
+    setFound(added);
+    window.setTimeout(() => setFound(null), 2500);
+  };
+  const finder = (
+    <ToolButton
+      label={found === null ? t("editor.findMoments") : t("editor.foundMoments", { count: found })}
+      onClick={findMoments}
+    >
+      <Zap size={16} className={found === null ? "" : "text-[#FFD43B]"} />
+    </ToolButton>
+  );
+  if (markers.length === 0) {
+    return (
+      <>
+        <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
+        {finder}
+      </>
+    );
+  }
+  const jump = (dir: 1 | -1) => {
+    const now = usePlayerStore.getState().currentTime;
+    const target =
+      dir > 0
+        ? markers.find((m) => m > now + 0.05)
+        : [...markers].reverse().find((m) => m < now - 0.05);
+    if (target !== undefined) seekTimeline(target);
+  };
+  return (
+    <>
+      <span className="mx-1 h-5 w-px bg-[var(--dk-border)]" />
+      <ToolButton label={t("editor.markerPrev")} onClick={() => jump(-1)}>
+        <span className="flex items-center text-[#FFD43B]">
+          <ChevronLeft size={14} />
+          <Flag size={13} fill="currentColor" />
+        </span>
+      </ToolButton>
+      {finder}
+      <ToolButton label={t("editor.markerNext", { count: markers.length })} onClick={() => jump(1)}>
+        <span className="flex items-center text-[#FFD43B]">
+          <Flag size={13} fill="currentColor" />
+          <ChevronRight size={14} />
+        </span>
+      </ToolButton>
+    </>
   );
 }
 
@@ -1183,19 +2024,29 @@ function Playhead({
   );
 }
 
-/** Her izin solundaki düğmeler (Clipchamp'taki gibi): sesi kapat, katmanı gizle.
+/** Her izin solundaki düğmeler: sesi kapat, katmanı gizle.
  * Zaman çizelgesinin koordinatlarını bozmamak için ayrı bir sütunda durur. */
-function TrackHeaders({ rows, textRow, height }: { rows: Row[]; textRow: number; height: number }) {
+function TrackHeaders({
+  rows,
+  textRow,
+  lanes,
+  height,
+}: {
+  rows: Row[];
+  textRow: number;
+  lanes: Lane[];
+  height: number;
+}) {
   const { t } = useTranslation();
   const tracks = useEditorStore((s) => s.tracks);
   const setTrack = useEditorStore((s) => s.setTrack);
-  const toggle = (track: number, key: "muted" | "hidden") => {
+  const toggle = (track: number, key: "muted" | "hidden" | "locked") => {
     setTrack(track, { [key]: !tracks[track]?.[key] });
     refreshPlayback();
   };
   return (
     <div
-      className="relative w-12 shrink-0 border-r border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60"
+      className="relative w-[68px] shrink-0 border-r border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60"
       style={{ height }}
     >
       {textRow > 0 ? (
@@ -1207,6 +2058,9 @@ function TrackHeaders({ rows, textRow, height }: { rows: Row[]; textRow: number;
           <Type size={13} />
         </div>
       ) : null}
+      {lanes.map((lane) => (
+        <LaneHeader key={`${lane.kind}-${lane.audioLane ?? ""}`} lane={lane} />
+      ))}
       {rows
         .filter((row) => !row.empty)
         .map((row) => {
@@ -1223,26 +2077,41 @@ function TrackHeaders({ rows, textRow, height }: { rows: Row[]; textRow: number;
               className="absolute inset-x-0 flex flex-col items-center justify-center gap-0.5 border-t border-[var(--dk-border)]"
               style={{ top: row.top, height: row.height }}
             >
-              <button
-                type="button"
-                className={button(!!state.muted)}
-                aria-pressed={!!state.muted}
-                title={state.muted ? t("editor.trackUnmute") : t("editor.trackMute")}
-                aria-label={state.muted ? t("editor.trackUnmute") : t("editor.trackMute")}
-                onClick={() => toggle(row.track, "muted")}
-              >
-                {state.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-              </button>
-              <button
-                type="button"
-                className={button(!!state.hidden)}
-                aria-pressed={!!state.hidden}
-                title={state.hidden ? t("editor.trackShow") : t("editor.trackHide")}
-                aria-label={state.hidden ? t("editor.trackShow") : t("editor.trackHide")}
-                onClick={() => toggle(row.track, "hidden")}
-              >
-                {state.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
+              <span className="font-mono text-[10px] font-semibold text-[var(--dk-text-muted)]">
+                V{row.track + 1}
+              </span>
+              <span className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  className={button(!!state.muted)}
+                  aria-pressed={!!state.muted}
+                  title={state.muted ? t("editor.trackUnmute") : t("editor.trackMute")}
+                  aria-label={state.muted ? t("editor.trackUnmute") : t("editor.trackMute")}
+                  onClick={() => toggle(row.track, "muted")}
+                >
+                  {state.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                </button>
+                <button
+                  type="button"
+                  className={button(!!state.hidden)}
+                  aria-pressed={!!state.hidden}
+                  title={state.hidden ? t("editor.trackShow") : t("editor.trackHide")}
+                  aria-label={state.hidden ? t("editor.trackShow") : t("editor.trackHide")}
+                  onClick={() => toggle(row.track, "hidden")}
+                >
+                  {state.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                </button>
+                <button
+                  type="button"
+                  className={button(!!state.locked)}
+                  aria-pressed={!!state.locked}
+                  title={state.locked ? t("editor.trackUnlock") : t("editor.trackLock")}
+                  aria-label={state.locked ? t("editor.trackUnlock") : t("editor.trackLock")}
+                  onClick={() => toggle(row.track, "locked")}
+                >
+                  {state.locked ? <Lock size={12} /> : <LockOpen size={12} />}
+                </button>
+              </span>
             </div>
           );
         })}
@@ -1345,16 +2214,7 @@ function ClipMenu({
   const { t } = useTranslation();
   const map = useShortcutStore((s) => s.map);
   const clip = useEditorStore((s) => s.clips.find((c) => c.id === clipId));
-
-  useEffect(() => {
-    const close = () => onClose();
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("blur", close);
-    };
-  }, [onClose]);
+  const detached = useEditorStore((s) => s.music.some((m) => m.linkedClipId === clipId));
 
   if (!clip) return null;
   const run = (fn: () => void) => () => {
@@ -1373,22 +2233,40 @@ function ClipMenu({
       action: toggleMuteSelected,
     },
     {
+      label: t("editor.rippleDelete"),
+      shortcut: key("rippleDelete"),
+      action: rippleDeleteSelected,
+    },
+    { label: t("editor.copyClips"), shortcut: key("copyClips"), action: () => void copySelected() },
+    ...(hasClipboard()
+      ? [
+          {
+            label: t("editor.pasteClips"),
+            shortcut: key("pasteClips"),
+            action: () => void pasteAtPlayhead(),
+          },
+        ]
+      : []),
+    clip.group
+      ? { label: t("editor.ungroupClips"), shortcut: key("ungroupClips"), action: ungroupSelected }
+      : { label: t("editor.groupClips"), shortcut: key("groupClips"), action: groupSelected },
+    {
+      label: detached ? t("editor.reattachAudio") : t("editor.detachAudio"),
+      shortcut: key("detachAudio"),
+      action: () => {
+        toggleAudioLink();
+      },
+    },
+    {
       label: t("editor.deleteClip"),
       shortcut: key("deleteClip"),
-      action: deleteSelected,
+      action: () => deleteSelected(),
       danger: true,
     },
   ];
 
-  return createPortal(
-    <div
-      className="fixed z-[60] w-60 rounded-xl border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] p-1 shadow-2xl shadow-black/60"
-      style={{
-        left: Math.min(x, window.innerWidth - 250),
-        top: Math.min(y, window.innerHeight - 290),
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+  return (
+    <ContextMenu x={x} y={y} width={240} onClose={onClose}>
       {items.map((item) => (
         <button
           key={item.label}
@@ -1425,7 +2303,6 @@ function ClipMenu({
           ))}
         </div>
       </div>
-    </div>,
-    document.body,
+    </ContextMenu>
   );
 }

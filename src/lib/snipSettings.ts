@@ -25,6 +25,9 @@ export interface SnipSettings {
   copyOnSave: boolean;
   /** Sayfadaki düğmelerle yakalamadan önce beklenecek saniye (menü açmak için). */
   delaySeconds: number;
+  /** Sayfadaki düğmeyle yakalarken DownKit önce simge durumuna küçülür. Kapalıyken
+   * (varsayılan) program yerinde kalır ve görüntüye kendisi de girer. */
+  minimizeApp: boolean;
   translateDirection: TranslateDirection;
   /** Açıksa hızlı çeviri DownKit'in düzenleyicisinde açılır; kapalıysa program
    * öne gelmeden çeviri okunur ve panoya kopyalanır. */
@@ -38,6 +41,7 @@ export const DEFAULT_SNIP_SETTINGS: SnipSettings = {
   enterAction: "edit",
   copyOnSave: true,
   delaySeconds: 0,
+  minimizeApp: false,
   translateDirection: "auto",
   translateOpensEditor: false,
 };
@@ -60,6 +64,7 @@ export function normalizeSnipSettings(raw: unknown): SnipSettings {
     enterAction: pick(r.enterAction, ENTER_ACTIONS, d.enterAction),
     copyOnSave: typeof r.copyOnSave === "boolean" ? r.copyOnSave : d.copyOnSave,
     delaySeconds: pick<number>(r.delaySeconds, CAPTURE_DELAYS, d.delaySeconds),
+    minimizeApp: typeof r.minimizeApp === "boolean" ? r.minimizeApp : d.minimizeApp,
     translateDirection: pick(r.translateDirection, TRANSLATE_DIRECTIONS, d.translateDirection),
     translateOpensEditor:
       typeof r.translateOpensEditor === "boolean" ? r.translateOpensEditor : d.translateOpensEditor,

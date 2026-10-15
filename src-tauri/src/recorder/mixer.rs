@@ -113,6 +113,9 @@ impl Track {
 pub struct Mixer {
     tracks: Vec<Track>,
     written: i64,
+    /// Ayrı kanala da yazılan kaynak (mikrofon). Varsa çıkış 4 kanal olur:
+    /// 1-2 karışım (her şey), 3-4 yalnızca bu kaynak.
+    isolated: Option<usize>,
 }
 
 impl Mixer {
@@ -123,6 +126,11 @@ impl Mixer {
             ..Track::default()
         });
         self.tracks.len() - 1
+    }
+
+    /// `track` karışıma girmeye devam eder, ayrıca 3-4. kanallara tek başına yazılır.
+    pub fn isolate(&mut self, track: usize) {
+        self.isolated = Some(track);
     }
 
     pub fn set_start(&mut self, frame: i64) {
@@ -144,14 +152,41 @@ impl Mixer {
             return Vec::new();
         }
         let mut out = vec![0.0; frames as usize * CHANNELS];
-        for track in &mut self.tracks {
-            track.mix_into(self.written, &mut out);
-        }
-        for sample in &mut out {
-            *sample = sample.clamp(-1.0, 1.0);
+        let mut solo = vec![
+            0.0;
+            if self.isolated.is_some() {
+                out.len()
+            } else {
+                0
+            }
+        ];
+        for (index, track) in self.tracks.iter_mut().enumerate() {
+            if Some(index) == self.isolated {
+                track.mix_into(self.written, &mut solo);
+            } else {
+                track.mix_into(self.written, &mut out);
+            }
         }
         self.written = until;
-        out
+        if self.isolated.is_none() {
+            for sample in &mut out {
+                *sample = sample.clamp(-1.0, 1.0);
+            }
+            return out;
+        }
+        let mut wide = Vec::with_capacity(out.len() * 2);
+        for (pair, solo) in out
+            .as_chunks::<CHANNELS>()
+            .0
+            .iter()
+            .zip(solo.as_chunks::<CHANNELS>().0)
+        {
+            wide.push((pair[0] + solo[0]).clamp(-1.0, 1.0));
+            wide.push((pair[1] + solo[1]).clamp(-1.0, 1.0));
+            wide.push(solo[0].clamp(-1.0, 1.0));
+            wide.push(solo[1].clamp(-1.0, 1.0));
+        }
+        wide
     }
 
     /// Son okumadan beri her kaynağın en yüksek seviyesi (seviye göstergesi için).
@@ -395,5 +430,18 @@ mod tests {
     fn saat_birimleri_karelere_cevrilir() {
         assert_eq!(ticks_to_frames(TICKS_PER_SEC), 48_000);
         assert_eq!(frames_to_ticks(24_000), TICKS_PER_SEC / 2);
+    }
+
+    #[test]
+    fn ayrilan_kaynak_hem_karisimda_hem_kendi_kanallarinda() {
+        let mut mixer = Mixer::default();
+        let system = mixer.add_track(1.0);
+        let mic = mixer.add_track(1.0);
+        mixer.isolate(mic);
+        mixer.push(system, 0, &stereo(4, 0.25));
+        mixer.push(mic, 0, &stereo(4, 0.5));
+        let out = mixer.render(4);
+        assert_eq!(out.len(), 16);
+        assert_eq!(&out[0..4], &[0.75, 0.75, 0.5, 0.5]);
     }
 }

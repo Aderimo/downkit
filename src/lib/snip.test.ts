@@ -3,7 +3,6 @@ import {
   detectLanguage,
   groupOcrBlocks,
   ocrLanguageFor,
-  ocrText,
   resolveDirection,
   selectionToPixels,
   snipFileName,
@@ -60,10 +59,6 @@ describe("OCR satırlarını paragraflara toplama", () => {
       line("sol devam", 20, 44, 200),
     ]);
     expect(blocks.map((b) => b.text)).toEqual(["Sol sütun sol devam", "Sağ sütun"]);
-  });
-
-  it("düz metinde paragraflar boş satırla ayrılır", () => {
-    expect(ocrText([line("A", 0, 0), line("B", 0, 22), line("C", 0, 200)])).toBe("A B\n\nC");
   });
 });
 

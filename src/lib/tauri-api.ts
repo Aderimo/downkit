@@ -11,12 +11,13 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import type { AnalyzeResult, DownloadRequest } from "../types/media";
 import { MEDIA_EXTENSIONS } from "./validation";
+import type { MotionSpec } from "./layers";
+import type { AudioFx } from "./audioFx";
+import type { AnalyzeResult, DownloadRequest } from "../types/media";
 import type { ConvertRequest, LocalMediaInfo } from "../types/convert";
 import type { CompressRequest } from "../types/compress";
 import type { ResizeRequest } from "../types/resize";
-import type { TrimRequest } from "../types/trim";
 import type {
   OcrOutput,
   PixelRect,
@@ -30,6 +31,8 @@ import type {
   CaptureOptions,
   CaptureTarget,
   EncoderInfo,
+  GpuAdapter,
+  RecorderEncoder,
   RecorderErrorPayload,
   RecorderSources,
   RecorderStatus,
@@ -55,16 +58,6 @@ import type {
 
 // Frontend ↔ Rust arasındaki TEK sarmalayıcı nokta. Bileşenler invoke()/listen()'i
 // doğrudan çağırmaz, sadece bu modülü kullanır.
-
-/** Tek video ya da (link yalnızca bir listeye işaret ediyorsa) oynatma listesi. */
-export function analyzeUrl(url: string): Promise<AnalyzeResult> {
-  return invoke("analyze_url", { url });
-}
-
-/** "watch?v=…&list=…" gibi linklerde listenin tamamını açar. */
-export function analyzePlaylist(url: string): Promise<AnalyzeResult> {
-  return invoke("analyze_playlist", { url });
-}
 
 export function chooseDownloadDir(): Promise<string | null> {
   return open({ directory: true, multiple: false }) as Promise<string | null>;
@@ -117,8 +110,115 @@ export function textFileWrite(path: string, contents: string): Promise<void> {
   return invoke("text_file_write", { path, contents });
 }
 
-export function probeLocalFile(path: string): Promise<LocalMediaInfo> {
-  return invoke("probe_local_file", { path });
+/** Emojinin PNG çizimini önbelleğe yazar; dosya yolunu döner. */
+/** Kaynağın kısa bir bölümünü ses onarımıyla (fx yoksa olduğu gibi) WAV olarak yazar. */
+export function audioFxPreview(
+  path: string,
+  start: number,
+  length: number,
+  fx: AudioFxReq | null,
+  loudness: number | null,
+): Promise<string> {
+  return invoke("audio_fx_preview", { path, start, length, fx, loudness });
+}
+
+/** Ses efekti (WAV, önbellek) ya da seslendirme (WebM, Videolar\DownKit\Seslendirme). */
+export function audioFileWrite(kind: "sfx" | "voice", name: string, data: string): Promise<string> {
+  return invoke("audio_file_write", { kind, name, data });
+}
+
+/** Müzikteki vuruşlar (dosyanın saniyesi). */
+export function audioBeats(path: string, start: number, length: number): Promise<number[]> {
+  return invoke("audio_beats", { path, start, length });
+}
+
+type AudioFxReq = AudioFx;
+
+export function emojiImageWrite(name: string, data: string): Promise<string> {
+  return invoke("emoji_image_write", { name, data });
+}
+
+/** Altyazı dosyasının (.srt / .vtt) kaydedileceği yeri sorar. */
+export async function chooseSubtitleSavePath(
+  defaultName: string,
+  ext: "srt" | "vtt",
+): Promise<string | null> {
+  const path = await save({
+    defaultPath: `${defaultName}.${ext}`,
+    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+  });
+  if (!path) return null;
+  return path.toLowerCase().endsWith(`.${ext}`) ? path : `${path}.${ext}`;
+}
+
+// ——— Proje dosyaları (.downkit) ve otomatik kayıt ———
+
+export async function chooseProjectFile(): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    // Eski .clipkit projeleri de açılır. Videolar da listelenir: "Proje aç"tan video
+    // seçen kullanıcı boş pencere görmesin (seçilen video düzenleyicide açılır).
+    filters: [
+      { name: "DownKit / Video / Ses", extensions: ["downkit", "clipkit", ...MEDIA_EXTENSIONS] },
+      { name: "DownKit", extensions: ["downkit", "clipkit"] },
+      { name: "Video / Ses", extensions: MEDIA_EXTENSIONS },
+    ],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function chooseProjectSavePath(defaultName: string): Promise<string | null> {
+  const path = await save({
+    defaultPath: defaultName,
+    filters: [{ name: "DownKit", extensions: ["downkit"] }],
+  });
+  if (!path) return null;
+  return /\.downkit$/i.test(path) ? path : `${path}.downkit`;
+}
+
+/** Eksik medyanın yerine seçilecek dosya (aynı türden). */
+export async function chooseRelinkFile(): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    filters: [{ name: "Video / Ses", extensions: MEDIA_EXTENSIONS }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export function projectSave(path: string, contents: string): Promise<void> {
+  return invoke("project_save", { path, contents });
+}
+
+export function projectRead(path: string): Promise<string> {
+  return invoke("project_read", { path });
+}
+
+export function autosaveWrite(contents: string): Promise<void> {
+  return invoke("autosave_write", { contents });
+}
+
+export function autosaveRead(): Promise<string | null> {
+  return invoke("autosave_read");
+}
+
+export function autosaveClear(): Promise<void> {
+  return invoke("autosave_clear");
+}
+
+export function pathsExist(paths: string[]): Promise<boolean[]> {
+  return invoke("paths_exist", { paths });
+}
+
+/** Tek video ya da (link yalnızca bir listeye işaret ediyorsa) oynatma listesi. */
+export function analyzeUrl(url: string): Promise<AnalyzeResult> {
+  return invoke("analyze_url", { url });
+}
+
+/** "watch?v=…&list=…" gibi linklerde listenin tamamını açar. */
+export function analyzePlaylist(url: string): Promise<AnalyzeResult> {
+  return invoke("analyze_playlist", { url });
 }
 
 export function startDownload(request: DownloadRequest): Promise<string> {
@@ -137,12 +237,49 @@ export function startResize(request: ResizeRequest): Promise<string> {
   return invoke("start_resize", { request });
 }
 
-export function startTrim(request: TrimRequest): Promise<string> {
-  return invoke("start_trim", { request });
+export function probeLocalFile(path: string): Promise<LocalMediaInfo> {
+  return invoke("probe_local_file", { path });
 }
 
 export function startEdit(request: EditRequest): Promise<string> {
   return invoke("start_edit", { request });
+}
+
+export interface MotionControl {
+  name: string;
+  kind: "text" | "color";
+  value: string;
+}
+
+export interface MotionTemplate {
+  id: string;
+  width: number;
+  height: number;
+  duration: number;
+  controls: MotionControl[];
+}
+
+/** Hareketli başlık şablonları (EffectCraft), varsayılan değerleriyle. */
+export function motionTemplates(): Promise<MotionTemplate[]> {
+  return invoke("motion_templates");
+}
+
+/** Seçimin `time` saniyesindeki küçük önizleme karesi (PNG veri adresi). */
+export function motionPreview(spec: MotionSpec, time: number): Promise<string> {
+  return invoke("motion_preview", { spec, time });
+}
+
+/** Çizilen saydam video: yolu, boyutu ve süresi. */
+export interface MotionRendered {
+  path: string;
+  width: number;
+  height: number;
+  duration: number;
+}
+
+/** Saydam videoyu çizer (önceden çizildiyse hemen döner). */
+export function motionRender(spec: MotionSpec): Promise<MotionRendered> {
+  return invoke("motion_render", { spec });
 }
 
 /** Bilgisayardaki dosyayı düzenleyicide izlenebilir hale getirir. */
@@ -162,6 +299,46 @@ export function requestEditorThumbnails(
 
 export function onEditorThumb(handler: (payload: ThumbPayload) => void): Promise<UnlistenFn> {
   return safeListen<ThumbPayload>("editor-thumb", handler);
+}
+
+/** Kaynaktaki yüzler (yüz takibi): kaynak saniyesinde örnekler, kutular 0–1. */
+export function detectFaces(
+  path: string,
+  ranges: [number, number][],
+  width: number,
+  height: number,
+): Promise<{ t: number; faces: [number, number, number, number][] }[]> {
+  return invoke("editor_face_track", { path, ranges, width, height });
+}
+
+/** Yüz takibinin ilerlemesi. */
+export function onFaceProgress(
+  handler: (done: number, total: number) => void,
+): Promise<UnlistenFn> {
+  return listen<{ done: number; total: number }>("editor-face-progress", (e) =>
+    handler(e.payload.done, e.payload.total),
+  );
+}
+
+/** Kapak görseli (imleçteki kare + düzen + başlık); kaydedilen dosyanın yolu. */
+export function saveCoverImage(
+  path: string,
+  seconds: number,
+  frame: EditRequest["frame"] | null,
+  assScript: string | null,
+  name: string,
+): Promise<string> {
+  return invoke("editor_cover", { path, seconds, frame, assScript, name });
+}
+
+/** Dosyadaki sessiz bölümler (kaynak saniyesi). `voice`: ayrı mikrofon izi varsa ona bakılır. */
+export function detectSilences(
+  path: string,
+  noiseDb: number,
+  minSeconds: number,
+  voice: boolean,
+): Promise<{ silences: [number, number][]; voiceTrack: boolean }> {
+  return invoke("editor_silences", { path, noiseDb, minSeconds, voice });
 }
 
 export function getEditorWaveform(
@@ -197,25 +374,24 @@ const CANCEL_COMMAND: Record<JobKind, string> = {
   convert: "cancel_convert",
   compress: "cancel_compress",
   resize: "cancel_resize",
-  trim: "cancel_trim",
   edit: "cancel_edit",
 };
 
-/** `discard`: İptal'de true (yarım dosyalar silinir), Duraklat'ta false. */
+/** `discard`: İptal'de true (yarım dosyalar silinir), Duraklat'ta false (yalnız indirme ve dışa aktarma). */
 export function cancelBackendJob(kind: JobKind, jobId: string, discard = true): Promise<void> {
   return kind === "download" || kind === "edit"
     ? invoke(CANCEL_COMMAND[kind], { jobId, discard })
     : invoke(CANCEL_COMMAND[kind], { jobId });
 }
 
-/** Duraklatılmış bir düzenleyici dışa aktarımı iptal edilince indirilen bölümleri siler. */
-export function discardEditWork(workKey: string): Promise<void> {
-  return invoke("discard_edit_work", { workKey });
-}
-
 /** Duraklatılmış bir indirme iptal edilince yarım kalan dosyalarını siler. */
 export function discardPartialDownload(target: string): Promise<void> {
   return invoke("discard_partial_download", { target });
+}
+
+/** Duraklatılmış bir düzenleyici dışa aktarımı iptal edilince indirilen bölümleri siler. */
+export function discardEditWork(workKey: string): Promise<void> {
+  return invoke("discard_edit_work", { workKey });
 }
 
 export interface JobEventHandlers {
@@ -229,18 +405,15 @@ export interface JobEventHandlers {
 
 /** Tüm iş türlerinin olaylarına tek seferde abone olur. */
 export async function listenJobEvents(handlers: JobEventHandlers): Promise<UnlistenFn> {
-  const prefixes: JobKind[] = ["download", "convert", "compress", "resize", "trim", "edit"];
+  const prefixes: JobKind[] = ["download", "convert", "compress", "resize", "edit"];
   const pending: Promise<UnlistenFn>[] = [
     listen<DownloadProgressPayload>("download-progress", (e) =>
       handlers.onDownloadProgress(e.payload),
     ),
+    listen<EditProgressPayload>("edit-progress", (e) => handlers.onEditProgress(e.payload)),
   ];
   for (const prefix of prefixes) {
-    if (prefix === "edit") {
-      pending.push(
-        listen<EditProgressPayload>("edit-progress", (e) => handlers.onEditProgress(e.payload)),
-      );
-    } else if (prefix !== "download") {
+    if (prefix !== "download" && prefix !== "edit") {
       pending.push(
         listen<FfmpegProgressPayload>(`${prefix}-progress`, (e) =>
           handlers.onFfmpegProgress(e.payload),
@@ -261,25 +434,62 @@ export function revealInFolder(path: string): Promise<void> {
   return revealItemInDir(path);
 }
 
-export function openMediaFile(path: string): Promise<void> {
-  return invoke("open_media_file", { path });
+/** Dosyayı panoya kopyalar: Discord ya da WhatsApp'a Ctrl+V ile yapıştırılır. */
+export function copyFileToClipboard(path: string): Promise<void> {
+  return invoke("copy_file_to_clipboard", { path });
 }
 
-export function openOriginalUrl(url: string): Promise<void> {
-  return openUrl(url);
+/** Ayarlardaki Discord kanalına mesaj ve (verilirse) dosya gönderir. */
+export function discordSend(webhook: string, path: string | null, content: string): Promise<void> {
+  return invoke("discord_send", { webhook, path, content });
+}
+
+export interface CaptionsProgressPayload {
+  stage: "audio" | "transcribe";
+  percent: number;
+}
+
+/** Kaynağın bölümlerini bilgisayarda yazıya döker (kelime kelime, kaynak saniyesi). */
+export function captionsTranscribe(
+  path: string,
+  ranges: { start: number; end: number }[],
+  language: string,
+  model: string,
+): Promise<{ text: string; start: number; end: number }[]> {
+  return invoke("captions_transcribe", { path, ranges, language, model });
+}
+
+export function captionsCancel(): Promise<void> {
+  return invoke("captions_cancel");
+}
+
+/** Motor ve model indirilmiş mi (ilk kullanımda boyut uyarısı için). */
+export function captionsReady(model: string): Promise<boolean> {
+  return invoke("captions_ready", { model });
+}
+
+export function onCaptionsProgress(
+  handler: (payload: CaptionsProgressPayload) => void,
+): Promise<UnlistenFn> {
+  return safeListen<CaptionsProgressPayload>("captions-progress", handler);
+}
+
+/** Öndeki tam ekran oyun (yoksa null). */
+export function recorderFullscreenApp(): Promise<{ name: string; exe: string } | null> {
+  return invoke("recorder_fullscreen_app");
+}
+
+export function recorderAppRunning(exe: string): Promise<boolean> {
+  return invoke("recorder_app_running", { exe });
+}
+
+export function openMediaFile(path: string): Promise<void> {
+  return invoke("open_media_file", { path });
 }
 
 /** Yapımcı sayfası, Discord gibi dış bağlantıları varsayılan tarayıcıda açar. */
 export function openExternalLink(url: string): Promise<void> {
   return openUrl(url);
-}
-
-export function getYtdlpVersion(): Promise<string> {
-  return invoke("get_ytdlp_version");
-}
-
-export function updateYtdlp(): Promise<string> {
-  return invoke("update_ytdlp");
 }
 
 export interface ToolVersions {
@@ -288,18 +498,18 @@ export interface ToolVersions {
   deno: string | null;
 }
 
+export function updateYtdlp(): Promise<string> {
+  return invoke("update_ytdlp");
+}
+
+/** Orijinal videonun sayfasını tarayıcıda açar. */
+export function openOriginalUrl(url: string): Promise<void> {
+  return openUrl(url);
+}
+
 /** Kurulu araçların sürümleri; kurulu olmayanı indirmez (null döner). */
 export function getToolVersions(): Promise<ToolVersions> {
   return invoke("get_tool_versions");
-}
-
-/** Kurulumla mı ("installed") yoksa kurulumsuz exe olarak mı ("portable") çalışıyor. */
-export async function getInstallKind(): Promise<"installed" | "portable"> {
-  try {
-    return await invoke<"installed" | "portable">("install_kind");
-  } catch {
-    return "portable";
-  }
 }
 
 export function openAppDataDir(): Promise<void> {
@@ -401,13 +611,13 @@ export async function onFileDrop(
 }
 
 export interface ToolDownloadPayload {
-  tool: "yt-dlp" | "ffmpeg" | "deno";
+  tool: "yt-dlp" | "ffmpeg" | "deno" | "whisper" | "whisperModel";
   downloaded: number;
   total: number | null;
   state: "downloading" | "done" | "failed";
 }
 
-/** Araçları (yt-dlp, FFmpeg) arka planda hazırlar; zaten varsa hiçbir şey indirmez. */
+/** FFmpeg'i arka planda hazırlar; zaten varsa hiçbir şey indirmez. */
 export function prepareTools(): Promise<void> {
   return invoke("prepare_tools");
 }
@@ -435,13 +645,22 @@ export async function copyText(text: string): Promise<boolean> {
 
 // --- Ekran kaydı ---
 
-export function recorderSources(): Promise<RecorderSources> {
-  return invoke("recorder_sources");
+/** `monitorsOnly`: pencere ve ses aygıtı listeleri boş döner (hızlı yol). */
+export function recorderSources(monitorsOnly = false): Promise<RecorderSources> {
+  return invoke("recorder_sources", { monitorsOnly });
 }
 
 /** Bu yakalama için çalışan kodlayıcıyı bulur (ilk seferde dener, sonra hatırlar). */
-export function recorderPrepare(target: CaptureTarget): Promise<EncoderInfo> {
-  return invoke("recorder_prepare", { target });
+/** Ekran kartları (yazılım sürücüsü hariç). */
+export function recorderGpus(): Promise<GpuAdapter[]> {
+  return invoke("recorder_gpus");
+}
+
+export function recorderPrepare(
+  target: CaptureTarget,
+  encoder: RecorderEncoder | null = null,
+): Promise<EncoderInfo> {
+  return invoke("recorder_prepare", { target, encoder });
 }
 
 /** `byApp`: kayıt, kaydedilen oyunun / uygulamanın alt klasörüne yazılır.
@@ -476,17 +695,6 @@ export function replaySave(
   folderFallback?: string | null,
 ): Promise<SavedRecording> {
   return invoke("replay_save", { outputDir, name, byApp, folderFallback });
-}
-
-/** Seçili kaynağın tam çözünürlüklü anlık görüntüsünü PNG olarak kaydeder; yolu döner. */
-export function recorderScreenshot(
-  target: CaptureTarget,
-  outputDir: string,
-  name: string,
-  byApp: boolean,
-  folderFallback?: string | null,
-): Promise<string> {
-  return invoke("recorder_screenshot", { target, outputDir, name, byApp, folderFallback });
 }
 
 export function recorderStatus(): Promise<RecorderStatus> {
@@ -692,4 +900,38 @@ export async function chooseImageFile(): Promise<string | null> {
     filters: [{ name: "PNG / JPEG / WebP", extensions: ["png", "jpg", "jpeg", "webp"] }],
   });
   return typeof selected === "string" ? selected : null;
+}
+
+/** Windows açılınca DownKit'i (tepside) başlat. */
+export function autostartGet(): Promise<boolean> {
+  return invoke("autostart_get");
+}
+
+export function autostartSet(enabled: boolean): Promise<boolean> {
+  return invoke("autostart_set", { enabled });
+}
+
+/** Temizlenebilir önbelleğin boyutu (bayt). */
+export function cacheUsage(): Promise<number> {
+  return invoke("cache_usage");
+}
+
+/** Önbelleği boşaltır; boşalan bayt döner. */
+export function cacheClear(): Promise<number> {
+  return invoke("cache_clear");
+}
+
+/** Tek dosya seçtirir (uzantılar noktasız). */
+export async function chooseFile(name: string, extensions: string[]): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    filters: [{ name, extensions }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+/** Üste bindirilecek resmin önizlemesi (veri adresi). */
+export function imagePreview(path: string): Promise<string> {
+  return invoke("image_preview", { path });
 }

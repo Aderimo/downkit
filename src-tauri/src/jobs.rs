@@ -10,7 +10,6 @@ use crate::events::{
     FfmpegProgressPayload, JobCanceledPayload, JobCompletePayload, JobErrorPayload,
 };
 use crate::state::{AppState, JobEntry};
-use crate::ytdlp::errors::Friendly;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const STDERR_TAIL_BYTES: usize = 4000;
@@ -29,22 +28,6 @@ pub fn register(app: &AppHandle, job_id: &str, pid: u32) {
             discard_partial: false,
         },
     );
-}
-
-/// Birden çok süreçten oluşan işte (ör. önce yt-dlp, sonra ffmpeg) iptalin yeni
-/// sürece de ulaşması için kayıttaki PID'i değiştirir. İş bu arada iptal
-/// edildiyse false döner; çağıran yeni süreci kendisi durdurmalıdır.
-pub fn replace_pid(app: &AppHandle, job_id: &str, pid: u32) -> bool {
-    crate::process_guard::attach(pid);
-    let state = app.state::<AppState>();
-    let mut jobs = state.jobs.lock().unwrap();
-    match jobs.get_mut(job_id) {
-        Some(entry) if !entry.canceled => {
-            entry.pid = pid;
-            true
-        }
-        _ => false,
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -135,6 +118,45 @@ pub fn unique_output_path(dir: &std::path::Path, stem: &str, ext: &str) -> std::
         .expect("sonsuz aralıkta boş bir ad bulunur")
 }
 
+/// Dışa aktarma sürerken kullanılan geçici çıktı yolu: aynı klasörde, aynı
+/// uzantıyla (FFmpeg biçimi uzantıdan seçer). Başarıyla bitince asıl adına
+/// taşınır; program yarıda kapanırsa asıl adla bozuk bir dosya kalmaz.
+pub fn temp_output_path(final_path: &std::path::Path) -> std::path::PathBuf {
+    let stem = final_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let name = match final_path.extension() {
+        Some(ext) => format!("{stem}.downkit-tmp.{}", ext.to_string_lossy()),
+        None => format!("{stem}.downkit-tmp"),
+    };
+    final_path.with_file_name(name)
+}
+
+/// Geçici çıktıyı asıl adına taşır; o arada aynı adla dosya oluştuysa yeni bir ad
+/// bulunur (var olan dosyanın üzerine yazılmaz). Asıl yolu döner.
+pub fn promote_output(
+    temp: &std::path::Path,
+    wanted: &std::path::Path,
+) -> std::io::Result<std::path::PathBuf> {
+    let target = if wanted.exists() {
+        let dir = wanted.parent().unwrap_or(std::path::Path::new("."));
+        let stem = wanted
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let ext = wanted
+            .extension()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        unique_output_path(dir, &stem, &ext)
+    } else {
+        wanted.to_path_buf()
+    };
+    std::fs::rename(temp, &target)?;
+    Ok(target)
+}
+
 pub struct FfmpegJob {
     /// Olay adı öneki: "convert" | "compress" | "resize"
     pub event_prefix: &'static str,
@@ -142,9 +164,27 @@ pub struct FfmpegJob {
     pub error_code: &'static str,
     pub error_message: &'static str,
     pub duration_seconds: Option<f64>,
+    /// FFmpeg'in yazdığı dosya (geçici yol olabilir).
     pub output_path: String,
+    /// Verilirse başarıyla bitince `output_path` bu ada taşınır.
+    pub final_path: Option<String>,
     /// Sıkıştırmada kaynağın boyutu: sonuç küçülmediyse kullanıcıya söylenir.
     pub input_size_bytes: Option<u64>,
+    /// Ekran kartıyla kodlama başarısız olursa bir kez bu argümanlarla (işlemci) yeniden denenir.
+    pub fallback_args: Option<Vec<String>>,
+}
+
+fn start_child(
+    ffmpeg_exe: &std::path::Path,
+    args: &[String],
+) -> std::io::Result<tokio::process::Child> {
+    let mut command = Command::new(ffmpeg_exe);
+    command
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_console(&mut command);
+    command.spawn()
 }
 
 pub async fn spawn_ffmpeg(
@@ -153,15 +193,7 @@ pub async fn spawn_ffmpeg(
     args: Vec<String>,
     job: FfmpegJob,
 ) -> Result<String, AppError> {
-    let mut command = Command::new(ffmpeg_exe);
-    command
-        .args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    hide_console(&mut command);
-
-    let mut child = command
-        .spawn()
+    let child = start_child(ffmpeg_exe, &args)
         .map_err(|e| AppError::new(job.error_message, Some(e.to_string())))?;
 
     let job_id = Uuid::new_v4().to_string();
@@ -169,26 +201,59 @@ pub async fn spawn_ffmpeg(
         register(app, &job_id, pid);
     }
 
-    let stdout = child.stdout.take().expect("stdout piped");
-    let stderr = child.stderr.take().expect("stderr piped");
     let app_for_task = app.clone();
     let job_id_for_task = job_id.clone();
+    let exe = ffmpeg_exe.to_path_buf();
 
     tauri::async_runtime::spawn(async move {
-        run_ffmpeg(app_for_task, job_id_for_task, child, stdout, stderr, job).await;
+        run_ffmpeg(app_for_task, job_id_for_task, exe, child, job).await;
     });
 
     Ok(job_id)
 }
 
-async fn run_ffmpeg(
-    app: AppHandle,
-    job_id: String,
+/// Yeniden denemede iş kaydındaki süreç kimliği güncellenir; bu arada iptal
+/// edildiyse yeni süreç hemen durdurulur. İptal edildiyse true.
+pub async fn replace_pid(app: &AppHandle, job_id: &str, pid: u32) -> bool {
+    crate::process_guard::attach(pid);
+    let canceled = {
+        let state = app.state::<AppState>();
+        let mut jobs = state.jobs.lock().unwrap();
+        match jobs.get_mut(job_id) {
+            Some(entry) => {
+                entry.pid = pid;
+                entry.canceled
+            }
+            None => false,
+        }
+    };
+    if canceled {
+        let mut command = Command::new("taskkill");
+        command.args(["/F", "/T", "/PID", &pid.to_string()]);
+        hide_console(&mut command);
+        let _ = command.output().await;
+    }
+    canceled
+}
+
+pub fn is_canceled(app: &AppHandle, job_id: &str) -> bool {
+    app.state::<AppState>()
+        .jobs
+        .lock()
+        .unwrap()
+        .get(job_id)
+        .is_some_and(|e| e.canceled)
+}
+
+/// Bir FFmpeg sürecini sonuna kadar izler: ilerlemeyi yayınlar, hata kuyruğunu toplar.
+async fn pump(
+    app: &AppHandle,
+    job_id: &str,
     mut child: tokio::process::Child,
-    stdout: tokio::process::ChildStdout,
-    stderr: tokio::process::ChildStderr,
-    job: FfmpegJob,
-) {
+    job: &FfmpegJob,
+) -> (bool, String) {
+    let stdout = child.stdout.take().expect("stdout piped");
+    let stderr = child.stderr.take().expect("stderr piped");
     let mut stdout = BufReader::new(stdout);
     let mut stderr = BufReader::new(stderr);
     let (mut out_buf, mut err_buf) = (Vec::new(), Vec::new());
@@ -214,7 +279,7 @@ async fn run_ffmpeg(
                         };
                         let _ = app.emit(
                             &format!("{}-progress", job.event_prefix),
-                            FfmpegProgressPayload { job_id: job_id.clone(), percent, speed },
+                            FfmpegProgressPayload { job_id: job_id.to_string(), percent, speed },
                         );
                     }
                     _ => {}
@@ -235,10 +300,40 @@ async fn run_ffmpeg(
             None => stderr_done = true,
         }
     }
-
     let status = child.wait().await;
+    (matches!(status, Ok(s) if s.success()), stderr_tail)
+}
+
+async fn run_ffmpeg(
+    app: AppHandle,
+    job_id: String,
+    ffmpeg_exe: std::path::PathBuf,
+    child: tokio::process::Child,
+    mut job: FfmpegJob,
+) {
+    let (mut succeeded, mut stderr_tail) = pump(&app, &job_id, child, &job).await;
+    let mut notice: Option<&'static str> = None;
+
+    // Ekran kartı kodlaması başarısız: yarım dosya silinir, işlemciyle bir kez daha denenir.
+    if !succeeded && !is_canceled(&app, &job_id) {
+        if let Some(args) = job.fallback_args.take() {
+            let _ = tokio::fs::remove_file(&job.output_path).await;
+            if let Ok(child) = start_child(&ffmpeg_exe, &args) {
+                let canceled = match child.id() {
+                    Some(pid) => replace_pid(&app, &job_id, pid).await,
+                    None => false,
+                };
+                let (ok, tail) = pump(&app, &job_id, child, &job).await;
+                succeeded = ok && !canceled;
+                if !ok {
+                    stderr_tail = tail;
+                }
+                notice = Some("gpuFallback");
+            }
+        }
+    }
+
     let canceled = finish(&app, &job_id).canceled;
-    let succeeded = matches!(status, Ok(s) if s.success());
 
     if canceled || !succeeded {
         // Yarım kalmış çıktı dosyası işe yaramaz; kaynak dosyaya asla dokunulmaz.
@@ -253,21 +348,47 @@ async fn run_ffmpeg(
                 partial_target: None,
             },
         );
-    } else if succeeded {
-        let size = tokio::fs::metadata(&job.output_path)
+        return;
+    }
+    if succeeded {
+        let mut file_path = job.output_path.clone();
+        if let Some(final_path) = &job.final_path {
+            match promote_output(
+                std::path::Path::new(&job.output_path),
+                std::path::Path::new(final_path),
+            ) {
+                Ok(path) => file_path = path.to_string_lossy().into_owned(),
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&job.output_path).await;
+                    let _ = app.emit(
+                        &format!("{}-error", job.event_prefix),
+                        JobErrorPayload {
+                            job_id,
+                            message: job.error_message.to_string(),
+                            code: Some(job.error_code),
+                            raw_detail: Some(e.to_string()),
+                        },
+                    );
+                    return;
+                }
+            }
+        }
+        let size = tokio::fs::metadata(&file_path)
             .await
             .map(|m| m.len())
             .unwrap_or(0);
+        let not_smaller = job.input_size_bytes.is_some_and(|input| size >= input);
         let _ = app.emit(
             &format!("{}-complete", job.event_prefix),
             JobCompletePayload {
                 job_id,
-                file_path: job.output_path,
+                file_path,
                 file_size_bytes: size,
-                notice: job
-                    .input_size_bytes
-                    .is_some_and(|input| size >= input)
-                    .then_some("notSmaller"),
+                notice: if not_smaller {
+                    Some("notSmaller")
+                } else {
+                    notice
+                },
             },
         );
     } else {
@@ -287,6 +408,13 @@ async fn run_ffmpeg(
 }
 
 /// FFmpeg'in kullanıcının kendisinin çözebileceği hatalarını açıklar.
+/// Kullanıcıya kendi dilinde gösterilecek hata (kod + ileti).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Friendly {
+    pub code: &'static str,
+    pub message: &'static str,
+}
+
 fn ffmpeg_friendly(stderr: &str) -> Option<Friendly> {
     let text = stderr.to_lowercase();
     if text.contains("no space left on device") {
@@ -315,6 +443,35 @@ fn ffmpeg_friendly(stderr: &str) -> Option<Friendly> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gecici_cikti_ayni_klasorde_ayni_uzantiyla() {
+        let temp = temp_output_path(std::path::Path::new("C:\\Videolar\\Klibim.mp4"));
+        assert_eq!(
+            temp,
+            std::path::Path::new("C:\\Videolar\\Klibim.downkit-tmp.mp4")
+        );
+        let gif = temp_output_path(std::path::Path::new("D:\\a b.gif"));
+        assert_eq!(gif, std::path::Path::new("D:\\a b.downkit-tmp.gif"));
+    }
+
+    #[test]
+    fn gecici_cikti_tasinir_var_olan_dosyanin_uzerine_yazilmaz() {
+        let dir = std::env::temp_dir().join(format!("downkit-promote-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let wanted = dir.join("klip.mp4");
+        let temp = temp_output_path(&wanted);
+        std::fs::write(&temp, b"yeni").unwrap();
+        assert_eq!(promote_output(&temp, &wanted).unwrap(), wanted);
+        assert!(!temp.exists());
+        // Aynı adla dosya oluştuysa yeni ad bulunur.
+        std::fs::write(&temp, b"ikinci").unwrap();
+        let second = promote_output(&temp, &wanted).unwrap();
+        assert_eq!(second, dir.join("klip (1).mp4"));
+        assert_eq!(std::fs::read(&wanted).unwrap(), b"yeni");
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn ffmpeg_disk_dolu_hatasi_aciklanir() {

@@ -34,6 +34,8 @@ interface PlayerState {
   /** İmleçteki klibin görünümü (önizlemede CSS filtresiyle) ve geçiş rengi. */
   clipLook: ClipLook | null;
   clipFadeWhite: boolean;
+  /** İmleçteki klibin hareket/geçiş dönüşümü (yoksa null). */
+  clipFx: { transform: string; transformOrigin: string; filter: string } | null;
   setApi: (api: PlayerApi | null) => void;
   patch: (patch: Partial<Omit<PlayerState, "setApi" | "patch">>) => void;
 }
@@ -53,24 +55,11 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   clipOpacity: 1,
   clipLook: null,
   clipFadeWhite: false,
+  clipFx: null,
   setApi: (api) => set({ api }),
   patch: (patch) => set(patch),
 }));
 
 export function player(): PlayerApi | null {
   return usePlayerStore.getState().api;
-}
-
-/** Oynatıcıyı `seconds` anına götürür; oynatıcı henüz hazır değilse imleç yine taşınır. */
-export function seekTo(seconds: number) {
-  usePlayerStore.getState().patch({ currentTime: seconds });
-  player()?.seek(seconds);
-}
-
-/** [start, end) aralığını oynatır ve sonunda durur. */
-export function playRange(start: number, end: number) {
-  const state = usePlayerStore.getState();
-  state.patch({ stopAt: end, currentTime: start });
-  state.api?.seek(start);
-  state.api?.play();
 }

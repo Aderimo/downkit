@@ -12,9 +12,11 @@
 pub mod args;
 pub mod audio;
 mod denoise;
+pub mod gpu;
 pub(crate) mod library;
 pub mod mixer;
 mod pipeline;
+mod probe_cache;
 mod replay;
 pub mod screenshot;
 mod sources;
@@ -42,6 +44,7 @@ use crate::error::AppError;
 use crate::{ffmpeg, jobs, paths};
 use args::{CaptureTarget, Encoder, VideoOptions};
 use pipeline::{AudioPlan, Pipeline};
+use probe_cache::ProbeCache;
 
 const MAX_REPLAY_SECONDS: u32 = 600;
 const MAX_REPLAY_RESTARTS: u32 = 5;
@@ -53,8 +56,8 @@ pub struct RecorderState(Mutex<Recorder>);
 struct Recorder {
     recording: Option<Recording>,
     replay: Option<Replay>,
-    /// Çalıştığı denenmiş kodlayıcı; anahtar: ddagrab mı (kare yolu farklı).
-    encoders: HashMap<bool, Encoder>,
+    /// Anahtar: (ddagrab mı, kullanıcının seçtiği kodlayıcı).
+    encoders: HashMap<(bool, Option<Encoder>), Encoder>,
     /// Ekran tutamacı → ddagrab o çıkışı yakalayabiliyor mu (bir kez denenir).
     dda_ok: HashMap<u64, bool>,
     ticker: bool,
@@ -103,6 +106,9 @@ pub struct CaptureOptions {
     /// Mikrofonda gürültü engelleme (RNNoise).
     #[serde(default = "yes")]
     pub noise_suppression: bool,
+    /// Mikrofon ayrı ses izine de kaydedilsin (1. iz: her şey, 2. iz: yalnızca mikrofon).
+    #[serde(default)]
+    pub microphone_separate: bool,
 }
 
 fn yes() -> bool {
@@ -129,6 +135,7 @@ impl CaptureOptions {
                     self.noise_suppression,
                 )
             }),
+            separate_mic: self.microphone && self.microphone_separate,
         }
     }
 }
@@ -202,12 +209,27 @@ fn err(message: &str, detail: impl Into<Option<String>>) -> AppError {
 }
 
 #[tauri::command]
-pub async fn recorder_sources() -> Result<Sources, AppError> {
-    tokio::task::spawn_blocking(|| Sources {
+pub async fn recorder_sources(monitors_only: Option<bool>) -> Result<Sources, AppError> {
+    // Ekran kaydı başlatılırken yalnızca ekranlar gerekir: bütün pencereleri ve ses
+    // aygıtlarını taramak (exe adı, dosya açıklaması…) başlangıcı yavaşlatıyordu.
+    let monitors_only = monitors_only.unwrap_or(false);
+    tokio::task::spawn_blocking(move || Sources {
         monitors: sources::list_monitors(),
-        windows: sources::list_windows(),
-        microphones: audio::list_microphones(),
-        speakers: audio::list_speakers(),
+        windows: if monitors_only {
+            Vec::new()
+        } else {
+            sources::list_windows()
+        },
+        microphones: if monitors_only {
+            Vec::new()
+        } else {
+            audio::list_microphones()
+        },
+        speakers: if monitors_only {
+            Vec::new()
+        } else {
+            audio::list_speakers()
+        },
     })
     .await
     .map_err(|e| err("Kaynaklar okunamadı.", e.to_string()))
@@ -266,10 +288,14 @@ async fn app_dir(
 /// izin…) Windows.Graphics.Capture yoluna (gfxcapture) düşürür; karar ekran
 /// tutamacına göre bir kez denenip hatırlanır. Aksi hâlde kodlayıcı denemeleri
 /// hep aynı bozuk girişle yapıldığı için "ekran yakalanamadı" çıkıyordu.
-async fn normalize_target(app: &AppHandle, ffmpeg_exe: &Path, target: &CaptureTarget) -> CaptureTarget {
+async fn normalize_target(
+    app: &AppHandle,
+    ffmpeg_exe: &Path,
+    target: &CaptureTarget,
+) -> CaptureTarget {
     let CaptureTarget::Monitor {
         hmonitor,
-        dda_index: Some(_),
+        dda_index: Some(index),
         width,
         height,
     } = *target
@@ -285,41 +311,126 @@ async fn normalize_target(app: &AppHandle, ffmpeg_exe: &Path, target: &CaptureTa
     if let Some(ok) = state(app).lock().await.dda_ok.get(&hmonitor) {
         return if *ok { target.clone() } else { fallback };
     }
-    // Giriş yolunu sınamak için her zaman bulunan işlemci kodlayıcısı yeter.
-    let ok = pipeline::probe(ffmpeg_exe, args::probe_args(target, Encoder::X264), None).await;
+    // Önceki açılışlardan kalan sonuç (aynı kart, sürücü ve FFmpeg) varsa deneme yapılmaz.
+    let disk_key = probe_cache::dda_key(index, width, height);
+    let mut disk = ProbeCache::load(app, &probe_cache::current_key(ffmpeg_exe));
+    let ok = match disk.dda_ok(&disk_key) {
+        Some(ok) => ok,
+        None => {
+            // Giriş yolunu sınamak için her zaman bulunan işlemci kodlayıcısı yeter.
+            let ok = pipeline::probe(
+                ffmpeg_exe,
+                args::probe_args(target, Encoder::X264, false),
+                None,
+            )
+            .await;
+            disk.set_dda_ok(disk_key, ok);
+            disk.save(app);
+            ok
+        }
+    };
     state(app).lock().await.dda_ok.insert(hmonitor, ok);
-    if ok { target.clone() } else { fallback }
+    if ok {
+        target.clone()
+    } else {
+        fallback
+    }
 }
 
-/// Bu yakalama için çalışan kodlayıcıyı bulur (ilk seferde dener, sonra hatırlar).
+/// Ekranı süren kartın üreticisi (ddagrab tek ekran yolunda); bilinmiyorsa yok.
+fn display_vendor(target: &CaptureTarget, adapters: &[gpu::Adapter]) -> Option<u32> {
+    let CaptureTarget::Monitor { hmonitor, .. } = *target else {
+        return None;
+    };
+    adapters
+        .iter()
+        .find(|a| a.monitors.contains(&hmonitor))
+        .map(|a| a.vendor_id)
+}
+
+/// Kodlayıcı ekranı süren karttan başka bir kartta mı (ör. ekranı Intel süren
+/// dizüstüde NVENC)? Öyleyse kareler önce belleğe indirilir; aksi hâlde ffmpeg
+/// başka kartın D3D11 karesini kodlayamaz.
+fn needs_download(target: &CaptureTarget, encoder: Encoder, adapters: &[gpu::Adapter]) -> bool {
+    if !is_dda(target) || !encoder.takes_gpu_frames() {
+        return false;
+    }
+    match (display_vendor(target, adapters), encoder.vendor_id()) {
+        (Some(display), Some(own)) => display != own,
+        _ => false,
+    }
+}
+
+/// Otomatik seçimde deneme sırası: önce ekranı süren kartın kodlayıcısı (kareler
+/// kartta kalır), sonra öteki donanım kodlayıcıları, en son işlemci.
+fn auto_order(target: &CaptureTarget, adapters: &[gpu::Adapter]) -> Vec<Encoder> {
+    let display = display_vendor(target, adapters);
+    let mut order: Vec<Encoder> = Encoder::ALL.to_vec();
+    order.sort_by_key(|e| match (e.vendor_id(), display) {
+        (Some(v), Some(d)) if v == d => 0,
+        (Some(_), _) => 1,
+        (None, _) => 2,
+    });
+    order
+}
+
+/// Bu yakalama için çalışan kodlayıcıyı bulur (ilk seferde dener, sonra hem
+/// bellekte hem diskte hatırlar). `preferred` verilirse yalnızca o denenir: seçilen
+/// kodlayıcı açılamazsa sessizce işlemciye düşmek yerine kullanıcıya söylenir.
 async fn ensure_encoder(
     app: &AppHandle,
     ffmpeg_exe: &Path,
     target: &CaptureTarget,
+    preferred: Option<Encoder>,
 ) -> Result<Encoder, AppError> {
     // Çoklu ekranda kareler zaten belleğe iner (xstack): kodlayıcı seçimi
     // ddagrab yolundan bağımsızdır, tek ekran gibi ele alınır.
-    let dda = matches!(
-        target,
-        CaptureTarget::Monitor {
-            dda_index: Some(_),
-            ..
-        }
-    );
-    if let Some(encoder) = state(app).lock().await.encoders.get(&dda) {
+    let dda = is_dda(target);
+    if let Some(encoder) = state(app).lock().await.encoders.get(&(dda, preferred)) {
         return Ok(*encoder);
     }
-    for encoder in Encoder::ALL {
+    let mut disk = ProbeCache::load(app, &probe_cache::current_key(ffmpeg_exe));
+    if let Some(encoder) = disk.encoder(dda, preferred) {
+        state(app)
+            .lock()
+            .await
+            .encoders
+            .insert((dda, preferred), encoder);
+        return Ok(encoder);
+    }
+    let adapters = gpu::adapters();
+    let candidates = match preferred {
+        Some(e) => vec![e],
+        None => auto_order(target, &adapters),
+    };
+    for encoder in candidates {
+        let download = needs_download(target, encoder, &adapters);
         if pipeline::probe(
             ffmpeg_exe,
-            args::probe_args(target, encoder),
+            args::probe_args(target, encoder, download),
             nudge_target(target),
         )
         .await
         {
-            state(app).lock().await.encoders.insert(dda, encoder);
+            state(app)
+                .lock()
+                .await
+                .encoders
+                .insert((dda, preferred), encoder);
+            disk.set_encoder(dda, preferred, Some(encoder));
+            disk.save(app);
             return Ok(encoder);
         }
+    }
+    if let Some(e) = preferred {
+        return Err(AppError::coded(
+            "encoderUnavailable",
+            format!(
+                "Seçilen kodlayıcı ({}) bu bilgisayarda açılamadı. Kayıt ayarlarında \"Otomatik\" seç ya da ekran kartı sürücünü güncelle.",
+                e.label()
+            ),
+            None,
+        ));
     }
     Err(AppError::coded(
         "captureUnavailable",
@@ -328,15 +439,27 @@ async fn ensure_encoder(
     ))
 }
 
+/// Kodlayıcıyı bulur ve kare yolunu (indirme gerekli mi) seçeneklere yazar.
+async fn prepare_video(
+    app: &AppHandle,
+    ffmpeg_exe: &Path,
+    options: &mut CaptureOptions,
+) -> Result<Encoder, AppError> {
+    let encoder = ensure_encoder(app, ffmpeg_exe, &options.target, options.video.encoder).await?;
+    options.video.download_frames = needs_download(&options.target, encoder, &gpu::adapters());
+    Ok(encoder)
+}
+
 #[tauri::command]
 pub async fn recorder_prepare(
     app: AppHandle,
     target: CaptureTarget,
+    encoder: Option<Encoder>,
 ) -> Result<EncoderInfo, AppError> {
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
     let ffmpeg_exe = ffmpeg_dir.join("ffmpeg.exe");
     let target = normalize_target(&app, &ffmpeg_exe, &target).await;
-    let encoder = ensure_encoder(&app, &ffmpeg_exe, &target).await?;
+    let encoder = ensure_encoder(&app, &ffmpeg_exe, &target, encoder).await?;
     Ok(EncoderInfo {
         encoder,
         label: encoder.label(),
@@ -345,17 +468,45 @@ pub async fn recorder_prepare(
 }
 
 /// Süreç başladıktan kısa süre sonra düşerse (ör. ekran kartı kodlayıcısı açılamadı)
-/// hata hemen gösterilir.
+/// hata hemen gösterilir. İlk kare kodlanınca beklemeden dönülür; eskiden her
+/// başlatma sabit 1,2 sn beklerdi.
 async fn fail_fast(pipeline: Pipeline) -> Result<Pipeline, AppError> {
-    for _ in 0..12 {
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    for _ in 0..24 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
         if pipeline.exit_status().is_some() {
             let detail = pipeline.stderr_tail();
             pipeline.dispose().await;
             return Err(err("Kayıt başlatılamadı.", detail));
         }
+        let started = {
+            let p = pipeline.progress.lock().unwrap();
+            p.seconds > 0.0 || p.bytes > 0
+        };
+        if started {
+            break;
+        }
     }
     Ok(pipeline)
+}
+
+/// Hatırlanan kodlayıcı artık açılamıyorsa (sürücü güncellendi, kart değişti)
+/// unutulur; sonraki `ensure_encoder` yeniden dener.
+async fn forget_encoder(app: &AppHandle, ffmpeg_exe: &Path, options: &CaptureOptions) {
+    let (dda, preferred) = (is_dda(&options.target), options.video.encoder);
+    state(app).lock().await.encoders.remove(&(dda, preferred));
+    let mut disk = ProbeCache::load(app, &probe_cache::current_key(ffmpeg_exe));
+    disk.set_encoder(dda, preferred, None);
+    disk.save(app);
+}
+
+fn is_dda(target: &CaptureTarget) -> bool {
+    matches!(
+        target,
+        CaptureTarget::Monitor {
+            dda_index: Some(_),
+            ..
+        }
+    )
 }
 
 #[tauri::command]
@@ -376,7 +527,7 @@ pub async fn recorder_start(
     // edilir ki denenen kodlayıcı ile gerçek kayıt aynı girişi kullansın).
     let mut options = options;
     options.target = normalize_target(&app, &ffmpeg_exe, &options.target).await;
-    let encoder = ensure_encoder(&app, &ffmpeg_exe, &options.target).await?;
+    let encoder = prepare_video(&app, &ffmpeg_exe, &mut options).await?;
 
     let dir = app_dir(
         PathBuf::from(&output_dir),
@@ -399,15 +550,39 @@ pub async fn recorder_start(
     let has_audio = plan.system.is_some() || plan.microphone.is_some();
 
     let mkv_text = mkv.to_string_lossy().into_owned();
-    let pipeline = Pipeline::start(
-        &ffmpeg_exe,
-        |pipe| args::recording_args(&options.target, &options.video, encoder, pipe, &mkv_text),
-        plan,
-        nudge_target(&options.target),
-    )
-    .await
-    .map_err(|e| err("Kayıt başlatılamadı.", e))?;
-    let pipeline = fail_fast(pipeline).await?;
+    let start = |options: &CaptureOptions, encoder: Encoder| {
+        let (options, plan, mkv_text, ffmpeg_exe) =
+            (options.clone(), plan.clone(), &mkv_text, &ffmpeg_exe);
+        async move {
+            let pipeline = Pipeline::start(
+                ffmpeg_exe,
+                |pipe| {
+                    let audio = pipe.map(|pipe| args::AudioIn {
+                        pipe,
+                        mic_track: plan.separate_mic,
+                    });
+                    args::recording_args(&options.target, &options.video, encoder, audio, mkv_text)
+                },
+                plan.clone(),
+                nudge_target(&options.target),
+            )
+            .await
+            .map_err(|e| err("Kayıt başlatılamadı.", e))?;
+            fail_fast(pipeline).await
+        }
+    };
+    let mut started = start(&options, encoder).await;
+    if started.is_err() {
+        // Hatırlanan kodlayıcı bayatlamış olabilir: bir kez yeniden denenir.
+        let _ = tokio::fs::remove_file(&mkv).await;
+        forget_encoder(&app, &ffmpeg_exe, &options).await;
+        if let Ok(fresh) = prepare_video(&app, &ffmpeg_exe, &mut options).await {
+            if fresh != encoder {
+                started = start(&options, fresh).await;
+            }
+        }
+    }
+    let pipeline = started?;
 
     let mut s = state(&app).lock().await;
     s.recording = Some(Recording {
@@ -489,6 +664,8 @@ async fn start_replay_pipeline(
     wrap: u32,
 ) -> Result<Pipeline, AppError> {
     let dir_text = dir.to_string_lossy().into_owned();
+    let plan = options.audio_plan();
+    let mic_track = plan.separate_mic;
     let pipeline = Pipeline::start(
         ffmpeg_exe,
         |pipe| {
@@ -496,12 +673,12 @@ async fn start_replay_pipeline(
                 &options.target,
                 &options.video,
                 encoder,
-                pipe,
+                pipe.map(|pipe| args::AudioIn { pipe, mic_track }),
                 &dir_text,
                 wrap,
             )
         },
-        options.audio_plan(),
+        plan,
         nudge_target(&options.target),
     )
     .await
@@ -519,23 +696,37 @@ pub async fn replay_start(
         return Err(err("Anlık tekrar zaten açık.", None::<String>));
     }
     let seconds = seconds.clamp(5, MAX_REPLAY_SECONDS);
+    let began = std::time::Instant::now();
     let ffmpeg_dir = ffmpeg::binary::ensure_ffmpeg(&app).await?;
     let ffmpeg_exe = ffmpeg_dir.join("ffmpeg.exe");
     let mut options = options;
     options.target = normalize_target(&app, &ffmpeg_exe, &options.target).await;
-    let encoder = ensure_encoder(&app, &ffmpeg_exe, &options.target).await?;
+    let encoder = prepare_video(&app, &ffmpeg_exe, &mut options).await?;
     let dir = paths::cache_dir(&app, "replay")?.join(Uuid::new_v4().simple().to_string());
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| err("Geçici klasör oluşturulamadı.", e.to_string()))?;
     let wrap = replay::wrap_for(seconds);
-    let pipeline = match start_replay_pipeline(&ffmpeg_exe, &options, encoder, &dir, wrap).await {
+    let mut encoder = encoder;
+    let mut started = start_replay_pipeline(&ffmpeg_exe, &options, encoder, &dir, wrap).await;
+    if started.is_err() {
+        // Hatırlanan kodlayıcı bayatlamış olabilir: bir kez yeniden denenir.
+        forget_encoder(&app, &ffmpeg_exe, &options).await;
+        if let Ok(fresh) = prepare_video(&app, &ffmpeg_exe, &mut options).await {
+            if fresh != encoder {
+                encoder = fresh;
+                started = start_replay_pipeline(&ffmpeg_exe, &options, encoder, &dir, wrap).await;
+            }
+        }
+    }
+    let pipeline = match started {
         Ok(p) => p,
         Err(e) => {
             let _ = tokio::fs::remove_dir_all(&dir).await;
             return Err(e);
         }
     };
+    let cross_gpu = options.video.download_frames;
     let mut s = state(&app).lock().await;
     s.replay = Some(Replay {
         pipeline,
@@ -549,6 +740,17 @@ pub async fn replay_start(
         saved_at: None,
     });
     start_ticker(&app, &mut s);
+    drop(s);
+    // Farklı donanımlarda başlama süresini ölçebilmek için (Ayarlar → Günlük).
+    crate::applog::append(
+        &app,
+        &[format!(
+            "[replay] {} ms içinde başladı · {}{}",
+            began.elapsed().as_millis(),
+            encoder.label(),
+            if cross_gpu { " (kartlar arası)" } else { "" }
+        )],
+    );
     Ok(())
 }
 
@@ -719,6 +921,11 @@ const STATUS_EVERY: u32 = 10;
 /// Etkin bir oturum varken seviyeleri saniyede 20, durumu yarım saniyede bir
 /// yayınlar; kendiliğinden biten süreçleri toplar (kaydı kurtarır, anlık
 /// tekrarı yeniden başlatır).
+fn main_visible(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false))
+}
+
 fn start_ticker(app: &AppHandle, s: &mut Recorder) {
     if s.ticker {
         return;
@@ -731,6 +938,11 @@ fn start_ticker(app: &AppHandle, s: &mut Recorder) {
             tokio::time::sleep(Duration::from_millis(LEVELS_MS)).await;
             tick = tick.wrapping_add(1);
             if !tick.is_multiple_of(STATUS_EVERY) {
+                // Pencere gizliyse (tepside) ya da simge durumundaysa göstergeyi gören
+                // yok: saniyede 20 olay arayüzü boşuna uyandırmasın.
+                if !main_visible(&app) {
+                    continue;
+                }
                 // Yalnızca seviyeler: hafif, yalnızca ana pencereye (bilgi penceresi dinlemez).
                 let levels = {
                     let s = state(&app).lock().await;
@@ -927,10 +1139,21 @@ pub async fn recording_thumbnail(app: AppHandle, path: String) -> Result<Option<
 pub async fn recording_delete(path: String, dir: String) -> Result<(), AppError> {
     let file = library::check_inside(Path::new(&path), Path::new(&dir))
         .map_err(|m| AppError::new(&m, None))?;
+    let markers = markers_path(&file);
     tokio::task::spawn_blocking(move || library::move_to_trash(&file))
         .await
         .map_err(|e| AppError::new("Silinemedi.", Some(e.to_string())))?
-        .map_err(|m| AppError::new("Silinemedi.", Some(m)))
+        .map_err(|m| AppError::new("Silinemedi.", Some(m)))?;
+    // Videonun an işaretleri de gider (yoksa sessizce geçilir).
+    let _ = tokio::fs::remove_file(markers).await;
+    Ok(())
+}
+
+/// Kaydın yanındaki an işaretleri dosyası (`<video>.markers.json`, arayüz yazar).
+fn markers_path(video: &Path) -> std::path::PathBuf {
+    let mut name = video.as_os_str().to_owned();
+    name.push(".markers.json");
+    std::path::PathBuf::from(name)
 }
 
 #[tauri::command]
@@ -955,6 +1178,7 @@ pub async fn recording_rename(path: String, dir: String, name: String) -> Result
     tokio::fs::rename(&file, &target)
         .await
         .map_err(|e| AppError::new("Yeniden adlandırılamadı.", Some(e.to_string())))?;
+    let _ = tokio::fs::rename(markers_path(&file), markers_path(&target)).await;
     Ok(target.to_string_lossy().into_owned())
 }
 
@@ -1041,16 +1265,86 @@ pub async fn recording_repair(
     Ok(result.to_string_lossy().into_owned())
 }
 
-/// Varsayılan kayıt klasörü: Videolar\DownKit\<ad>.
+/// Varsayılan kayıt klasörü: Videolar\DownKit\<ad> (eski kurulumda Videolar\DownKit).
 #[tauri::command]
 pub fn recorder_default_dir(app: AppHandle, folder: String) -> Result<String, AppError> {
     let videos = app
         .path()
         .video_dir()
         .map_err(|e| AppError::new("Videolar klasörü bulunamadı.", Some(e.to_string())))?;
-    Ok(videos
-        .join("DownKit")
+    Ok(crate::paths::media_dir(&videos)
         .join(sanitize_name(&folder))
         .to_string_lossy()
         .into_owned())
+}
+
+#[cfg(test)]
+mod encoder_choice_tests {
+    use super::*;
+
+    fn adapter(index: u32, vendor_id: u32, monitors: Vec<u64>) -> gpu::Adapter {
+        gpu::Adapter {
+            index,
+            name: format!("gpu{index}"),
+            vendor_id,
+            dedicated_mb: 0,
+            driver: String::new(),
+            monitors,
+        }
+    }
+
+    fn monitor(hmonitor: u64, dda: bool) -> CaptureTarget {
+        CaptureTarget::Monitor {
+            hmonitor,
+            dda_index: dda.then_some(0),
+            width: 1920,
+            height: 1080,
+        }
+    }
+
+    /// Ekranı Intel süren, NVIDIA'lı hibrit dizüstü.
+    fn hybrid() -> Vec<gpu::Adapter> {
+        vec![
+            adapter(0, gpu::VENDOR_INTEL, vec![7]),
+            adapter(1, gpu::VENDOR_NVIDIA, vec![]),
+        ]
+    }
+
+    #[test]
+    fn otomatikte_ekrani_suren_kartin_kodlayicisi_once_denenir() {
+        let order = auto_order(&monitor(7, true), &hybrid());
+        assert_eq!(order[0], Encoder::Qsv);
+        assert_eq!(*order.last().unwrap(), Encoder::X264);
+        // Ekranı süren kart bilinmiyorsa eski sıra korunur.
+        assert_eq!(
+            auto_order(&monitor(99, true), &hybrid()),
+            Encoder::ALL.to_vec()
+        );
+    }
+
+    #[test]
+    fn baska_karttaki_kodlayiciya_kareler_bellekten_gider() {
+        let adapters = hybrid();
+        assert!(needs_download(&monitor(7, true), Encoder::Nvenc, &adapters));
+        assert!(!needs_download(&monitor(7, true), Encoder::Qsv, &adapters));
+        // Zaten belleğe inen yollar (gfxcapture, x264) etkilenmez.
+        assert!(!needs_download(
+            &monitor(7, false),
+            Encoder::Nvenc,
+            &adapters
+        ));
+        assert!(!needs_download(&monitor(7, true), Encoder::X264, &adapters));
+    }
+}
+
+/// Öndeki tam ekran oyun (yoksa boş). Arayüz birkaç saniyede bir sorar.
+#[tauri::command]
+pub fn recorder_fullscreen_app() -> Option<sources::FullscreenApp> {
+    sources::fullscreen_app()
+}
+
+/// Programın hâlâ açık bir penceresi var mı.
+#[tauri::command]
+pub fn recorder_app_running(exe: String) -> bool {
+    sources::exe_has_window(&exe)
 }

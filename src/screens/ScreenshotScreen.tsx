@@ -37,7 +37,7 @@ const CAPTURES: {
   },
 ];
 
-/** Ekran görüntüsü (Lightshot gibi): bölge / tam ekran yakalama, düzenleyici
+/** Ekran görüntüsü: bölge / tam ekran yakalama, düzenleyici
  * (ok, yazı, numaralı adım, bulanıklaştırma…), görüntüdeki yazıyı okuma ve
  * çeviri, ayarlar ve son görüntüler. */
 export function ScreenshotScreen() {

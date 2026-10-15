@@ -9,25 +9,24 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
 }
 
+// C tasarımı: dolu düğmeler kalın çerçeveli ve düz gölgeli; basınca gölgeye oturur.
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dk-accent)]";
+  "inline-flex items-center justify-center gap-2 rounded-xl font-bold disabled:cursor-not-allowed disabled:opacity-40";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "dk-gradient text-white shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--dk-accent)_80%,transparent)] hover:brightness-110",
-  secondary:
-    "border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] text-[var(--dk-text)] hover:border-[var(--dk-accent)]",
+  primary: "dk-press bg-[var(--dk-accent)] text-white",
+  secondary: "dk-press bg-[var(--dk-surface)] text-[var(--dk-text)]",
   ghost: "text-[var(--dk-text-muted)] hover:bg-white/5 hover:text-[var(--dk-text)]",
   danger: "text-[var(--dk-error)] hover:bg-[var(--dk-error)]/10",
   // Renkler temadan (--dk-edit, --dk-save…): açık ve koyu temada okunur kalır.
-  edit: "bg-[var(--dk-edit)] text-white hover:brightness-110",
-  success: "bg-[var(--dk-save)] text-white hover:brightness-110",
-  successLight: "bg-[var(--dk-save-soft)] text-[var(--dk-save-soft-text)] hover:brightness-105",
+  edit: "dk-press bg-[var(--dk-edit)] text-white",
+  success: "dk-press bg-[var(--dk-save)] text-white",
+  successLight: "dk-press bg-[var(--dk-save-soft)] text-[var(--dk-save-soft-text)]",
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs",
-  md: "h-10 px-4 text-sm",
+  sm: "h-9 px-3 text-xs",
+  md: "h-11 px-4 text-sm",
   lg: "h-12 px-6 text-base",
 };
 

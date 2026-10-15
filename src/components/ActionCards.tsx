@@ -12,7 +12,6 @@ import type { WorkspaceAction } from "../store/workspaceStore";
 interface ActionCardDef {
   action: WorkspaceAction;
   icon: LucideIcon;
-  gradient: string;
   titleKey: string;
   descKey: string;
   buttonKey: string;
@@ -22,7 +21,6 @@ const CARDS: ActionCardDef[] = [
   {
     action: "download",
     icon: ArrowDownToLine,
-    gradient: "linear-gradient(135deg,#3b82f6,#2563eb)",
     titleKey: "actions.downloadTitle",
     descKey: "actions.downloadDesc",
     buttonKey: "actions.downloadButton",
@@ -30,7 +28,6 @@ const CARDS: ActionCardDef[] = [
   {
     action: "convert",
     icon: RefreshCw,
-    gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)",
     titleKey: "actions.convertTitle",
     descKey: "actions.convertDesc",
     buttonKey: "actions.convertButton",
@@ -38,7 +35,6 @@ const CARDS: ActionCardDef[] = [
   {
     action: "compress",
     icon: Shrink,
-    gradient: "linear-gradient(135deg,#6366f1,#4f46e5)",
     titleKey: "actions.compressTitle",
     descKey: "actions.compressDesc",
     buttonKey: "actions.compressButton",
@@ -46,7 +42,6 @@ const CARDS: ActionCardDef[] = [
   {
     action: "resize",
     icon: Maximize2,
-    gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)",
     titleKey: "actions.resizeTitle",
     descKey: "actions.resizeDesc",
     buttonKey: "actions.resizeButton",
@@ -87,14 +82,11 @@ export function ActionCards({ selected, onSelect, onRun }: ActionCardsProps) {
                 : ""
             }`}
           >
-            <span
-              className="flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg"
-              style={{ background: card.gradient }}
-            >
-              <Icon size={24} />
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--dk-accent)_16%,transparent)] text-[var(--dk-accent-hover)]">
+              <Icon size={22} />
             </span>
             <div className="flex-1">
-              <p className="text-lg font-semibold text-white">{t(card.titleKey)}</p>
+              <p className="text-base font-semibold text-[var(--dk-text)]">{t(card.titleKey)}</p>
               <p className="mt-1 text-sm leading-snug text-[var(--dk-text-muted)]">
                 {t(card.descKey)}
               </p>

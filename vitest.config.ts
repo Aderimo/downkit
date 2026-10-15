@@ -8,6 +8,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
     // e2e/: Playwright ile gerçek tarayıcıda çalışan testler (pnpm test:e2e).
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    // scripts/: ipucu animasyonu kaydedici (Playwright).
+    exclude: [...configDefaults.exclude, "e2e/**", "scripts/**"],
   },
 });

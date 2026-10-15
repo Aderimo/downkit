@@ -1,4 +1,4 @@
-//! yt-dlp, FFmpeg ve Deno'nun ilk indirmesi: parça parça indirilir ve ilerleme
+//! FFmpeg'in ilk indirmesi: parça parça indirilir ve ilerleme
 //! `tool-download` olayıyla arayüze bildirilir (ilk açılışta ~245 MB; ilerleme
 //! görünmezse program donmuş sanılıyordu).
 
@@ -20,7 +20,7 @@ pub fn init(app: &AppHandle) {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ToolProgress {
-    /// "yt-dlp" | "ffmpeg" | "deno"
+    /// "ffmpeg"
     tool: &'static str,
     downloaded: u64,
     total: Option<u64>,
