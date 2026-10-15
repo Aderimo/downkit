@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
+import { ContextMenu } from "../ui/ContextMenu";
 import { useTranslation } from "react-i18next";
 import { useEditorStore, newClipId } from "../../store/editorStore";
 import { formatCombo, useShortcutStore, type ShortcutAction } from "../../lib/shortcuts";
@@ -20,16 +19,6 @@ export function TextMenu({
   const { t } = useTranslation();
   const map = useShortcutStore((s) => s.map);
   const item = useEditorStore((s) => s.texts.find((text) => text.id === textId));
-
-  useEffect(() => {
-    const close = () => onClose();
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("blur", close);
-    };
-  }, [onClose]);
 
   if (!item) return null;
   const run = (fn: () => void) => () => {
@@ -70,15 +59,8 @@ export function TextMenu({
     },
   ];
 
-  return createPortal(
-    <div
-      className="fixed z-[60] w-52 rounded-xl border border-[var(--dk-border-strong)] bg-[var(--dk-surface-2)] p-1 shadow-2xl shadow-black/60"
-      style={{
-        left: Math.min(x, window.innerWidth - 220),
-        top: Math.min(y, window.innerHeight - 140),
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+  return (
+    <ContextMenu x={x} y={y} width={208} onClose={onClose}>
       {items.map((item) => (
         <button
           key={item.label}
@@ -96,7 +78,6 @@ export function TextMenu({
           ) : null}
         </button>
       ))}
-    </div>,
-    document.body,
+    </ContextMenu>
   );
 }

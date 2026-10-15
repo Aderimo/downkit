@@ -1,11 +1,11 @@
 import { create } from "zustand";
+import type { ProgressBarOption } from "../lib/reelTemplates";
 import i18n from "../i18n";
-import type { Chapter, MediaMetadata, PreviewStream } from "../types/media";
+import type { Chapter, PreviewStream } from "../types/media";
 import type { LocalMediaInfo } from "../types/convert";
 import type { TimeRange } from "../lib/timeRange";
-import { analyzeUrl, openLocalPreview } from "../lib/tauri-api";
+import { openLocalPreview } from "../lib/tauri-api";
 import { localizeError, type LocalizedError } from "../lib/errors";
-import { getSettings } from "../lib/appSettings";
 import { clampView, fullView, type TimelineView } from "../lib/timeline";
 import {
   initialClips,
@@ -15,25 +15,26 @@ import {
   type TrackStates,
 } from "../lib/sequence";
 import type { TextItem } from "../lib/textItems";
+import type { BlurItem, ImageItem, MusicItem } from "../lib/layers";
+import type { EffectItem } from "../lib/effectLane";
 import { usePlayerStore } from "./playerStore";
+import { expandGroups } from "../lib/clipGroups";
+import { swapPlacement } from "../lib/multiFormat";
+import type { SplitLayout } from "../lib/splitLayout";
 
-export type EditorSource =
-  | { kind: "remote"; url: string; metadata: MediaMetadata }
-  | { kind: "local"; path: string; info: LocalMediaInfo };
+export type EditorSource = { kind: "local"; path: string; info: LocalMediaInfo };
 
-/** Düzenleyiciye eklenmiş bir video/link. `source`/`stream` alanları store'daki
+/** Düzenleyiciye eklenmiş bir video. `source`/`stream` alanları store'daki
  * aynı adlı "aktif kaynak" alanlarının sahibidir; önizleme aktif olanı oynatır. */
 export interface EditorSourceEntry {
   /** Oturum içinde tekil: s1, s2… (kaynaklar eklenme sırasıyla numaralanır). */
   id: string;
   source: EditorSource;
-  /** Önizleme akışı; kimi linkte önizleme açılamaz (null). */
+  /** Önizleme akışı. */
   stream: EditorStream | null;
   title: string;
   duration: number;
   thumbnailUrl: string | null;
-  /** "local" ya da platform kimliği ("youtube"…). */
-  platform: string;
 }
 
 export type EditorStream = Omit<PreviewStream, "audioUrl"> & { audioUrl: string | null };
@@ -69,8 +70,31 @@ export interface ExportOptions {
   frame: FrameAspect;
   /** true: kırpmadan sığdır (siyah bant). */
   frameFit: boolean;
+  /** Sığdırırken bantlar siyah yerine bulanık görüntüyle dolsun. */
+  frameBlur: boolean;
+  /** Sığdırırken bantlar yukarıdan aşağı renk geçişiyle dolsun (bulanık değilse). */
+  frameGradient: [string, string] | null;
+  /** Videonun ne kadarının geçtiğini gösteren bant (yoksa yok). */
+  progressBar: ProgressBarOption | null;
+  /** Yüz takibi: kaynak yolu → [kaynak saniyesi, kırpma konumu] izi (yoksa elle konum). */
+  frameTrack: Record<string, [number, number][]> | null;
+  /** İzin hesaplandığı çıkış oranı (genişlik / yükseklik); başka biçimde ona uyarlanır. */
+  frameTrackAspect: number | null;
+  /** Aynı anda dışa aktarılacak ek biçimler (önizlenen `frame` dışında). */
+  alsoFrames: Exclude<FrameAspect, "original">[];
+  /** Çıktı bu boyuta (MB) sığsın (ör. Discord 10 MB); yoksa kalite odaklı. */
+  targetSizeMb: number | null;
+  /** Ekran kartıyla hızlı dışa aktarma. */
+  fastExport: boolean;
   /** Kırpmada kalan bölgenin yeri: 0 = sol/üst, 1 = sağ/alt. */
   framePosition: number;
+  /** Kamera + oyun düzeni (yayın kaydından dikey video); `split` boşsa varsayılan. */
+  frameSplit: boolean;
+  split: SplitLayout | null;
+  /** Videonun yanına aynı adla altyazı dosyası (.srt) da kaydedilsin. */
+  subtitleFile: boolean;
+  /** Sosyal medya ses seviyesi (−14 LUFS). */
+  loudness: boolean;
 }
 
 type Phase = "empty" | "loading" | "ready" | "error";
@@ -85,6 +109,12 @@ export interface Snapshot {
   sources: EditorSourceEntry[];
   clips: SeqClip[];
   texts: TextItem[];
+  /** Üste bindirilen resimler ve müzik izleri. */
+  images: ImageItem[];
+  music: MusicItem[];
+  blurs: BlurItem[];
+  /** Efekt şeridindeki bloklar. */
+  effects: EffectItem[];
   /** Adım anındaki önizlenen kaynak; geri alınca o da geri gelir. */
   activeSourceId: string | null;
 }
@@ -106,6 +136,13 @@ interface EditorState {
   selectedIds: string[];
   /** Yazılar (başlık, alt yazı) ve seçili olan. */
   texts: TextItem[];
+  /** Resim katmanları ve müzik izleri. */
+  images: ImageItem[];
+  music: MusicItem[];
+  /** Gizlenecek bölgeler (bulanık/pikselli). */
+  blurs: BlurItem[];
+  /** Efekt şeridi: aralığa uygulanan filtre / efekt / hareket blokları. */
+  effects: EffectItem[];
   selectedTextId: string | null;
   /** İzlerin sessiz / gizli durumu. */
   tracks: TrackStates;
@@ -121,12 +158,11 @@ interface EditorState {
   /** Bu ekrandan başlatılan son dışa aktarımların kuyruk kimlikleri. */
   lastJobIds: string[];
 
-  openUrl: (url: string) => Promise<void>;
-  openMetadata: (url: string, metadata: MediaMetadata, section?: TimeRange | null) => void;
   openFile: (path: string) => Promise<void>;
   /** Açık projeye ikinci (üçüncü…) video/link ekler; sona tek klip olarak konur. */
-  addSourceUrl: (url: string) => Promise<void>;
-  addSourceFile: (path: string) => Promise<void>;
+  /** Kaynak ekler. `toTimeline`: zaman çizelgesinin sonuna da klip olarak konsun
+   * (yoksa yalnızca zaman çizelgesi boşken). Eşzamanlı çağrılar sıraya girer. */
+  addSourceFile: (path: string, toTimeline?: boolean) => Promise<void>;
   /** Kaynağı ve ona ait klipleri kaldırır; son kaynaksa düzenleyici kapanır. */
   removeSource: (id: string) => void;
   /** Önizlemenin oynatacağı kaynağı değiştirir. */
@@ -137,6 +173,29 @@ interface EditorState {
   apply: (change: (clips: SeqClip[]) => SeqClip[]) => void;
   /** Yazıları değiştirir ve geri alınabilir bir adım kaydeder. */
   applyTexts: (change: (texts: TextItem[]) => TextItem[]) => void;
+  /** Klipleri ve katmanları birlikte değiştirir: tek geri alma adımı (ör. sesi ayır). */
+  applyEdit: (change: {
+    clips?: SeqClip[];
+    texts?: TextItem[];
+    images?: ImageItem[];
+    music?: MusicItem[];
+    blurs?: BlurItem[];
+    effects?: EffectItem[];
+  }) => void;
+  /** Resim ve müzik katmanlarını değiştirir (geri alınabilir). */
+  applyLayers: (change: {
+    images?: ImageItem[];
+    music?: MusicItem[];
+    blurs?: BlurItem[];
+    effects?: EffectItem[];
+  }) => void;
+  /** Kaydırıcı sürüklenirken (beginDrag/endDrag arasında) geçmişe yazmadan. */
+  dragLayers: (change: {
+    images?: ImageItem[];
+    music?: MusicItem[];
+    blurs?: BlurItem[];
+    effects?: EffectItem[];
+  }) => void;
   beginDrag: () => void;
   dragTo: (clips: SeqClip[]) => void;
   dragTexts: (texts: TextItem[]) => void;
@@ -148,7 +207,7 @@ interface EditorState {
   toggleSelect: (id: string) => void;
   renameClip: (id: string, name: string) => void;
   setSnapping: (on: boolean) => void;
-  /** İzi sessize alır ya da gizler (Clipchamp'taki iz düğmeleri). */
+  /** İzi sessize alır ya da gizler. */
   setTrack: (track: number, patch: TrackState) => void;
   setView: (view: TimelineView) => void;
   setPanelTab: (tab: PanelTab) => void;
@@ -186,14 +245,10 @@ export function sourceDurationOf(
 }
 
 function initialExport(name: string): ExportOptions {
-  const settings = getSettings();
-  const videoFormat = (["mp4", "mkv", "webm"] as const).find(
-    (f) => f === settings.defaultOutputFormat,
-  );
   return {
     output: "video",
-    videoFormat: videoFormat ?? "mp4",
-    maxHeight: settings.defaultMaxHeight,
+    videoFormat: "mp4",
+    maxHeight: null,
     audioFormat: "mp3",
     audioBitrateKbps: 192,
     merge: true,
@@ -203,7 +258,19 @@ function initialExport(name: string): ExportOptions {
     gifWidth: 480,
     frame: "original",
     frameFit: false,
+    frameBlur: false,
+    frameGradient: null,
+    frameTrack: null,
+    frameTrackAspect: null,
+    alsoFrames: [],
+    progressBar: null,
+    targetSizeMb: null,
+    fastExport: false,
     framePosition: 0.5,
+    frameSplit: false,
+    split: null,
+    subtitleFile: false,
+    loudness: false,
   };
 }
 
@@ -223,6 +290,10 @@ const emptyState = {
   clips: [] as SeqClip[],
   selectedIds: [] as string[],
   texts: [] as TextItem[],
+  images: [] as ImageItem[],
+  music: [] as MusicItem[],
+  blurs: [] as BlurItem[],
+  effects: [] as EffectItem[],
   selectedTextId: null as string | null,
   tracks: {} as TrackStates,
   past: [] as Snapshot[],
@@ -261,7 +332,7 @@ function startingClips(duration: number, sourceId: string, section?: TimeRange |
 /** Kaynağın bölümleri (link ya da dosya); yoksa boş. */
 export function sourceChapters(source: EditorSource | null): Chapter[] {
   if (!source) return [];
-  return (source.kind === "remote" ? source.metadata.chapters : source.info.chapters) ?? [];
+  return source.info.chapters ?? [];
 }
 
 /** Görünür aralığın sınırı: klipler kaynaktan uzun olabilir (yavaşlatılınca). */
@@ -271,7 +342,7 @@ export function contentEnd(clips: SeqClip[], duration: number): number {
 }
 
 /** Zaman çizelgesinin gezilebilen uzunluğu: içeriğin sağında boş alan kalır
- * (Clipchamp gibi); klip oraya taşınabilir, arada kalan boşluk siyah ekran olur.
+ *; klip oraya taşınabilir, arada kalan boşluk siyah ekran olur.
  * Klip sağa gittikçe alan da büyür. */
 export function timelineExtent(clips: SeqClip[], duration: number): number {
   const end = contentEnd(clips, duration);
@@ -290,12 +361,31 @@ function sameClips(a: SeqClip[], b: SeqClip[]): boolean {
 /** Anlık görüntüye dönüldüğünde uygulanacak alanlar: kaynak listesi, klipler,
  * yazılar ve — etkin kaynak bu adımda yoksa ya da yenilenmişse — önizleme
  * alanları (source/stream/activeSourceId/duration). */
+/** Geri al / yinele sonrası seçim: adımda hâlâ var olan klip ve yazı seçili kalır
+ * (panelde ayar geri alınınca panel kapanmasın). */
+function keptSelection(
+  st: Pick<EditorState, "selectedIds" | "selectedTextId">,
+  snap: Snapshot,
+): Pick<EditorState, "selectedIds" | "selectedTextId"> {
+  return {
+    selectedIds: st.selectedIds.filter((id) => snap.clips.some((c) => c.id === id)),
+    selectedTextId:
+      st.selectedTextId && snap.texts.some((t) => t.id === st.selectedTextId)
+        ? st.selectedTextId
+        : null,
+  };
+}
+
 function restorePatch(snap: Snapshot): Partial<EditorState> {
   const st = useEditorStore.getState();
   const patch: Partial<EditorState> = {
     sources: snap.sources,
     clips: snap.clips,
     texts: snap.texts,
+    images: snap.images,
+    music: snap.music,
+    blurs: snap.blurs,
+    effects: snap.effects,
   };
   // Adım anında önizlenen kaynağa dönülür; o adımda yoksa ilk kaynağa düşülür.
   const active = snap.sources.find((s) => s.id === snap.activeSourceId) ?? snap.sources[0];
@@ -322,20 +412,32 @@ function snapshotOf(st: {
   sources: EditorSourceEntry[];
   clips: SeqClip[];
   texts: TextItem[];
+  images: ImageItem[];
+  music: MusicItem[];
+  blurs: BlurItem[];
+  effects: EffectItem[];
   activeSourceId: string | null;
 }): Snapshot {
   return {
     sources: st.sources,
     clips: st.clips,
     texts: st.texts,
+    images: st.images,
+    music: st.music,
+    blurs: st.blurs,
+    effects: st.effects,
     activeSourceId: st.activeSourceId,
   };
 }
 
-/** Eklenen kaynağı listeye ve zaman çizelgesinin sonuna (tek parça klip) koyar.
+/** Eklenen kaynağı Medyam'a koyar; `toTimeline` ya da zaman çizelgesi boşsa sonuna da
+ * tek parça klip olarak ekler (çok dosya içe aktarınca zaman çizelgesi dolmasın).
  * Geri alınabilir adım kaydedilir: Ctrl+Z kaynağı ve klibini geri kaldırır. */
-function appendSource(entry: EditorSourceEntry) {
+let addQueue: Promise<void> = Promise.resolve();
+
+function appendSource(entry: EditorSourceEntry, toTimeline: boolean) {
   const st = useEditorStore.getState();
+  const place = toTimeline || st.clips.length === 0;
   const start = sequenceEnd(st.clips);
   const clip: SeqClip = {
     id: newClipId(),
@@ -347,7 +449,7 @@ function appendSource(entry: EditorSourceEntry) {
     speed: 1,
     name: "",
   };
-  const clips = [...st.clips, clip];
+  const clips = place ? [...st.clips, clip] : st.clips;
   const first = st.sources.length === 0;
   useEditorStore.setState({
     sources: [...st.sources, entry],
@@ -372,59 +474,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   ...emptyState,
   snapping: true,
   exportOptions: initialExport(""),
-
-  openUrl: async (url) => {
-    const token = ++loadToken;
-    set({ phase: "loading", error: null });
-    try {
-      const result = await analyzeUrl(url);
-      if (token !== loadToken) return;
-      if (result.kind === "playlist") {
-        set({
-          phase: "error",
-          error: { message: i18n.t("editor.playlistNotSupported"), detail: null },
-        });
-        return;
-      }
-      get().openMetadata(url, result);
-    } catch (err) {
-      if (token !== loadToken) return;
-      set({ phase: "error", error: localizeError(err, "error.analyzeFailed") });
-    }
-  },
-
-  openMetadata: (url, metadata, section) => {
-    loadToken += 1;
-    const duration = metadata.durationSeconds ?? 0;
-    if (duration <= 0) {
-      set({ phase: "error", error: { message: i18n.t("editor.noDuration"), detail: null } });
-      return;
-    }
-    resetPlayer();
-    sourceCounter = 0;
-    const entry: EditorSourceEntry = {
-      id: newSourceId(),
-      source: { kind: "remote", url, metadata },
-      stream: metadata.preview,
-      title: metadata.title,
-      duration,
-      thumbnailUrl: metadata.thumbnailUrl,
-      platform: metadata.platform,
-    };
-    const clips = startingClips(duration, entry.id, section);
-    set({
-      ...emptyState,
-      phase: "ready",
-      sources: [entry],
-      activeSourceId: entry.id,
-      source: entry.source,
-      stream: entry.stream,
-      duration,
-      clips,
-      view: fitView(clips, duration),
-      exportOptions: initialExport(metadata.title),
-    });
-  },
 
   openFile: async (path) => {
     const token = ++loadToken;
@@ -452,7 +501,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         title: preview.info.fileName,
         duration,
         thumbnailUrl: null,
-        platform: "local",
       };
       const clips = startingClips(duration, entry.id);
       set({
@@ -476,77 +524,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  addSourceUrl: async (url) => {
-    if (get().addingSource) return;
-    const token = ++loadToken;
-    set({ addingSource: true, addError: null });
-    try {
-      const result = await analyzeUrl(url);
-      if (token !== loadToken) return;
-      if (result.kind === "playlist") {
-        set({
-          addingSource: false,
-          addError: { message: i18n.t("editor.playlistNotSupported"), detail: null },
-        });
-        return;
+  addSourceFile: (path, toTimeline = false) => {
+    // Sırayla: önceki ekleme bitmeden gelen dosya düşürülmez, beklenir.
+    const run = async () => {
+      const token = loadToken;
+      set({ addingSource: true, addError: null });
+      try {
+        const preview = await openLocalPreview(path);
+        // Bu arada başka bir dosya açıldıysa (openFile) bu ekleme geçersiz.
+        if (token !== loadToken) return set({ addingSource: false });
+        const duration = preview.info.durationSeconds ?? 0;
+        if (duration <= 0) {
+          set({
+            addingSource: false,
+            addError: { message: i18n.t("editor.noDuration"), detail: null },
+          });
+          return;
+        }
+        appendSource(
+          {
+            id: newSourceId(),
+            source: { kind: "local", path, info: preview.info },
+            stream: {
+              kind: "file",
+              url: preview.url,
+              audioUrl: null,
+              token: preview.token,
+              hasVideo: preview.info.videoCodec !== null,
+            },
+            title: preview.info.fileName,
+            duration,
+            thumbnailUrl: null,
+          },
+          toTimeline,
+        );
+      } catch (err) {
+        if (token !== loadToken) return set({ addingSource: false });
+        set({ addingSource: false, addError: localizeError(err, "error.probeFailed") });
       }
-      const duration = result.durationSeconds ?? 0;
-      if (duration <= 0) {
-        set({
-          addingSource: false,
-          addError: { message: i18n.t("editor.noDuration"), detail: null },
-        });
-        return;
-      }
-      appendSource({
-        id: newSourceId(),
-        source: { kind: "remote", url, metadata: result },
-        stream: result.preview,
-        title: result.title,
-        duration,
-        thumbnailUrl: result.thumbnailUrl,
-        platform: result.platform,
-      });
-    } catch (err) {
-      if (token !== loadToken) return;
-      set({ addingSource: false, addError: localizeError(err, "error.analyzeFailed") });
-    }
-  },
-
-  addSourceFile: async (path) => {
-    if (get().addingSource) return;
-    const token = ++loadToken;
-    set({ addingSource: true, addError: null });
-    try {
-      const preview = await openLocalPreview(path);
-      if (token !== loadToken) return;
-      const duration = preview.info.durationSeconds ?? 0;
-      if (duration <= 0) {
-        set({
-          addingSource: false,
-          addError: { message: i18n.t("editor.noDuration"), detail: null },
-        });
-        return;
-      }
-      appendSource({
-        id: newSourceId(),
-        source: { kind: "local", path, info: preview.info },
-        stream: {
-          kind: "file",
-          url: preview.url,
-          audioUrl: null,
-          token: preview.token,
-          hasVideo: preview.info.videoCodec !== null,
-        },
-        title: preview.info.fileName,
-        duration,
-        thumbnailUrl: null,
-        platform: "local",
-      });
-    } catch (err) {
-      if (token !== loadToken) return;
-      set({ addingSource: false, addError: localizeError(err, "error.probeFailed") });
-    }
+    };
+    addQueue = addQueue.then(run, run);
+    return addQueue;
   },
 
   removeSource: (id) => {
@@ -628,13 +646,69 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  applyEdit: (change) => {
+    const { past, clips, texts, images, music, blurs, effects, selectedIds, selectedTextId } =
+      get();
+    const next = {
+      clips: change.clips ?? clips,
+      texts: change.texts ?? texts,
+      images: change.images ?? images,
+      music: change.music ?? music,
+      blurs: change.blurs ?? blurs,
+      effects: change.effects ?? effects,
+    };
+    if (
+      sameClips(clips, next.clips) &&
+      next.texts === texts &&
+      next.images === images &&
+      next.music === music &&
+      next.blurs === blurs &&
+      next.effects === effects
+    ) {
+      return;
+    }
+    const ids = new Set(next.clips.map((c) => c.id));
+    set({
+      ...next,
+      past: [...past, snapshotOf(get())].slice(-HISTORY_LIMIT),
+      future: [],
+      selectedIds: selectedIds.filter((id) => ids.has(id)),
+      selectedTextId: next.texts.some((t) => t.id === selectedTextId) ? selectedTextId : null,
+    });
+  },
+
+  applyLayers: (change) => {
+    const { past, images, music, blurs, effects } = get();
+    const next = {
+      images: change.images ?? images,
+      music: change.music ?? music,
+      blurs: change.blurs ?? blurs,
+      effects: change.effects ?? effects,
+    };
+    if (
+      next.images === images &&
+      next.music === music &&
+      next.blurs === blurs &&
+      next.effects === effects
+    )
+      return;
+    set({ ...next, past: [...past, snapshotOf(get())].slice(-HISTORY_LIMIT), future: [] });
+  },
+  dragLayers: (change) => set(change),
+
   beginDrag: () => set({ dragOrigin: snapshotOf(get()) }),
   dragTo: (clips) => set({ clips }),
   dragTexts: (texts) => set({ texts }),
   endDrag: () => {
-    const { dragOrigin, clips, texts, past } = get();
+    const { dragOrigin, clips, texts, images, music, blurs, effects, past } = get();
     const changed =
-      dragOrigin && (!sameClips(dragOrigin.clips, clips) || dragOrigin.texts !== texts);
+      dragOrigin &&
+      (!sameClips(dragOrigin.clips, clips) ||
+        dragOrigin.texts !== texts ||
+        dragOrigin.images !== images ||
+        dragOrigin.music !== music ||
+        dragOrigin.blurs !== blurs ||
+        dragOrigin.effects !== effects);
     if (dragOrigin && changed) {
       set({ past: [...past, dragOrigin].slice(-HISTORY_LIMIT), future: [], dragOrigin: null });
     } else {
@@ -650,8 +724,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...restorePatch(previous),
       past: past.slice(0, -1),
       future: [snapshotOf(get()), ...future],
-      selectedIds: [],
-      selectedTextId: null,
+      ...keptSelection(get(), previous),
     });
   },
 
@@ -663,21 +736,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...restorePatch(next),
       past: [...past, snapshotOf(get())],
       future: future.slice(1),
-      selectedIds: [],
-      selectedTextId: null,
+      ...keptSelection(get(), next),
     });
   },
 
   // Klip ve yazı seçimi birbirini dışlar: sağ panel hangisini göstereceğini bilsin.
-  select: (selectedIds) =>
-    set(selectedIds.length > 0 ? { selectedIds, selectedTextId: null } : { selectedIds }),
+  select: (ids) => {
+    // Gruptaki bir klip seçilince grubun tamamı seçilir.
+    const selectedIds = expandGroups(get().clips, ids);
+    set(selectedIds.length > 0 ? { selectedIds, selectedTextId: null } : { selectedIds });
+  },
   selectText: (id) => set(id ? { selectedTextId: id, selectedIds: [] } : { selectedTextId: null }),
   toggleSelect: (id) => {
-    const { selectedIds } = get();
+    const { selectedIds, clips } = get();
+    const members = expandGroups(clips, [id]);
     set({
       selectedIds: selectedIds.includes(id)
-        ? selectedIds.filter((s) => s !== id)
-        : [...selectedIds, id],
+        ? selectedIds.filter((s) => !members.includes(s))
+        : [...selectedIds, ...members.filter((m) => !selectedIds.includes(m))],
     });
   },
 
@@ -692,172 +768,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPanelTab: (panelTab) => set({ panelTab }),
   setTrack: (track, patch) =>
     set({ tracks: { ...get().tracks, [track]: { ...get().tracks[track], ...patch } } }),
-  setExportOptions: (patch) => set({ exportOptions: { ...get().exportOptions, ...patch } }),
+  setExportOptions: (patch) => {
+    const s = get();
+    const from = s.exportOptions.frame;
+    const to = patch.frame ?? from;
+    if (to === from) {
+      set({ exportOptions: { ...s.exportOptions, ...patch } });
+      return;
+    }
+    // Biçim değişti: yazılar o biçimdeki yerlerine geçer (geçmiş de aynı biçimde kalsın).
+    const swap = (snap: Snapshot): Snapshot => ({
+      ...snap,
+      texts: swapPlacement(snap.texts, from, to),
+    });
+    set({
+      exportOptions: { ...s.exportOptions, ...patch },
+      texts: swapPlacement(s.texts, from, to),
+      past: s.past.map(swap),
+      future: s.future.map(swap),
+      dragOrigin: s.dragOrigin ? swap(s.dragOrigin) : null,
+    });
+  },
   setLastJobIds: (lastJobIds) => set({ lastJobIds }),
 }));
-
-// ——— Kaldığı yerden devam ———
-
-const SESSION_KEY = "downkit.editorSession";
-
-type SavedSource =
-  | { kind: "remote"; id?: string; url: string; title: string; thumbnailUrl: string | null }
-  | { kind: "local"; id?: string; path: string; title: string };
-
-export interface SavedSession {
-  /** Eklenme sırasıyla; kimlikler geri yüklenince aynı sırayla s1, s2… olur. */
-  sources: SavedSource[];
-  clips: SeqClip[];
-  texts?: TextItem[];
-  tracks?: TrackStates;
-  savedAt: string;
-}
-
-/** Eski (tek kaynaklı) oturum kaydını da okur. */
-export function loadSession(): SavedSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
-    if (!parsed || !Array.isArray(parsed.clips)) return null;
-    const sources = Array.isArray(parsed.sources)
-      ? (parsed.sources as SavedSource[])
-      : parsed.source
-        ? [parsed.source as SavedSource]
-        : [];
-    if (sources.length === 0) return null;
-    return { ...(parsed as unknown as SavedSession), sources };
-  } catch {
-    return null;
-  }
-}
-
-export function forgetSession() {
-  try {
-    localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // Depolama yoksa zaten kayıt da yoktur.
-  }
-}
-
-/** Kayıtlı kaynağın kimliği: yeni kayıtlarda `id` alanından, eski kayıtlarda
- * sıradan (s1, s2…) varsayılır. */
-function savedSourceId(saved: SavedSource, index: number): string {
-  return saved.id ?? `s${index + 1}`;
-}
-
-/** Son projeyi açar: kaynaklar sırayla yüklenir; açılamayanlar atlanır ve
- * kliplerin sourceId'leri, kaydedilen kimliklerden çalışma zamanı kimliklerine
- * eşlenerek geri konur (düşen kaynağın klipleri de düşer). */
-export async function resumeSession(): Promise<void> {
-  const session = loadSession();
-  if (!session) return;
-  const editor = useEditorStore.getState();
-  const [first, ...rest] = session.sources;
-  if (first.kind === "remote") await editor.openUrl(first.url);
-  else await editor.openFile(first.path);
-  let st = useEditorStore.getState();
-  if (st.phase !== "ready" || st.sources.length === 0) return;
-  const idMap = new Map<string, string>();
-  idMap.set(savedSourceId(first, 0), st.sources[0].id);
-  const skipped: string[] = [];
-  for (let i = 0; i < rest.length; i += 1) {
-    const saved = rest[i];
-    const before = useEditorStore.getState().sources.length;
-    if (saved.kind === "remote") await useEditorStore.getState().addSourceUrl(saved.url);
-    else await useEditorStore.getState().addSourceFile(saved.path);
-    st = useEditorStore.getState();
-    if (st.sources.length > before) {
-      idMap.set(savedSourceId(saved, i + 1), st.sources[st.sources.length - 1].id);
-    } else {
-      skipped.push(saved.title);
-    }
-    // Ekleme hatası panelde kalıp sonraki eklemeleri engellemesin.
-    if (st.addError) useEditorStore.setState({ addError: null });
-  }
-  const clips = session.clips.flatMap((clip) => {
-    if (!clip.sourceId) return [clip];
-    const mapped = idMap.get(clip.sourceId);
-    return mapped ? [{ ...clip, sourceId: mapped }] : [];
-  });
-  useEditorStore.setState({
-    clips,
-    texts: session.texts ?? [],
-    tracks: session.tracks ?? {},
-    selectedIds: [],
-    past: [],
-    future: [],
-    ...(skipped.length > 0
-      ? {
-          addError: {
-            message: i18n.t("editor.resumeSkipped", { titles: skipped.join(", ") }),
-            detail: null,
-          },
-        }
-      : {}),
-  });
-}
-
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-// Her değişiklikte (sürükleme bitince) son proje kısa bir gecikmeyle kaydedilir.
-useEditorStore.subscribe((state, previous) => {
-  if (state.phase !== "ready" || state.sources.length === 0 || state.dragOrigin) return;
-  const dragEnded = previous.dragOrigin !== null && state.dragOrigin === null;
-  if (
-    !dragEnded &&
-    state.clips === previous.clips &&
-    state.texts === previous.texts &&
-    state.tracks === previous.tracks &&
-    state.sources === previous.sources
-  )
-    return;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const { sources, clips, texts, tracks } = useEditorStore.getState();
-    if (sources.length === 0) return;
-    const session: SavedSession = {
-      sources: sources.map((entry) =>
-        entry.source.kind === "remote"
-          ? {
-              kind: "remote",
-              id: entry.id,
-              url: entry.source.url,
-              title: entry.title,
-              thumbnailUrl: entry.thumbnailUrl,
-            }
-          : { kind: "local", id: entry.id, path: entry.source.path, title: entry.title },
-      ),
-      clips,
-      texts,
-      tracks,
-      savedAt: new Date().toISOString(),
-    };
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    } catch {
-      // Kaydedilemezse yalnızca "devam et" önerisi çıkmaz.
-    }
-  }, 600);
-});
-
-/** Aktif kaynağın önizlemesini yeniler (bağlantı süresi dolduysa); klipler korunur. */
-export async function reloadSource(): Promise<void> {
-  const st = useEditorStore.getState();
-  const entry = st.sources.find((s) => s.id === st.activeSourceId);
-  if (!entry || entry.source.kind !== "remote") return;
-  const result = await analyzeUrl(entry.source.url);
-  if (result.kind === "playlist") return;
-  const duration = result.durationSeconds ?? entry.duration;
-  const fresh: EditorSourceEntry = {
-    ...entry,
-    source: { kind: "remote", url: entry.source.url, metadata: result },
-    stream: result.preview,
-    duration,
-  };
-  useEditorStore.setState({
-    sources: st.sources.map((s) => (s.id === entry.id ? fresh : s)),
-    source: fresh.source,
-    stream: fresh.stream,
-    duration,
-  });
-}

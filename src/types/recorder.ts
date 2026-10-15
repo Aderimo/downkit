@@ -41,6 +41,20 @@ export interface RecorderSources {
 
 export type RecorderEncoder = "nvenc" | "amf" | "qsv" | "x264";
 
+/** Kodlayıcı hızı (Rust `Speed`). */
+export type RecordSpeed = "performance" | "balanced" | "quality";
+
+/** Ekran kartı (Rust `gpu::Adapter`). */
+export interface GpuAdapter {
+  index: number;
+  name: string;
+  vendorId: number;
+  dedicatedMb: number;
+  driver: string;
+  /** Bu karta bağlı ekranların tutamaçları. */
+  monitors: number[];
+}
+
 export interface EncoderInfo {
   encoder: RecorderEncoder;
   label: string;
@@ -73,6 +87,9 @@ export interface CaptureOptions {
     quality: RecordQuality;
     cursor: boolean;
     bitrateKbps: number | null;
+    /** Boşsa otomatik (ilk çalışan kodlayıcı). */
+    encoder: RecorderEncoder | null;
+    speed: RecordSpeed;
   };
   systemAudio: boolean;
   systemAudioId: string | null;
@@ -81,6 +98,7 @@ export interface CaptureOptions {
   microphoneId: string | null;
   microphoneVolume: number;
   noiseSuppression: boolean;
+  microphoneSeparate?: boolean;
 }
 
 export interface RecorderStatus {

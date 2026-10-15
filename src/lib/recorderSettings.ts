@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { RecordQuality } from "../types/recorder";
+import type { RecordQuality, RecordSpeed, RecorderEncoder } from "../types/recorder";
 
 const STORAGE_KEY = "downkit.recorder";
 
@@ -13,7 +13,7 @@ export type RecorderSource =
 
 /** Sistem geneli kısayollar (kayıt ve ekran görüntüsü aynı düzende kaydedilir). */
 export type RecorderHotkey =
-  "record" | "saveReplay" | "toggleReplay" | "snip" | "snipFull" | "snipTranslate";
+  "record" | "saveReplay" | "toggleReplay" | "marker" | "snip" | "snipFull" | "snipTranslate";
 
 /** Anlık tekrar süresi kaydırıcıyla: 10 sn – 10 dk, 5 sn adım. */
 export const REPLAY_MIN_SECONDS = 10;
@@ -36,6 +36,8 @@ export function clampBitrate(v: number): number {
   return Math.min(BITRATE_MAX_KBPS, Math.max(BITRATE_MIN_KBPS, stepped));
 }
 export const RECORD_QUALITIES: RecordQuality[] = ["high", "balanced", "small"];
+export const RECORD_SPEEDS: RecordSpeed[] = ["performance", "balanced", "quality"];
+export const RECORD_ENCODERS: RecorderEncoder[] = ["nvenc", "amf", "qsv", "x264"];
 
 export interface RecorderSettings {
   /** Boşsa Videolar\DownKit\Kayıtlar. */
@@ -47,6 +49,10 @@ export interface RecorderSettings {
   /** Verilirse kalite ön ayarı yerine bu bit hızı (kbps). */
   bitrateKbps: number | null;
   cursor: boolean;
+  /** Seçilen kodlayıcı (dolayısıyla ekran kartı); boşsa otomatik. */
+  encoder: RecorderEncoder | null;
+  /** Kodlayıcı hızı: zayıf kartta "performans" oyunu daha az etkiler. */
+  speed: RecordSpeed;
   systemAudio: boolean;
   /** Sistem sesinin alınacağı çıkış aygıtı; boşsa Windows'un varsayılanı. */
   systemAudioId: string | null;
@@ -58,6 +64,8 @@ export interface RecorderSettings {
   microphoneVolume: number;
   /** Mikrofonda gürültü engelleme (fan, klavye, uğultu). */
   noiseSuppression: boolean;
+  /** Mikrofon dosyada ayrı ses izine de yazılsın (1. iz her şey, 2. iz yalnızca mikrofon). */
+  microphoneSeparate: boolean;
   /** Kayıtlar oyuna / uygulamaya göre alt klasörlere (NVIDIA'daki gibi). */
   byApp: boolean;
   /** Kayıtlarım'da eskiden yeniye (en yeni en altta); kapalıysa yeniden eskiye. */
@@ -65,6 +73,8 @@ export interface RecorderSettings {
   replaySeconds: number;
   /** Program açılınca anlık tekrarı kendiliğinden başlat (NVIDIA'daki gibi hep açık). */
   replayOnStartup: boolean;
+  /** Tam ekran bir oyun öne gelince anlık tekrar kendiliğinden açılsın, oyun kapanınca kapansın. */
+  replayOnGame: boolean;
   hotkeys: Record<RecorderHotkey, string | null>;
 }
 
@@ -75,6 +85,7 @@ export const DEFAULT_HOTKEYS: Record<RecorderHotkey, string | null> = {
   record: "Ctrl+Alt+F9",
   saveReplay: "Ctrl+Alt+F10",
   toggleReplay: "Ctrl+Alt+Shift+F10",
+  marker: "Ctrl+Alt+F8",
   snip: "Alt+Shift+S",
   snipFull: null,
   snipTranslate: "Alt+Shift+T",
@@ -88,17 +99,22 @@ export const DEFAULT_RECORDER_SETTINGS: RecorderSettings = {
   quality: "balanced",
   bitrateKbps: null,
   cursor: true,
+  encoder: null,
+  speed: "balanced",
   systemAudio: true,
   systemAudioId: null,
   systemVolume: 1,
   microphone: false,
   microphoneId: null,
   microphoneVolume: 1,
-  noiseSuppression: true,
+  // Gürültü engelleme her ses paketinde işlemci harcar: isteyen açar.
+  noiseSuppression: false,
+  microphoneSeparate: false,
   byApp: true,
   libraryNewestLast: true,
   replaySeconds: 30,
   replayOnStartup: false,
+  replayOnGame: false,
   hotkeys: { ...DEFAULT_HOTKEYS },
 };
 
@@ -150,6 +166,10 @@ export function normalizeRecorderSettings(raw: unknown): RecorderSettings {
         ? clampBitrate(r.bitrateKbps)
         : null,
     cursor: bool(r.cursor, d.cursor),
+    encoder: RECORD_ENCODERS.includes(r.encoder as RecorderEncoder)
+      ? (r.encoder as RecorderEncoder)
+      : null,
+    speed: RECORD_SPEEDS.includes(r.speed as RecordSpeed) ? (r.speed as RecordSpeed) : d.speed,
     systemAudio: bool(r.systemAudio, d.systemAudio),
     systemAudioId: typeof r.systemAudioId === "string" && r.systemAudioId ? r.systemAudioId : null,
     systemVolume: volume(r.systemVolume, d.systemVolume),
@@ -157,6 +177,7 @@ export function normalizeRecorderSettings(raw: unknown): RecorderSettings {
     microphoneId: typeof r.microphoneId === "string" && r.microphoneId ? r.microphoneId : null,
     microphoneVolume: volume(r.microphoneVolume, d.microphoneVolume),
     noiseSuppression: bool(r.noiseSuppression, d.noiseSuppression),
+    microphoneSeparate: bool(r.microphoneSeparate, d.microphoneSeparate),
     byApp: bool(r.byApp, d.byApp),
     libraryNewestLast: bool(r.libraryNewestLast, d.libraryNewestLast),
     replaySeconds:
@@ -164,10 +185,12 @@ export function normalizeRecorderSettings(raw: unknown): RecorderSettings {
         ? clampReplaySeconds(r.replaySeconds)
         : d.replaySeconds,
     replayOnStartup: bool(r.replayOnStartup, d.replayOnStartup),
+    replayOnGame: bool(r.replayOnGame, d.replayOnGame),
     hotkeys: {
       record: hotkey("record"),
       saveReplay: hotkey("saveReplay"),
       toggleReplay: hotkey("toggleReplay"),
+      marker: hotkey("marker"),
       snip: hotkey("snip"),
       snipFull: hotkey("snipFull"),
       snipTranslate: hotkey("snipTranslate"),

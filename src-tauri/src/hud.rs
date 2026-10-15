@@ -5,6 +5,7 @@
 //! - Odak almaz (WS_EX_NOACTIVATE + SW_SHOWNOACTIVATE): tam ekran oyunu küçültmez.
 //! - Ekran yakalamaya görünmez (WDA_EXCLUDEFROMCAPTURE): kendi kaydımıza girmez.
 //! - İlk kullanımda oluşturulur; sayfası açılınca son mesajı `hud_current` ile alır.
+//!   Bir dakika kullanılmazsa kapatılır (bellek).
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -20,6 +21,9 @@ const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 96.0;
 const MARGIN: f64 = 24.0;
 const VISIBLE_MS: u64 = 2800;
+/** Bu kadar yeni mesaj gelmezse pencere kapatılır: gizli bir pencere de kendi
+ * WebView2 sürecini (onlarca MB) açık tutar. Sonraki mesajda yeniden açılır. */
+const IDLE_CLOSE_MS: u64 = 60_000;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -154,8 +158,13 @@ pub async fn hud_show(
     // Daha yeni bir mesaj gelmediyse süre dolunca gizlenir.
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(VISIBLE_MS)).await;
+        if SEQ.load(Ordering::SeqCst) != id {
+            return;
+        }
+        hide_window(&window);
+        tokio::time::sleep(Duration::from_millis(IDLE_CLOSE_MS)).await;
         if SEQ.load(Ordering::SeqCst) == id {
-            hide_window(&window);
+            let _ = window.destroy();
         }
     });
     Ok(())

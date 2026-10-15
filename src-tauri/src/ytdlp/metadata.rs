@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -7,8 +6,8 @@ use tokio::process::Command;
 
 use crate::error::AppError;
 use crate::types::{
-    AudioOption, Chapter, FormatOption, MediaMetadata, PlaylistEntry, PlaylistInfo, PreviewPick,
-    QualityOption, Storyboard, StoryboardSheet,
+    AudioOption, Chapter, FormatOption, MediaMetadata, PlaylistEntry, PlaylistInfo, QualityOption,
+    Storyboard, StoryboardSheet,
 };
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -32,13 +31,6 @@ struct RawFormat {
     fps: Option<f64>,
     filesize: Option<f64>,
     filesize_approx: Option<f64>,
-    url: Option<String>,
-    /// HLS'de tüm varyantları ve ses gruplarını içeren ana liste.
-    manifest_url: Option<String>,
-    protocol: Option<String>,
-    /// Bu adres istenirken gönderilmesi gereken başlıklar (User-Agent vb.).
-    #[serde(default)]
-    http_headers: BTreeMap<String, String>,
     // Yalnızca YouTube "storyboard" (kare önizleme sayfası) formatlarında dolu.
     rows: Option<f64>,
     columns: Option<f64>,
@@ -57,23 +49,6 @@ impl RawFormat {
         self.ext.as_deref() == Some("mhtml") || self.format_note.as_deref() == Some("storyboard")
     }
 
-    fn is_http(&self) -> bool {
-        matches!(self.protocol.as_deref(), Some("https") | Some("http"))
-    }
-
-    fn is_hls(&self) -> bool {
-        self.protocol
-            .as_deref()
-            .is_some_and(|p| p.starts_with("m3u8"))
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        self.http_headers
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect()
-    }
-
     fn is_audio_only(&self) -> bool {
         matches!(self.vcodec.as_deref(), None | Some("none")) && !self.is_storyboard()
     }
@@ -85,134 +60,6 @@ impl RawFormat {
     fn size(&self) -> Option<u64> {
         self.filesize.or(self.filesize_approx).map(|v| v as u64)
     }
-
-    fn has_audio(&self) -> bool {
-        !matches!(self.acodec.as_deref(), None | Some("none"))
-    }
-}
-
-/// Önizlemede tercih edilen yükseklik sınırı: hızlı açılsın, sahne seçmeye yetsin.
-fn preview_rank(f: &RawFormat, limit: u32) -> (bool, bool, u32) {
-    let height = f.height.unwrap_or(0);
-    let fits = height <= limit;
-    (
-        f.ext.as_deref() == Some("mp4"),
-        fits,
-        if fits { height } else { u32::MAX - height },
-    )
-}
-
-fn best_audio_stream(formats: &[&RawFormat]) -> Option<String> {
-    formats
-        .iter()
-        .filter(|f| f.is_audio_only() && f.is_http())
-        .max_by(|a, b| {
-            let m4a = |f: &RawFormat| f.ext.as_deref() == Some("m4a");
-            m4a(a)
-                .cmp(&m4a(b))
-                .then_with(|| a.abr.unwrap_or(0.0).total_cmp(&b.abr.unwrap_or(0.0)))
-        })
-        .and_then(|f| f.url.clone())
-}
-
-/// Kare şeridi için FFmpeg'e verilecek tek akış: görüntülü, düşük çözünürlüklü
-/// (≈360p); düz HTTPS dosyası HLS'den önce gelir (aramada daha hızlı).
-fn pick_thumb_url(formats: &[&RawFormat]) -> Option<String> {
-    formats
-        .iter()
-        .filter(|f| f.is_playable_video() && (f.is_http() || f.is_hls()))
-        .min_by_key(|f| {
-            let height = f.height.unwrap_or(360);
-            (!f.is_http(), height.abs_diff(360))
-        })
-        .and_then(|f| f.url.clone())
-}
-
-/// Dalga formu için en düşük bit hızlı ses akışı: 1 saatlik videoda ~20 MB iner.
-fn pick_wave_url(formats: &[&RawFormat]) -> Option<String> {
-    formats
-        .iter()
-        .filter(|f| f.is_audio_only() && f.is_http())
-        .filter(|f| !f.format_id.contains("drc"))
-        .min_by(|a, b| {
-            a.abr
-                .unwrap_or(f64::MAX)
-                .total_cmp(&b.abr.unwrap_or(f64::MAX))
-        })
-        .and_then(|f| f.url.clone())
-}
-
-/// Linki indirmeden izlemek için oynatılabilir akışı seçer. Öncelik:
-/// 1. ses+görüntü birleşik düz dosya (TikTok, X, Facebook…)
-/// 2. HLS ana listesi (YouTube, Twitch, Kick…) — hls.js ile oynatılır
-/// 3. ayrı görüntü + ses dosyaları — iki öğe eşzamanlı oynatılır
-/// 4. görüntüsü olmayan kaynaklarda yalnızca ses
-fn pick_preview(formats: &[RawFormat]) -> Option<PreviewPick> {
-    let usable: Vec<&RawFormat> = formats
-        .iter()
-        .filter(|f| !f.is_storyboard() && f.url.is_some())
-        .collect();
-    let thumb_url = pick_thumb_url(&usable);
-    let wave_url = pick_wave_url(&usable);
-    let pick = |kind, f: &RawFormat, url: String, audio_url| PreviewPick {
-        kind,
-        url,
-        audio_url,
-        headers: f.headers(),
-        thumb_url: thumb_url.clone(),
-        wave_url: wave_url.clone(),
-        has_video: f.is_playable_video(),
-    };
-
-    if let Some(f) = usable
-        .iter()
-        .filter(|f| f.is_playable_video() && f.has_audio() && f.is_http())
-        .max_by_key(|f| preview_rank(f, 720))
-    {
-        return Some(pick("file", f, f.url.clone()?, None));
-    }
-
-    let hls: Vec<&&RawFormat> = usable
-        .iter()
-        .filter(|f| f.is_hls() && f.is_playable_video())
-        .collect();
-    if let Some(f) = hls.iter().find(|f| f.manifest_url.is_some()) {
-        return Some(pick("hls", f, f.manifest_url.clone()?, None));
-    }
-    if let Some(f) = hls
-        .iter()
-        .filter(|f| f.has_audio())
-        .max_by_key(|f| preview_rank(f, 720))
-    {
-        return Some(pick("hls", f, f.url.clone()?, None));
-    }
-
-    if let Some(f) = usable
-        .iter()
-        .filter(|f| f.is_playable_video() && f.is_http())
-        .max_by_key(|f| preview_rank(f, 480))
-    {
-        let audio = best_audio_stream(&usable);
-        return Some(pick("split", f, f.url.clone()?, audio));
-    }
-
-    // Görüntüsüz kaynak (ör. yalnızca ses yayını).
-    if !usable.iter().any(|f| f.is_playable_video()) {
-        if let Some(f) = usable
-            .iter()
-            .filter(|f| f.is_audio_only() && (f.is_http() || f.is_hls()))
-            .max_by(|a, b| a.abr.unwrap_or(0.0).total_cmp(&b.abr.unwrap_or(0.0)))
-        {
-            let kind = if f.is_hls() { "hls" } else { "file" };
-            let url = if f.is_hls() {
-                f.manifest_url.clone().or_else(|| f.url.clone())?
-            } else {
-                f.url.clone()?
-            };
-            return Some(pick(kind, f, url, None));
-        }
-    }
-    None
 }
 
 /// YouTube'un kare önizleme sayfalarından (storyboard) zaman çizelgesi şeridi
@@ -551,7 +398,6 @@ fn map_metadata(raw: RawInfo, platform: &str) -> MediaMetadata {
         })
         .collect();
 
-    let preview_source = pick_preview(&raw.formats);
     let storyboard = pick_storyboard(&raw.formats);
     let chapters = Chapter::normalize(
         raw.chapters
@@ -573,8 +419,6 @@ fn map_metadata(raw: RawInfo, platform: &str) -> MediaMetadata {
         description: raw.description,
         view_count: raw.view_count.map(|v| v as u64),
         upload_date: raw.upload_date,
-        preview: None,
-        preview_source,
         storyboard,
         chapters,
         quality_options,
@@ -656,75 +500,6 @@ mod tests {
 
     fn formats(json: &str) -> Vec<RawFormat> {
         serde_json::from_str(json).unwrap()
-    }
-
-    #[test]
-    fn birlesik_dosya_varsa_onizleme_dogrudan_oynatilir() {
-        let f = formats(
-            r#"[
-            {"format_id":"hls-720","protocol":"m3u8_native","url":"https://x/720.m3u8","manifest_url":"https://x/master.m3u8","vcodec":"avc1","acodec":"mp4a","height":720},
-            {"format_id":"http-1080","protocol":"https","url":"https://x/1080.mp4","ext":"mp4","vcodec":"avc1","acodec":"mp4a","height":1080},
-            {"format_id":"http-540","protocol":"https","url":"https://x/540.mp4","ext":"mp4","vcodec":"avc1","acodec":"mp4a","height":540,
-             "http_headers":{"User-Agent":"UA","Referer":"https://x/"}}
-        ]"#,
-        );
-        let pick = pick_preview(&f).unwrap();
-        assert_eq!(pick.kind, "file");
-        assert_eq!(
-            pick.url, "https://x/540.mp4",
-            "720p altındaki en yüksek seçilir"
-        );
-        assert!(pick
-            .headers
-            .contains(&("Referer".into(), "https://x/".into())));
-        assert!(pick.has_video);
-    }
-
-    #[test]
-    fn youtube_gibi_ayri_akislarda_hls_ana_listesi_secilir() {
-        let f = formats(
-            r#"[
-            {"format_id":"sb1","format_note":"storyboard","ext":"mhtml","protocol":"mhtml","url":"https://i/sb","vcodec":"none","acodec":"none"},
-            {"format_id":"234","protocol":"m3u8_native","url":"https://m/a.m3u8","manifest_url":"https://m/master","vcodec":"none","acodec":"mp4a"},
-            {"format_id":"229","protocol":"m3u8_native","url":"https://m/240.m3u8","manifest_url":"https://m/master","vcodec":"avc1","acodec":"none","height":240},
-            {"format_id":"134","protocol":"https","url":"https://g/360.mp4","ext":"mp4","vcodec":"avc1","acodec":"none","height":360},
-            {"format_id":"140","protocol":"https","url":"https://g/a.m4a","ext":"m4a","vcodec":"none","acodec":"mp4a","abr":129}
-        ]"#,
-        );
-        let pick = pick_preview(&f).unwrap();
-        assert_eq!(pick.kind, "hls");
-        assert_eq!(pick.url, "https://m/master");
-        assert_eq!(
-            pick.thumb_url.as_deref(),
-            Some("https://g/360.mp4"),
-            "kare şeridi için düz dosya HLS'den önce gelir"
-        );
-    }
-
-    #[test]
-    fn hls_yoksa_ayri_goruntu_ve_ses_eszamanli_oynatilir() {
-        let f = formats(
-            r#"[
-            {"format_id":"v1080","protocol":"https","url":"https://g/1080.mp4","ext":"mp4","vcodec":"avc1","acodec":"none","height":1080},
-            {"format_id":"v480","protocol":"https","url":"https://g/480.mp4","ext":"mp4","vcodec":"avc1","acodec":"none","height":480},
-            {"format_id":"a-webm","protocol":"https","url":"https://g/a.webm","ext":"webm","vcodec":"none","acodec":"opus","abr":160},
-            {"format_id":"a-m4a","protocol":"https","url":"https://g/a.m4a","ext":"m4a","vcodec":"none","acodec":"mp4a","abr":128}
-        ]"#,
-        );
-        let pick = pick_preview(&f).unwrap();
-        assert_eq!(pick.kind, "split");
-        assert_eq!(pick.url, "https://g/480.mp4");
-        assert_eq!(pick.audio_url.as_deref(), Some("https://g/a.m4a"));
-    }
-
-    #[test]
-    fn goruntusuz_kaynakta_yalnizca_ses_oynatilir() {
-        let f = formats(
-            r#"[{"format_id":"mp3","protocol":"https","url":"https://s/a.mp3","ext":"mp3","vcodec":"none","acodec":"mp3","abr":128}]"#,
-        );
-        let pick = pick_preview(&f).unwrap();
-        assert_eq!((pick.kind, pick.has_video), ("file", false));
-        assert!(pick_preview(&[]).is_none());
     }
 
     #[test]

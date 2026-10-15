@@ -1,8 +1,8 @@
-//! DownKit — © 2026 aderimo. Kaynak kodu MIT lisanslıdır; "DownKit" adı ve ördek
-//! logosu TRADEMARKS.md'deki koşullara tabidir. Resmi kaynak ve sürümler:
-//! https://github.com/Aderimo/downkit
+//! DownKit — © 2026 aderimo. Ücretsiz ve açık kaynak (MIT): https://github.com/Aderimo/downkit
+//! "DownKit" adı ve ördek logosu TRADEMARKS.md'deki koşullara tabidir.
 
 mod applog;
+mod autostart;
 mod commands;
 mod error;
 mod events;
@@ -11,6 +11,8 @@ mod hotkey_hook;
 mod hotkeys;
 mod hud;
 mod jobs;
+mod migrate;
+mod motion;
 mod paths;
 mod platform;
 mod prefs;
@@ -20,6 +22,7 @@ mod recorder;
 mod snip;
 mod state;
 mod template;
+mod theme_bg;
 mod tool_download;
 mod tray;
 mod types;
@@ -59,27 +62,27 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
-        // "downkit://open?url=…" bağlantıları (tarayıcıdaki yer iminden gönderme).
-        // Program açıksa tek pencere eklentisi bağlantıyı bu kopyaya iletir.
-        .plugin(tauri_plugin_deep_link::init())
         // Kayıt/anlık tekrar kısayolları (oyun oynarken de çalışsın diye sistem geneli).
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
         .manage(recorder::RecorderState::default())
         .setup(|app| {
             applog::install_panic_hook(app.handle().clone());
+            // Önceki kurulumların (ClipKit, DownKit 0.3) ayarları ve araçları (bir kez) alınır.
+            migrate::from_previous(app.handle());
+            autostart::migrate_old_value();
             tool_download::init(app.handle());
             // Tepsi simgesi Rust'ta kurulur: arayüz hata verse bile tepsiden
             // pencereyi geri açmak ve programı tamamen kapatmak her zaman çalışır.
             if let Err(e) = tray::init(app.handle()) {
                 eprintln!("Tepsi simgesi kurulamadı: {e}");
             }
-            // Kurulumsuz exe ve geliştirme sürümünde bağlantı türü çalışma anında
-            // kaydedilir (kurulum dosyası bunu kurulurken zaten yapar).
-            #[cfg(desktop)]
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-                let _ = app.deep_link().register_all();
+            // Pencere gizli kurulur (tauri.conf: visible=false); Windows açılışında
+            // otomatik başlatıldıysa tepside kalır, yoksa hemen gösterilir.
+            if !autostart::launched_by_autostart() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                }
             }
             Ok(())
         })
@@ -96,8 +99,7 @@ pub fn run() {
             commands::compress::cancel_compress,
             commands::resize::start_resize,
             commands::resize::cancel_resize,
-            commands::trim::start_trim,
-            commands::trim::cancel_trim,
+            commands::settings::update_ytdlp,
             commands::edit::start_edit,
             commands::edit::cancel_edit,
             commands::edit::discard_edit_work,
@@ -106,17 +108,28 @@ pub fn run() {
             commands::editor::editor_waveform,
             commands::editor::create_preview_copy,
             commands::editor::editor_save_frame,
-            commands::settings::get_ytdlp_version,
-            commands::settings::update_ytdlp,
             commands::settings::get_tool_versions,
             commands::settings::open_app_data_dir,
             commands::settings::prepare_tools,
-            commands::settings::install_kind,
+            commands::settings::cache_usage,
+            commands::settings::cache_clear,
             commands::files::open_media_file,
+            commands::files::copy_file_to_clipboard,
+            commands::share::discord_send,
+            commands::captions::captions_transcribe,
+            commands::captions::captions_cancel,
+            commands::captions::captions_ready,
             commands::files::open_folder,
+            commands::files::image_preview,
+            commands::motion::motion_templates,
+            commands::motion::motion_preview,
+            commands::motion::motion_render,
             recorder::recorder_sources,
+            recorder::recorder_fullscreen_app,
+            recorder::recorder_app_running,
             recorder::recorder_source_thumbs,
             recorder::recorder_prepare,
+            recorder::gpu::recorder_gpus,
             recorder::recorder_start,
             recorder::recorder_stop,
             recorder::replay_start,
@@ -129,7 +142,6 @@ pub fn run() {
             recorder::recording_rename,
             recorder::recording_repair,
             recorder::recording_trim,
-            recorder::screenshot::recorder_screenshot,
             recorder::recorder_default_dir,
             hotkeys::hotkey_probe,
             hotkey_hook::hotkey_watch,
@@ -150,10 +162,28 @@ pub fn run() {
             snip::image_copy,
             snip::ocr::ocr_image,
             snip::translate::translate_text,
+            autostart::autostart_get,
+            autostart::autostart_set,
+            theme_bg::theme_bg_save,
+            theme_bg::theme_bg_load,
+            theme_bg::theme_bg_clear,
             tray::force_quit,
             tray::tray_set_labels,
             commands::textfile::text_file_read,
             commands::textfile::text_file_write,
+            commands::emoji::emoji_image_write,
+            commands::silence::editor_silences,
+            commands::audio_tools::audio_fx_preview,
+            commands::audio_tools::audio_beats,
+            commands::audio_file::audio_file_write,
+            commands::face::editor_face_track,
+            commands::edit::editor_cover,
+            commands::project::project_save,
+            commands::project::project_read,
+            commands::project::autosave_write,
+            commands::project::autosave_read,
+            commands::project::autosave_clear,
+            commands::project::paths_exist,
             prefs::prefs_load,
             prefs::prefs_save,
             app_signature,

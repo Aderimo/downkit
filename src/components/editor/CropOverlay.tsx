@@ -1,6 +1,8 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FRAME_SIZES, useEditorStore } from "../../store/editorStore";
+import { usePlayerStore } from "../../store/playerStore";
+import { currentCropPosition } from "../../lib/faceActions";
 
 /** Önizlemede dikey/kare çerçevenin kalacak bölgesi: dışı karartılır, çerçeve
  * sürüklenerek konum ayarlanır. Videonun kutudaki yeri CSS ile (object-contain
@@ -10,20 +12,24 @@ export function CropOverlay({ sourceAspect }: { sourceAspect: number }) {
   const { t } = useTranslation();
   const options = useEditorStore((s) => s.exportOptions);
   const setOptions = useEditorStore((s) => s.setExportOptions);
+  const time = usePlayerStore((s) => s.currentTime);
   const videoRef = useRef<HTMLDivElement>(null);
 
-  if (options.frame === "original" || options.frameFit) return null;
+  if (options.frame === "original" || options.frameFit || options.frameSplit) return null;
   const [fw, fh] = FRAME_SIZES[options.frame];
   const target = fw / fh;
   // Kaynak hedeften genişse yatayda, darsa dikeyde kırpılır.
   const horizontal = sourceAspect > target;
   const share = horizontal ? target / sourceAspect : sourceAspect / target;
-  const pos = options.framePosition;
+  // Yüz takibi açıksa konum imleçteki izden; elle sürükleme kapalı.
+  const tracking = options.frameTrack !== null;
+  const pos = tracking ? currentCropPosition(time) : options.framePosition;
   const offset = `${(1 - share) * pos * 100}%`;
   const size = `${share * 100}%`;
 
   function onPointerDown(e: ReactPointerEvent) {
     e.stopPropagation();
+    if (tracking) return;
     const video = videoRef.current?.getBoundingClientRect();
     if (!video) return;
     const slack = (horizontal ? video.width : video.height) * (1 - share);
@@ -46,9 +52,8 @@ export function CropOverlay({ sourceAspect }: { sourceAspect: number }) {
 
   return (
     <div
-      className="absolute inset-0 flex items-center justify-center overflow-hidden"
+      className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden"
       style={{ containerType: "size" }}
-      onClick={(e) => e.stopPropagation()}
     >
       <div
         ref={videoRef}
@@ -65,7 +70,8 @@ export function CropOverlay({ sourceAspect }: { sourceAspect: number }) {
           aria-valuemin={0}
           aria-valuemax={100}
           onPointerDown={onPointerDown}
-          className={`absolute border-2 border-[#FFD43B] shadow-[0_0_0_9999px_rgb(0_0_0/55%)] ${
+          onClick={(e) => e.stopPropagation()}
+          className={`pointer-events-auto absolute border-2 border-[#FFD43B] shadow-[0_0_0_9999px_rgb(0_0_0/55%)] ${
             horizontal ? "inset-y-0 cursor-ew-resize" : "inset-x-0 cursor-ns-resize"
           }`}
           style={horizontal ? { left: offset, width: size } : { top: offset, height: size }}

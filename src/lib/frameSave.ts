@@ -24,7 +24,7 @@ export async function savePlayheadFrame(): Promise<string> {
   if (!segment) throw new Error(i18n.t("editor.frameEmpty"));
   const seconds = sourceTimeAt(segment, time);
   // HLS listesi aktarıcı üzerinden okunamaz; Rust tarafı kare akışına düşer.
-  const input = source.kind === "local" ? source.path : stream.kind === "hls" ? null : stream.url;
+  const input = source.path;
   const name = snipFileName(i18n.t("editor.framePrefix"), new Date());
   const path = await editorSaveFrame(stream.token, input, seconds, name);
   logEvent("info", `Kare kaydedildi: ${path}`);

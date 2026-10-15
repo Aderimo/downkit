@@ -9,13 +9,7 @@ import {
   clampReplaySeconds,
   useRecorderSettings,
 } from "../../lib/recorderSettings";
-import {
-  replayLengthText,
-  restartReplay,
-  saveReplay,
-  toggleRecording,
-  toggleReplay,
-} from "../../lib/recorder";
+import { replayLengthText, saveReplay, toggleRecording, toggleReplay } from "../../lib/recorder";
 import { formatBytes, formatDuration } from "../../lib/format";
 import {
   hotkeyLabel,
@@ -135,19 +129,23 @@ function BufferBar({
   }, [buffered]);
 
   useEffect(() => {
+    // Anlık tekrar kapalıyken çubuk boştur: her karede çizim yapılmaz.
+    if (!active) {
+      if (barRef.current) barRef.current.style.transform = "scaleX(0)";
+      return;
+    }
     let frame = 0;
     const draw = (now: number) => {
-      const value = active
-        ? Math.min(length, base.current.value + (now - base.current.at) / 1000)
-        : 0;
+      const value = Math.min(length, base.current.value + (now - base.current.at) / 1000);
       if (barRef.current) {
         barRef.current.style.transform = `scaleX(${length > 0 ? value / length : 0})`;
       }
-      frame = requestAnimationFrame(draw);
+      // Arabellek dolunca çubuk durur; yeni durum gelince efekt yeniden çalışır.
+      if (value < length) frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [active, length]);
+  }, [active, length, buffered]);
 
   return (
     <div className="h-2 overflow-hidden rounded-full bg-[var(--dk-bg)]">
@@ -368,12 +366,14 @@ export function RecordCard() {
 }
 
 /** Anlık tekrar süresi kaydırıcısı: 10 sn – 10 dk. Sürüklerken yalnızca yazı
- * değişir; bırakınca kaydedilir (açıksa anlık tekrar yeni süreyle yeniden başlar). */
+ * değişir; bırakınca kaydedilir. Anlık tekrar açıkken kilitlidir: yeniden başlatmak
+ * tampondaki görüntüyü siler ve yarıda kalan oturum hata verebilirdi. */
 function ReplayLength({ disabled }: { disabled: boolean }) {
   const { t } = useTranslation();
   const seconds = useRecorderSettings((s) => s.replaySeconds);
   const update = useRecorderSettings((s) => s.update);
   const active = useRecorderStore((s) => s.status.replay !== null);
+  const locked = disabled || active;
   const [draft, setDraft] = useState<number | null>(null);
   const value = draft ?? seconds;
 
@@ -383,7 +383,6 @@ function ReplayLength({ disabled }: { disabled: boolean }) {
     setDraft(null);
     if (next === seconds) return;
     update({ replaySeconds: next });
-    if (active) void restartReplay();
   };
 
   return (
@@ -398,7 +397,8 @@ function ReplayLength({ disabled }: { disabled: boolean }) {
         max={REPLAY_MAX_SECONDS}
         step={REPLAY_STEP_SECONDS}
         value={value}
-        disabled={disabled}
+        disabled={locked}
+        title={active ? t("recorder.replayLengthLocked") : undefined}
         aria-label={t("recorder.replayLength")}
         onChange={(e) => setDraft(Number(e.target.value))}
         onPointerUp={commit}
@@ -421,6 +421,7 @@ export function ReplayCard() {
   const pending = useRecorderStore((s) => s.pending);
   const seconds = useRecorderSettings((s) => s.replaySeconds);
   const onStartup = useRecorderSettings((s) => s.replayOnStartup);
+  const onGame = useRecorderSettings((s) => s.replayOnGame);
   const hotkeys = useRecorderSettings((s) => s.hotkeys);
   const update = useRecorderSettings((s) => s.update);
   const active = replay !== null;
@@ -490,6 +491,14 @@ export function ReplayCard() {
             checked={onStartup}
             onChange={(replayOnStartup) => update({ replayOnStartup })}
             label={t("recorder.replayOnStartup")}
+          />
+        </label>
+        <label className="flex items-center gap-2" title={t("recorder.replayOnGameHint")}>
+          {t("recorder.replayOnGame")}
+          <Switch
+            checked={onGame}
+            onChange={(replayOnGame) => update({ replayOnGame })}
+            label={t("recorder.replayOnGame")}
           />
         </label>
       </div>

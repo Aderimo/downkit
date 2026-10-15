@@ -1,5 +1,5 @@
-// "Yenilikler" penceresi: program güncellendiğinde (ya da ilk kez kurulduğunda)
-// ilk açılışta o sürümün yama notlarını gösterir. Gösterilen sürüm ayarlara
+// "Yenilikler" penceresi: program güncellendiğinde ilk açılışta (ilk kurulumda
+// sihirbaz gösterilir, bu pencere değil) o sürümün yama notlarını gösterir. Gösterilen sürüm ayarlara
 // yazılır; aynı sürümde bir daha açılmaz. Notlar Ayarlar → Yama notları'ndan
 // her zaman okunabilir.
 
@@ -31,6 +31,11 @@ export async function initWhatsNew(): Promise<void> {
   try {
     const version = await getAppVersion();
     if (getSettings().lastSeenVersion === version) return;
+    // İlk kurulumda sihirbaz zaten tanıtıyor: notlar gösterilmez, sürüm görülmüş sayılır.
+    if (!getSettings().setupDone) {
+      useSettingsStore.getState().update({ lastSeenVersion: version });
+      return;
+    }
     useWhatsNewStore.setState({ version, notes: notesFor(version, i18n.language) });
   } catch {
     // Tauri dışında (tarayıcı önizlemesi) sürüm okunamaz; pencere açılmaz.

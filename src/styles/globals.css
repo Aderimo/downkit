@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
-/* Marka yazısı ("DownKit", "aderimo"): Nunito, OFL lisanslı, uygulamayla birlikte gelir. */
+/* C · Ördek tasarım dili (web sitesiyle ortak): kalın mürekkep çerçeve, düz gölge,
+   Bricolage Grotesque başlıklar, Figtree metin. Yazı tipleri programla gelir (OFL). */
 /* Kısa pencerelerde (en küçük pencere 700 px) kenar çubuğu sıkışır ki alttaki
    yapımcı/destek kartı kaydırmadan görünsün. */
 @custom-variant short (@media (max-height: 820px));
 
 @theme {
-  --font-brand: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -26,7 +28,11 @@
   --dk-success: #34d399;
   --dk-error: #f87171;
   --dk-warning: #fbbf24;
-  --dk-gradient: linear-gradient(135deg, #4f7bff 0%, #7c5cff 100%);
+  --dk-gradient: #2b4bff;
+  --dk-line: #f6f2e6;
+  --dk-shadow: #ffc400;
+  --dk-sun: #ffc400;
+  --dk-blue: #2b4bff;
   --dk-brand: #ffd43b;
   --dk-pink: #f9a8d4;
   --dk-dim: rgb(4 7 20 / 76%);
@@ -55,7 +61,7 @@
 
 /* Koyu karartma katmanının (bg-black/70) üstündeki pencere ve kartlar yine
    temanın zeminini kullanır: içlerinde metin rengi temaya döner. */
-:root[data-mode="light"] :is(.dk-card, [role="dialog"]) {
+:root[data-mode="light"] :is(.dk-card, .dk-panel, [role="dialog"]) {
   --color-white: var(--dk-text);
 }
 
@@ -73,33 +79,97 @@ body {
   margin: 0;
   background: var(--dk-bg);
   color: var(--dk-text);
-  font-family:
-    "Segoe UI Variable Text",
-    "Segoe UI",
-    "Inter",
-    -apple-system,
-    sans-serif;
+  font-family: "Figtree", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  /* Program hissi: metinler fareyle seçilip boyanmaz; yazı alanları ve
+     kopyalanması gereken yerler (.dk-selectable) seçilebilir kalır. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Temel kart yüzeyi (mockup'taki lacivert paneller). */
+/* Özel arka plan resmi (Ayarlar → Tema → Özel). Resim önceden işlenmiş gelir;
+   burada canlı filtre yok, yalnızca saydamlık. Paneller themes.ts'te yarı saydam olur. */
+:root[data-bg="1"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--dk-bg-image);
+  background-size: var(--dk-bg-size, cover);
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--dk-bg-opacity, 0.6);
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.dk-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* Temel kart: ince çerçeve, gölge yok. (Kalın çerçeve + kaydırılmış sarı gölge uzun
+   kullanımda göz yoruyordu.) */
 .dk-card {
   background: var(--dk-surface);
   border: 1px solid var(--dk-border);
   border-radius: 16px;
 }
 
+/* Düzenleyicinin çalışma alanı: yan yana dört büyük kartta kalın sarı çerçeve ve
+   gölge göz yoruyordu. Çerçeve ince kalır;
+   içinde çalışılan panel sarı çizgiyle belli olur. */
+.dk-panel {
+  background: var(--dk-surface);
+  border: 1px solid var(--dk-border);
+  border-radius: 14px;
+  transition: border-color 120ms ease;
+}
+.dk-panel:focus-within {
+  border-color: color-mix(in srgb, var(--dk-sun) 55%, var(--dk-border));
+}
+
 .dk-gradient {
   background: var(--dk-gradient);
 }
 
-/* Seçili kart/hap: vurgu kenarı + hafif parlama. */
+/* Düğmeler: düz, ince çerçeve; basınca hafifçe kararır. */
+.dk-press {
+  border: 1px solid var(--dk-border-strong);
+  transition:
+    filter 80ms ease,
+    border-color 80ms ease;
+}
+.dk-press:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.dk-press:active:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+/* Seçili kart/hap: vurgu renginde ince çerçeve. */
 .dk-selected {
   border-color: var(--dk-accent) !important;
-  box-shadow:
-    0 0 0 1px var(--dk-accent),
-    0 0 24px -8px color-mix(in srgb, var(--dk-accent) 55%, transparent);
+  box-shadow: 0 0 0 1px var(--dk-accent) !important;
+}
+
+:focus-visible {
+  outline: 3px solid var(--dk-sun);
+  outline-offset: 2px;
 }
 
 /* Görüntü düzenleyicinin zemini: saydam alan dama deseniyle görünsün. */
@@ -225,4 +295,65 @@ body {
   .dk-digit {
     animation: none;
   }
+}
+
+/* Kaydırma çubuğu gizli şerit (tema seçici): oklar, noktalar ve tekerlekle gezilir. */
+.dk-noscrollbar {
+  scrollbar-width: none;
+}
+.dk-noscrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Çalışma alanı (yerleştirilebilir paneller): DownKit renkleri, ince sekmeler. */
+.dockview-theme-downkit {
+  color-scheme: dark;
+  --dv-group-view-background-color: var(--dk-surface);
+  --dv-tabs-and-actions-container-background-color: var(--dk-bg);
+  --dv-tabs-and-actions-container-height: 28px;
+  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--dk-surface);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--dk-surface);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-activegroup-visiblepanel-tab-color: var(--dk-text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--dk-text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--dk-text);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--dk-text-muted);
+  --dv-tab-divider-color: transparent;
+  --dv-separator-border: transparent;
+  --dv-paneview-header-border-color: var(--dk-border);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--dk-accent);
+  --dv-active-sash-transition-duration: 0.1s;
+  --dv-active-sash-transition-delay: 0.15s;
+  --dv-drag-over-background-color: rgb(91 124 255 / 22%);
+  --dv-drag-over-border-color: var(--dk-accent);
+  --dv-drag-over-border: 2px solid var(--dk-accent);
+  --dv-edge-dock-indicator-color: var(--dk-accent);
+  --dv-icon-hover-background-color: rgb(255 255 255 / 8%);
+  --dv-tabs-container-scrollbar-color: var(--dk-border-strong);
+  --dv-scrollbar-background-color: var(--dk-border-strong);
+  --dv-floating-box-shadow: 0 8px 32px rgb(0 0 0 / 45%);
+  --dv-floating-border: 1px solid var(--dk-border-strong);
+  --dv-floating-titlebar-background-color: var(--dk-surface-2);
+  --dv-border-radius: 10px;
+  --dv-tab-border-radius: 6px;
+  --dv-sash-border-radius: 3px;
+  --dv-dropdown-border-radius: 8px;
+  --dv-spacing-padding: 0px;
+  --dv-tab-margin: 0 2px;
+  --dv-tab-font-size: 12px;
+  --dv-tab-close-icon-size: 12px;
+  --dv-context-menu-background-color: var(--dk-surface-2);
+  --dv-context-menu-color: var(--dk-text);
+  --dv-overlay-z-index: 30;
+}
+.dockview-theme-downkit .dv-groupview {
+  border: 1px solid var(--dk-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dockview-theme-downkit .dv-tab {
+  padding: 0 8px;
 }

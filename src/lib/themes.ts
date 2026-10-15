@@ -16,8 +16,12 @@ export interface ThemePalette {
   accent: string;
   accent2: string;
   accentHover: string;
-  /** Verilmezse vurgu renklerinden üretilir. */
+  /** Eski temalardan kalan alan; C tasarımında geçiş (gradient) kullanılmaz. */
   gradient?: string;
+  /** Kalın çerçeve rengi; verilmezse borderStrong. */
+  line?: string;
+  /** Düz gölge rengi; verilmezse koyu temada vurgu, açıkta mürekkep. */
+  shadow?: string;
 }
 
 export interface Theme {
@@ -27,6 +31,67 @@ export interface Theme {
 }
 
 export const THEMES = [
+  {
+    // Sakin (varsayılan): düşük doygunluk, yumuşak kontrast, parlak vurgu ya da
+    // sarı gölge yok; uzun süre bakınca göz yormaz.
+    id: "calm",
+    mode: "dark",
+    palette: {
+      bg: "#16181d",
+      sidebar: "#1a1d23",
+      surface: "#1f2229",
+      surface2: "#262a32",
+      border: "#323743",
+      borderStrong: "#454b59",
+      text: "#e6e8ec",
+      textMuted: "#a7adb9",
+      accent: "#4f7fd9",
+      accent2: "#7fb3a6",
+      accentHover: "#8fb0ec",
+      line: "#454b59",
+      shadow: "#0d0f12",
+    },
+  },
+  {
+    // C · Ördek (koyu): sitedeki tasarımın program karşılığı.
+    id: "ordek",
+    mode: "dark",
+    palette: {
+      bg: "#14130f",
+      sidebar: "#191812",
+      surface: "#1e1d18",
+      surface2: "#27261f",
+      border: "#3a382f",
+      borderStrong: "#55524a",
+      text: "#f6f2e6",
+      textMuted: "#c9c4b4",
+      accent: "#2b4bff",
+      accent2: "#ffc400",
+      accentHover: "#ffc400",
+      line: "#f6f2e6",
+      shadow: "#ffc400",
+    },
+  },
+  {
+    // C · Ördek (açık): krem zemin, siyah mürekkep, mavi + sarı.
+    id: "ordekLight",
+    mode: "light",
+    palette: {
+      bg: "#fffbf0",
+      sidebar: "#fff6dc",
+      surface: "#ffffff",
+      surface2: "#fff6dc",
+      border: "#e6dcc0",
+      borderStrong: "#111111",
+      text: "#111111",
+      textMuted: "#4a4740",
+      accent: "#2b4bff",
+      accent2: "#ffc400",
+      accentHover: "#1d36d9",
+      line: "#111111",
+      shadow: "#111111",
+    },
+  },
   {
     id: "midnight",
     mode: "dark",
@@ -304,7 +369,7 @@ export const THEMES = [
 
 export type ThemeId = (typeof THEMES)[number]["id"];
 
-export const DEFAULT_THEME: ThemeId = "midnight";
+export const DEFAULT_THEME: ThemeId = "calm";
 
 export function isThemeId(value: unknown): value is ThemeId {
   return THEMES.some((t) => t.id === value);
@@ -312,6 +377,92 @@ export function isThemeId(value: unknown): value is ThemeId {
 
 export function getTheme(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0];
+}
+
+// --- Özel tema: kullanıcının seçtiği beş renkten tam palet türetilir. ---
+
+export const CUSTOM_THEME_ID = "custom";
+export type ThemeChoice = ThemeId | typeof CUSTOM_THEME_ID;
+
+export function isThemeChoice(value: unknown): value is ThemeChoice {
+  return value === CUSTOM_THEME_ID || isThemeId(value);
+}
+
+export interface CustomColors {
+  mode: ThemeMode;
+  bg: string;
+  surface: string;
+  text: string;
+  accent: string;
+  /** İkinci vurgu: koyu kipte gölge ve üzerine gelme rengi. */
+  accent2: string;
+}
+
+/** Başlangıçta Ördek (koyu) renkleri: özel temaya geçince görünüm değişmez. */
+export const DEFAULT_CUSTOM_COLORS: CustomColors = {
+  mode: "dark",
+  bg: "#14130f",
+  surface: "#1e1d18",
+  text: "#f6f2e6",
+  accent: "#2b4bff",
+  accent2: "#ffc400",
+};
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+export function normalizeCustomColors(raw: unknown): CustomColors {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_CUSTOM_COLORS;
+  const color = (v: unknown, fallback: string) =>
+    typeof v === "string" && HEX.test(v) ? v.toLowerCase() : fallback;
+  return {
+    mode: r.mode === "light" ? "light" : "dark",
+    bg: color(r.bg, d.bg),
+    surface: color(r.surface, d.surface),
+    text: color(r.text, d.text),
+    accent: color(r.accent, d.accent),
+    accent2: color(r.accent2, d.accent2),
+  };
+}
+
+/** İki rengi karıştırır: `amount` 0 ise a, 1 ise b. */
+export function mixHex(a: string, b: string, amount: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return (
+    "#" +
+    [0, 1, 2]
+      .map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * amount))
+      .map((v) => v.toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
+
+export function customTheme(c: CustomColors): Theme {
+  const dark = c.mode === "dark";
+  return {
+    id: CUSTOM_THEME_ID,
+    mode: c.mode,
+    palette: {
+      bg: c.bg,
+      sidebar: mixHex(c.bg, c.surface, 0.4),
+      surface: c.surface,
+      surface2: mixHex(c.surface, c.text, 0.06),
+      border: mixHex(c.surface, c.text, 0.16),
+      borderStrong: mixHex(c.surface, c.text, 0.3),
+      text: c.text,
+      textMuted: mixHex(c.text, c.bg, 0.3),
+      accent: c.accent,
+      accent2: c.accent2,
+      accentHover: dark ? c.accent2 : mixHex(c.accent, "#000000", 0.15),
+      line: c.text,
+      shadow: dark ? c.accent2 : c.text,
+    },
+  };
+}
+
+/** Ayardaki seçim: hazır tema ya da özel renkler. */
+export function resolveTheme(id: string, custom?: CustomColors): Theme {
+  return id === CUSTOM_THEME_ID ? customTheme(custom ?? DEFAULT_CUSTOM_COLORS) : getTheme(id);
 }
 
 /** Moda göre ortak renkler: açık zeminde koyu, koyu zeminde açık tonlar okunur. */
@@ -345,13 +496,18 @@ const MODE_COLORS: Record<ThemeMode, Record<string, string>> = {
 };
 
 /** Temanın CSS değişkenleri (saf: test edilebilir). */
-export function themeVariables(theme: Theme): Record<string, string> {
+export function themeVariables(theme: Theme, panelAlpha = 1): Record<string, string> {
   const p = theme.palette;
+  // Arka plan resmi varken paneller yarı saydam olur ki resim arkadan görünsün.
+  const see = (color: string) =>
+    panelAlpha >= 1
+      ? color
+      : `color-mix(in srgb, ${color} ${Math.round(panelAlpha * 100)}%, transparent)`;
   return {
     "--dk-bg": p.bg,
-    "--dk-sidebar": p.sidebar,
-    "--dk-surface": p.surface,
-    "--dk-surface-2": p.surface2,
+    "--dk-sidebar": see(p.sidebar),
+    "--dk-surface": see(p.surface),
+    "--dk-surface-2": see(p.surface2),
     "--dk-border": p.border,
     "--dk-border-strong": p.borderStrong,
     "--dk-text": p.text,
@@ -359,15 +515,22 @@ export function themeVariables(theme: Theme): Record<string, string> {
     "--dk-accent": p.accent,
     "--dk-accent-2": p.accent2,
     "--dk-accent-hover": p.accentHover,
-    "--dk-gradient": p.gradient ?? `linear-gradient(135deg, ${p.accent} 0%, ${p.accent2} 100%)`,
+    // C tasarımında renk geçişi yok: eski "gradient" yüzeyleri düz vurgu rengi olur.
+    "--dk-gradient": p.accent,
+    "--dk-line": p.line ?? p.borderStrong,
+    "--dk-shadow": p.shadow ?? (theme.mode === "dark" ? p.accentHover : "#111111"),
     ...MODE_COLORS[theme.mode],
   };
 }
 
 /** Temayı sayfaya uygular (kök öğenin değişkenleri + açık/koyu kip). */
-export function applyTheme(id: string, root: HTMLElement = document.documentElement): Theme {
-  const theme = getTheme(id);
-  for (const [name, value] of Object.entries(themeVariables(theme))) {
+export function applyTheme(
+  id: string,
+  root: HTMLElement = document.documentElement,
+  options: { custom?: CustomColors; panelAlpha?: number } = {},
+): Theme {
+  const theme = resolveTheme(id, options.custom);
+  for (const [name, value] of Object.entries(themeVariables(theme, options.panelAlpha))) {
     root.style.setProperty(name, value);
   }
   root.dataset.theme = theme.id;

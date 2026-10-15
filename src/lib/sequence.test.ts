@@ -3,7 +3,6 @@ import {
   applyTransitionAt,
   chapterAt,
   clipFades,
-  hasEffects,
   segmentEffects,
   setFade,
   setVolume,
@@ -18,12 +17,12 @@ import {
   keepOnly,
   moveClip,
   nextSegment,
-  outputDuration,
   piecesDuration,
   segmentAt,
   sequenceEnd,
   setSpeed,
   snap,
+  speedRamp,
   sourceTimeAt,
   splitAt,
   splitAtChapters,
@@ -168,11 +167,10 @@ describe("düzleştirme ve oynatma eşlemesi", () => {
       ["a", 15, 30],
       ["b", 100, 110],
     ]);
-    expect(outputDuration(segments)).toBe(40);
   });
 
   it("klipler arasındaki ve baştaki boşluk siyah parça olur, sondaki boş alan dışa aktarılmaz", () => {
-    // 5–16 sn klip, 16–106 boşluk, 106–117 klip (Clipchamp örneği: 11 sn + 1,5 dk siyah + 11 sn).
+    // 5–16 sn klip, 16–106 boşluk, 106–117 klip.
     const clips = [clip("a", 0, 5, 0, 11), clip("b", 0, 106, 20, 31)];
     const pieces = exportPieces(flatten(clips));
     expect(pieces.map((p) => [p.kind, p.tStart, p.tEnd])).toEqual([
@@ -270,13 +268,11 @@ describe("ses ve geçiş", () => {
     expect(segmentEffects(segment, 5)).toEqual({ gain: 0.5, opacity: 1 });
   });
 
-  it("düzey sınırlanır, geçiş klip süresini aşamaz, efekt tanınır", () => {
+  it("düzey sınırlanır, geçiş klip süresini aşamaz", () => {
     const [muted] = setVolume([clip("a", 0, 0, 0, 4)], ["a"], 5);
     expect(muted.volume).toBe(2);
     const [faded] = setFade([clip("a", 0, 0, 0, 4)], "a", "in", 9);
     expect(clipFades(faded)).toEqual([2, 0]);
-    expect(hasEffects(faded)).toBe(true);
-    expect(hasEffects(clip("b", 0, 0, 0, 4))).toBe(false);
   });
 });
 
@@ -360,5 +356,46 @@ describe("çoklu kaynak", () => {
     expect(timelineTimeOfSource(twoSources(), 30, "s2")).toBe(130);
     // Kimlik verilmezse eski davranış: ilk tutan klip.
     expect(timelineTimeOfSource(twoSources(), 30)).toBe(30);
+  });
+});
+
+describe("hız rampası", () => {
+  it("yavaş çekim: imleçteki 1 sn yavaşlar, sonraki klipler kayar", () => {
+    let n = 0;
+    const clips: SeqClip[] = [
+      {
+        id: "a",
+        track: 0,
+        start: 0,
+        srcStart: 0,
+        srcEnd: 10,
+        speed: 1,
+        name: "",
+        fadeIn: 1,
+        fadeOut: 1,
+      },
+      { id: "b", track: 0, start: 10, srcStart: 0, srcEnd: 5, speed: 1, name: "" },
+    ];
+    const out = speedRamp(clips, "a", 5, "slowmo", () => `n${(n += 1)}`);
+    const parts = out.filter((c) => c.id === "a" || c.id.startsWith("n"));
+    expect(parts.map((p) => [p.srcStart, p.srcEnd, p.speed])).toEqual([
+      [0, 4.5, 1],
+      [4.5, 5.5, 0.3],
+      [5.5, 10, 1],
+    ]);
+    expect(parts[0].fadeIn).toBe(1);
+    expect(parts[1].fadeIn).toBe(0);
+    expect(parts[2].fadeOut).toBe(1);
+    // 1 sn 0.3x ile 3.33 sn sürer: klip 2.33 sn uzar, b de o kadar kayar.
+    expect(out.find((c) => c.id === "b")?.start).toBeCloseTo(12.333, 2);
+  });
+
+  it("velocity öncesini hızlandırır; klibin dışındaki imleçte bir şey olmaz", () => {
+    const clips: SeqClip[] = [
+      { id: "a", track: 0, start: 0, srcStart: 0, srcEnd: 4, speed: 1, name: "" },
+    ];
+    expect(speedRamp(clips, "a", 9, "velocity", () => "x")).toEqual(clips);
+    const out = speedRamp(clips, "a", 2, "velocity", () => "x" + Math.random());
+    expect(out.map((c) => c.speed)).toEqual([1.75, 0.35, 1.75]);
   });
 });

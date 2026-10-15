@@ -1,4 +1,4 @@
-//! Ekran görüntüsü aracı (Lightshot / Ekran Alıntısı Aracı gibi): ekranın bir
+//! Ekran görüntüsü aracı: ekranın bir
 //! bölgesini seçip düzenleme, kopyalama, kaydetme; görüntüdeki yazıyı okuma
 //! (`ocr`, Windows'un kendi motoru, çevrimdışı) ve çeviri (`translate`).
 //!
@@ -13,6 +13,7 @@ pub mod ocr;
 pub mod translate;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
@@ -62,6 +63,11 @@ struct Frozen {
 }
 
 static FROZEN: Mutex<Option<Frozen>> = Mutex::new(None);
+/** Her seçim başlangıcında artar: boşta kapatma yalnızca yeni seçim yoksa yapılır. */
+static SNIP_SEQ: AtomicU64 = AtomicU64::new(0);
+/// Seçim penceresi bu kadar kullanılmazsa kapatılır: gizli pencere de kendi
+/// WebView2 sürecini (tam ekran görüntüyle onlarca MB) açık tutar.
+const IDLE_CLOSE: Duration = Duration::from_secs(60);
 
 /// Seçim penceresinin açılışta istediği bilgi.
 #[derive(Clone, Serialize)]
@@ -218,8 +224,8 @@ fn show_main(app: &AppHandle, focus: bool) {
 }
 
 /// Bölge seçimini başlatır: imlecin olduğu ekranı dondurur ve seçim penceresini
-/// açar. `hide_main`: DownKit'teki düğmeyle başlatıldıysa önce ana pencere gizlenir
-/// (yoksa görüntüde DownKit'in kendisi olur). `full`: seçim penceresi açılmaz,
+/// açar. `hide_main`: kullanıcı istediyse ana pencere önce simge durumuna küçülür.
+/// Gizlenmez: gizlenince görev çubuğundan da kaybolup tepsiye düşmüş gibi görünüyordu. `full`: seçim penceresi açılmaz,
 /// ekranın tamamı doğrudan `mode` işine gider. `delay`: saniye (menü açıp
 /// yakalamak için); en fazla 30.
 #[tauri::command]
@@ -238,15 +244,16 @@ pub async fn snip_start(
             return Ok(());
         }
     }
+    SNIP_SEQ.fetch_add(1, Ordering::SeqCst);
     let mode = action_or_edit(&mode);
     let main = app.get_webview_window("main");
     let restore_main = hide_main
         && main
             .as_ref()
-            .is_some_and(|w| w.is_visible().unwrap_or(false));
+            .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false));
     if restore_main {
         if let Some(window) = &main {
-            let _ = window.hide();
+            let _ = window.minimize();
         }
         // Pencerenin kaybolma animasyonu bitsin.
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -376,6 +383,13 @@ pub async fn snip_finish(
 ) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.hide();
+        let seq = SNIP_SEQ.load(Ordering::SeqCst);
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(IDLE_CLOSE).await;
+            if SNIP_SEQ.load(Ordering::SeqCst) == seq && !window.is_visible().unwrap_or(true) {
+                let _ = window.destroy();
+            }
+        });
     }
     let Some(frozen) = FROZEN.lock().unwrap().take() else {
         return Ok(());
@@ -418,14 +432,16 @@ async fn deliver(
         .map_err(|e| AppError::new("Görüntü iletilemedi.", Some(e.to_string())))
 }
 
-/// Ekran görüntülerinin varsayılan klasörü: ResimlerDownKit.
+/// Ekran görüntülerinin varsayılan klasörü: Resimler\DownKit (eski kurulumda Resimler\DownKit).
 #[tauri::command]
 pub fn snip_default_dir(app: AppHandle) -> Result<String, AppError> {
     let pictures = app
         .path()
         .picture_dir()
         .map_err(|e| AppError::new("Resimler klasörü bulunamadı.", Some(e.to_string())))?;
-    Ok(pictures.join("DownKit").to_string_lossy().into_owned())
+    Ok(crate::paths::media_dir(&pictures)
+        .to_string_lossy()
+        .into_owned())
 }
 
 /// Bilgisayardaki bir görüntüyü düzenleyicide açar (PNG, JPEG, WebP). WebP'nin

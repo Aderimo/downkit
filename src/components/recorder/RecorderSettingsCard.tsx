@@ -1,10 +1,13 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { formatPercent } from "../../lib/format";
 import { useTranslation } from "react-i18next";
 import {
   AppWindow,
+  ChevronDown,
+  Cpu,
   FolderOpen,
   Keyboard,
+  Lock,
   Mic,
   Monitor,
   SlidersHorizontal,
@@ -19,9 +22,11 @@ import {
   RECORD_FPS,
   RECORD_HEIGHTS,
   RECORD_QUALITIES,
+  RECORD_SPEEDS,
   useRecorderSettings,
   type RecorderSource,
 } from "../../lib/recorderSettings";
+import { useSettingsStore } from "../../lib/appSettings";
 import { resolveOutputDir } from "../../lib/recorder";
 import {
   monitorLabel,
@@ -29,7 +34,8 @@ import {
   resolveMonitors,
   resolveSource,
 } from "../../lib/recorderLogic";
-import { chooseDownloadDir, openFolder } from "../../lib/tauri-api";
+import { chooseDownloadDir, openFolder, recorderGpus } from "../../lib/tauri-api";
+import type { GpuAdapter, RecorderEncoder } from "../../types/recorder";
 import { Select, type SelectOption } from "../ui/Select";
 import { Switch } from "../ui/Switch";
 import { HotkeyInput } from "./HotkeyInput";
@@ -94,6 +100,101 @@ function VolumeSlider({
       <span className="w-11 text-right font-mono text-xs text-[var(--dk-text-muted)]">
         {formatPercent(value, i18n.language)}
       </span>
+    </div>
+  );
+}
+
+const VENDOR_ENCODER: Record<number, RecorderEncoder> = {
+  0x10de: "nvenc",
+  0x1002: "amf",
+  0x8086: "qsv",
+};
+
+/** Kodlayıcı ve hız: çoğu kullanıcı "Otomatik"te kalır, bu yüzden kapalı başlar.
+ * Ekran kartı seçimi kodlayıcı seçimiyle aynıdır: her kartın kendi kodlayıcısı var. */
+function AdvancedVideo() {
+  const { t } = useTranslation();
+  const settings = useRecorderSettings();
+  const current = useRecorderStore((s) => s.encoder);
+  const [open, setOpen] = useState(settings.encoder !== null || settings.speed !== "balanced");
+  const [gpus, setGpus] = useState<GpuAdapter[]>([]);
+  useEffect(() => {
+    recorderGpus()
+      .then(setGpus)
+      .catch(() => setGpus([]));
+  }, []);
+
+  const encoderOptions: SelectOption<RecorderEncoder | "auto">[] = [
+    {
+      value: "auto",
+      label: t("recorder.encoderAuto"),
+      hint: current ? current.label : t("recorder.encoderAutoHint"),
+    },
+  ];
+  const seen = new Set<RecorderEncoder>();
+  for (const gpu of gpus) {
+    const encoder = VENDOR_ENCODER[gpu.vendorId];
+    if (!encoder || seen.has(encoder)) continue;
+    seen.add(encoder);
+    encoderOptions.push({
+      value: encoder,
+      label: gpu.name,
+      hint: t(`recorder.encoderName.${encoder}`),
+    });
+  }
+  // Kayıtlı seçim bu bilgisayarda yoksa (kart çıkarıldı) yine görünsün.
+  if (settings.encoder && settings.encoder !== "x264" && !seen.has(settings.encoder)) {
+    encoderOptions.push({
+      value: settings.encoder,
+      label: t(`recorder.encoderName.${settings.encoder}`),
+      hint: t("recorder.encoderMissing"),
+    });
+  }
+  encoderOptions.push({
+    value: "x264",
+    label: t("recorder.encoderCpu"),
+    hint: t("recorder.encoderCpuHint"),
+  });
+
+  return (
+    <div className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-bg)]/40 lg:col-span-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium"
+      >
+        <Cpu size={15} className="text-[var(--dk-text-muted)]" />
+        <span className="flex-1">{t("recorder.advanced")}</span>
+        <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="grid gap-3 border-t border-[var(--dk-border)] p-3 sm:grid-cols-2">
+          <Field label={t("recorder.encoder")}>
+            <Select
+              value={settings.encoder ?? "auto"}
+              ariaLabel={t("recorder.encoder")}
+              onChange={(v) => settings.update({ encoder: v === "auto" ? null : v })}
+              options={encoderOptions}
+            />
+          </Field>
+          <Field label={t("recorder.speed")}>
+            <Select
+              value={settings.speed}
+              ariaLabel={t("recorder.speed")}
+              onChange={(speed) => settings.update({ speed })}
+              options={RECORD_SPEEDS.map((v) => ({
+                value: v,
+                label: t(`recorder.speedName.${v}`),
+                hint: t(`recorder.speedHint.${v}`),
+              }))}
+            />
+          </Field>
+          <p className="text-[11px] text-[var(--dk-text-muted)] sm:col-span-2">
+            {t("recorder.advancedHint")}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -170,6 +271,10 @@ export function RecorderSettingsCard() {
     ...microphones.map((m) => ({ value: m.id, label: m.name })),
   ];
 
+  // Basit modda yalnızca varsayılan değerindeki gelişmiş ayarlar gizlenir.
+  const advanced = useSettingsStore((s) => s.advanced);
+  const showResolution = advanced || settings.maxHeight !== null;
+
   const qualityLabel = {
     high: t("recorder.qualityHigh"),
     balanced: t("recorder.qualityBalanced"),
@@ -185,12 +290,24 @@ export function RecorderSettingsCard() {
           </span>
           {t("recorder.settingsTitle")}
         </h2>
-        {active ? (
-          <p className="text-xs text-[var(--dk-text-muted)]">{t("recorder.appliesNext")}</p>
-        ) : null}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {active ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-xl border border-[var(--dk-warning)]/40 bg-[var(--dk-warning)]/10 px-3 py-2.5 text-sm"
+        >
+          <Lock size={15} className="shrink-0 text-[var(--dk-warning)]" />
+          {t("recorder.lockedWhileActive")}
+        </p>
+      ) : null}
+
+      {/* Kayıt ya da geriye dönük kayıt sürerken ayarlar kilitlenir: süren ffmpeg
+          oturumu değişikliği almaz, yarıda değişen kaynak ya da klasör hata verir. */}
+      <fieldset
+        disabled={active}
+        className={`grid gap-6 lg:grid-cols-2 ${active ? "pointer-events-none opacity-60 select-none" : ""}`}
+      >
         <Group
           icon={current && "hwnd" in current ? <AppWindow size={16} /> : <Monitor size={16} />}
           title={t("recorder.whatToRecord")}
@@ -216,13 +333,13 @@ export function RecorderSettingsCard() {
               {t("options.change")}
             </span>
           </button>
-          {picking ? <SourcePicker onClose={() => setPicking(false)} /> : null}
+          {picking && !active ? <SourcePicker onClose={() => setPicking(false)} /> : null}
           <p className="text-xs text-[var(--dk-text-muted)]">
             {settings.source.kind === "window"
               ? t("recorder.windowHint")
               : t("recorder.screenHint")}
           </p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${showResolution ? "grid-cols-3" : "grid-cols-2"}`}>
             <Field label={t("recorder.fps")}>
               <Select
                 value={settings.fps}
@@ -231,17 +348,19 @@ export function RecorderSettingsCard() {
                 options={RECORD_FPS.map((f) => ({ value: f, label: `${f} fps` }))}
               />
             </Field>
-            <Field label={t("recorder.resolution")}>
-              <Select
-                value={settings.maxHeight ?? 0}
-                ariaLabel={t("recorder.resolution")}
-                onChange={(h) => update({ maxHeight: h === 0 ? null : h })}
-                options={RECORD_HEIGHTS.map((h) => ({
-                  value: h ?? 0,
-                  label: h === null ? t("recorder.native") : `${h}p`,
-                }))}
-              />
-            </Field>
+            {showResolution ? (
+              <Field label={t("recorder.resolution")}>
+                <Select
+                  value={settings.maxHeight ?? 0}
+                  ariaLabel={t("recorder.resolution")}
+                  onChange={(h) => update({ maxHeight: h === 0 ? null : h })}
+                  options={RECORD_HEIGHTS.map((h) => ({
+                    value: h ?? 0,
+                    label: h === null ? t("recorder.native") : `${h}p`,
+                  }))}
+                />
+              </Field>
+            ) : null}
             <Field label={t("recorder.quality")}>
               <Select
                 value={settings.bitrateKbps === null ? settings.quality : "custom"}
@@ -253,7 +372,9 @@ export function RecorderSettingsCard() {
                 }
                 options={[
                   ...RECORD_QUALITIES.map((q) => ({ value: q, label: qualityLabel[q] })),
-                  { value: "custom" as const, label: t("recorder.customBitrate") },
+                  ...(advanced || settings.bitrateKbps !== null
+                    ? [{ value: "custom" as const, label: t("recorder.customBitrate") }]
+                    : []),
                 ]}
               />
             </Field>
@@ -305,13 +426,15 @@ export function RecorderSettingsCard() {
                 label={t("recorder.systemAudio")}
               />
             </label>
-            <Select
-              value={settings.systemAudioId ?? ""}
-              disabled={!settings.systemAudio}
-              ariaLabel={t("recorder.speakerDevice")}
-              onChange={(id) => update({ systemAudioId: id || null })}
-              options={speakerOptions}
-            />
+            {advanced || settings.systemAudioId !== null ? (
+              <Select
+                value={settings.systemAudioId ?? ""}
+                disabled={!settings.systemAudio}
+                ariaLabel={t("recorder.speakerDevice")}
+                onChange={(id) => update({ systemAudioId: id || null })}
+                options={speakerOptions}
+              />
+            ) : null}
             <VolumeSlider
               value={settings.systemVolume}
               disabled={!settings.systemAudio}
@@ -350,17 +473,26 @@ export function RecorderSettingsCard() {
                 <span className="block text-[11px] text-[var(--dk-text-muted)]">
                   {t("recorder.noiseSuppressionHint")}
                 </span>
-                {active ? (
-                  <span className="mt-0.5 block text-[11px] text-[var(--dk-warning)]">
-                    {t("recorder.appliesNextRecording")}
-                  </span>
-                ) : null}
               </span>
               <Switch
                 checked={settings.noiseSuppression}
                 disabled={!settings.microphone}
                 onChange={(noiseSuppression) => update({ noiseSuppression })}
                 label={t("recorder.noiseSuppression")}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0">
+                <span className="block">{t("recorder.micSeparate")}</span>
+                <span className="block text-[11px] text-[var(--dk-text-muted)]">
+                  {t("recorder.micSeparateHint")}
+                </span>
+              </span>
+              <Switch
+                checked={settings.microphoneSeparate}
+                disabled={!settings.microphone}
+                onChange={(microphoneSeparate) => update({ microphoneSeparate })}
+                label={t("recorder.micSeparate")}
               />
             </label>
           </div>
@@ -371,6 +503,7 @@ export function RecorderSettingsCard() {
           <HotkeyInput id="record" label={t("recorder.hotkeyRecord")} />
           <HotkeyInput id="saveReplay" label={t("recorder.hotkeySave")} />
           <HotkeyInput id="toggleReplay" label={t("recorder.hotkeyToggleReplay")} />
+          <HotkeyInput id="marker" label={t("recorder.hotkeyMarker")} />
         </Group>
 
         <Group icon={<FolderOpen size={16} />} title={t("recorder.folder")}>
@@ -430,7 +563,20 @@ export function RecorderSettingsCard() {
             ) : null}
           </div>
         </Group>
-      </div>
+
+        {advanced || settings.encoder !== null || settings.speed !== "balanced" ? (
+          <AdvancedVideo />
+        ) : (
+          <button
+            type="button"
+            onClick={() => useSettingsStore.getState().update({ advanced: true })}
+            className="flex items-center gap-2 text-left text-xs text-[var(--dk-text-muted)] hover:text-[var(--dk-text)] lg:col-span-2"
+          >
+            <Cpu size={14} />
+            {t("recorder.showAdvanced")}
+          </button>
+        )}
+      </fieldset>
     </section>
   );
 }

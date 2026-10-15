@@ -25,12 +25,6 @@ async fn read_ytdlp_version(ytdlp_path: &Path) -> Result<String, AppError> {
 }
 
 #[tauri::command]
-pub async fn get_ytdlp_version(app: tauri::AppHandle) -> Result<String, AppError> {
-    let path = ytdlp::binary::ensure_ytdlp(&app).await?;
-    read_ytdlp_version(&path).await
-}
-
-#[tauri::command]
 pub async fn update_ytdlp(app: tauri::AppHandle) -> Result<String, AppError> {
     let path = ytdlp::binary::update_ytdlp(&app).await?;
     read_ytdlp_version(&path).await
@@ -104,6 +98,14 @@ pub async fn open_app_data_dir(app: tauri::AppHandle) -> Result<(), AppError> {
         .map_err(|e| AppError::new("Klasör açılamadı.", Some(e.to_string())))
 }
 
+/// İlk açılışta FFmpeg arka planda hazırlanır: ilk kayıt ya da dışa aktarım
+/// indirmeyi beklemesin. Zaten varsa hiçbir şey indirmez.
+#[tauri::command]
+pub async fn prepare_tools(app: tauri::AppHandle) -> Result<(), AppError> {
+    crate::ffmpeg::binary::ensure_ffmpeg(&app).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,38 +120,77 @@ mod tests {
     }
 
     #[test]
-    fn deno_surumu_ilk_satirdan_okunur() {
-        let line = "deno 2.9.7 (stable, release, x86_64-pc-windows-msvc)";
-        assert_eq!(parse_deno_version(line).as_deref(), Some("2.9.7"));
-    }
-
-    #[test]
     fn beklenmeyen_cikti_none_doner() {
         assert_eq!(parse_ffmpeg_version("bash: ffmpeg: not found"), None);
-        assert_eq!(parse_deno_version(""), None);
     }
 }
 
-/// İlk açılışta araçları arka planda hazırlar (yt-dlp, FFmpeg); ilk iş indirmeyi
-/// beklemesin ve ilerleme baştan görünsün. Zaten varsa hiçbir şey indirmez.
-#[tauri::command]
-pub async fn prepare_tools(app: tauri::AppHandle) -> Result<(), AppError> {
-    crate::ytdlp::binary::ensure_ytdlp(&app).await?;
-    crate::ffmpeg::binary::ensure_ffmpeg(&app).await?;
-    Ok(())
+fn dir_size(path: &std::path::Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(t) if t.is_dir() => dir_size(&entry.path()),
+            Ok(_) => entry.metadata().map(|m| m.len()).unwrap_or(0),
+            Err(_) => 0,
+        })
+        .sum()
 }
 
-/// "installed": kurulum dosyasıyla kurulmuş (yanında uninstall.exe var) — kendini
-/// güncelleyebilir. "portable": kurulumsuz exe — yeni sürüm sayfası açılır.
+/// Temizlenebilen önbellek alt klasörleri. Windows'ta önbellek kökü tarayıcı
+/// verisiyle (EBWebView: ayarlar) aynı klasör olduğu için kökün tamamı silinmez;
+/// süren anlık tekrarın parçaları (`replay`) da hiç dokunulmaz.
+const CLEARABLE: [&str; 5] = [
+    "edit",
+    "edit-text",
+    "preview",
+    "recording-thumbs",
+    "snip-thumbs",
+];
+
+fn cache_dirs(app: &tauri::AppHandle) -> Result<Vec<std::path::PathBuf>, AppError> {
+    let root = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| AppError::new("Önbellek klasörü bulunamadı.", Some(e.to_string())))?;
+    Ok(CLEARABLE.iter().map(|name| root.join(name)).collect())
+}
+
+/// Önbelleğin (önizleme kopyaları, küçük resimler, yarım dışa aktarımlar) boyutu.
 #[tauri::command]
-pub fn install_kind() -> &'static str {
-    let installed = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("uninstall.exe").exists()))
-        .unwrap_or(false);
-    if installed {
-        "installed"
-    } else {
-        "portable"
-    }
+pub async fn cache_usage(app: tauri::AppHandle) -> Result<u64, AppError> {
+    let dirs = cache_dirs(&app)?;
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || dirs.iter().map(|d| dir_size(d)).sum())
+            .await
+            .unwrap_or(0),
+    )
+}
+
+/// Önbelleği boşaltır. Kayıtlar, ekran görüntüleri ve ayarlar etkilenmez.
+/// Kullanımda olan dosyalar (süren bir işin) atlanır.
+#[tauri::command]
+pub async fn cache_clear(app: tauri::AppHandle) -> Result<u64, AppError> {
+    let dirs = cache_dirs(&app)?;
+    Ok(tauri::async_runtime::spawn_blocking(move || {
+        let before: u64 = dirs.iter().map(|d| dir_size(d)).sum();
+        for dir in &dirs {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let _ = if path.is_dir() {
+                    std::fs::remove_dir_all(&path)
+                } else {
+                    std::fs::remove_file(&path)
+                };
+            }
+        }
+        before.saturating_sub(dirs.iter().map(|d| dir_size(d)).sum())
+    })
+    .await
+    .unwrap_or(0))
 }

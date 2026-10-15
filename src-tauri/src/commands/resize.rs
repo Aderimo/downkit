@@ -58,6 +58,8 @@ pub async fn start_resize(app: AppHandle, request: ResizeRequest) -> Result<Stri
             duration_seconds: info.duration_seconds,
             output_path: output_path.to_string_lossy().into_owned(),
             input_size_bytes: None,
+            final_path: None,
+            fallback_args: None,
         },
     )
     .await

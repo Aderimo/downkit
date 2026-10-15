@@ -1,7 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
 // Arayüz akışlarını gerçek tarayıcıda dener (Tauri olmadan, ?demo= sahneleriyle).
-// Bilgisayardaki Edge kullanılır; ayrıca tarayıcı indirmek gerekmez.
+// Bilgisayardaki tarayıcı kullanılır; ayrıca tarayıcı indirmek gerekmez. Edge 155
+// (Ekim 2026) otomasyonda sayfaları çökertiyor: varsayılan Chrome, PW_CHANNEL=msedge
+// ile Edge'e dönülür.
 export default defineConfig({
   testDir: "e2e",
   timeout: 30_000,
@@ -12,7 +14,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:1420",
-    channel: "msedge",
+    channel: process.env.PW_CHANNEL ?? "chrome",
     viewport: { width: 1440, height: 900 },
     locale: "tr-TR",
   },

@@ -71,6 +71,8 @@ pub async fn start_compress(app: AppHandle, request: CompressRequest) -> Result<
             duration_seconds: info.duration_seconds,
             output_path: output_path.to_string_lossy().into_owned(),
             input_size_bytes: Some(info.file_size_bytes),
+            final_path: None,
+            fallback_args: None,
         },
     )
     .await

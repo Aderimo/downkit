@@ -63,12 +63,13 @@ export function shotName(date = new Date()): string {
 
 export type CaptureKind = "region" | "full" | "translate";
 
-/** Yakalamayı başlatır. `fromPage`: DownKit'teki düğmeyle (pencere gizlenir,
- * ayardaki gecikme uygulanır). Kısayolda pencere yalnızca öndeyse gizlenir. */
+/** Yakalamayı başlatır. `fromPage`: DownKit'teki düğmeyle (ayardaki gecikme
+ * uygulanır; ayar açıksa pencere simge durumuna küçülür). Program tepsiye
+ * gizlenmez: kullanıcı DownKit'in kendisini de yakalayabilmeli. */
 export async function capture(kind: CaptureKind, fromPage = false): Promise<void> {
   const settings = getSnipSettings();
   const mode: SnipAction = kind === "translate" ? "translate" : settings.enterAction;
-  const hideMain = fromPage || (await isWindowFocused());
+  const hideMain = fromPage && settings.minimizeApp;
   const delay = fromPage && kind !== "translate" ? settings.delaySeconds : 0;
   patch({ error: null });
   try {

@@ -1,10 +1,10 @@
 PackageIdentifier: aderimo.DownKit
-PackageVersion: 0.1.0
+PackageVersion: 0.4.0
 PackageLocale: tr-TR
 Publisher: aderimo
 PackageName: DownKit
 License: MIT
-ShortDescription: Ücretsiz medya aracı - YouTube, TikTok, Instagram ve daha fazlasından video indir, kes, dönüştür, sıkıştır, boyutlandır.
-Description: DownKit linkten video ya da ses indirir; videoyu indirmeden izleyip yalnızca istediğin sahneleri kesmeni sağlar; bilgisayarındaki dosyaları dönüştürür, sıkıştırır ya da yeniden boyutlandırır. Reklam yok, üyelik yok.
+ShortDescription: Ücretsiz, açık kaynak medya programı - indir, dönüştür, düzenle, ekran kaydı ve ekran görüntüsü.
+Description: DownKit YouTube, TikTok, Instagram ve yüzlerce siteden video ya da ses indirir; dosyaları dönüştürür, sıkıştırır ve boyutlandırır; hareketli başlık ve altyazıyla klip düzenler; ekran kaydı ve ekran görüntüsü alır. Reklam yok, üyelik yok, MIT lisanslı.
 ManifestType: locale
 ManifestVersion: 1.6.0

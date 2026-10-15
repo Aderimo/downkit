@@ -36,7 +36,7 @@ pub struct JobCompletePayload {
     pub job_id: String,
     pub file_path: String,
     pub file_size_bytes: u64,
-    /// İş başarılı ama kullanıcıya söylenmesi gereken bir şey oldu (ör. "subtitlesFailed").
+    /// İş başarılı ama kullanıcıya söylenmesi gereken bir şey oldu (ör. "gpuFallback").
     /// Arayüz bu kodu kendi dilinde gösterir.
     pub notice: Option<&'static str>,
 }

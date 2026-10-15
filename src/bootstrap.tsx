@@ -2,14 +2,18 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./i18n";
-import "@fontsource/nunito/latin-800.css";
-import "@fontsource/nunito/latin-900.css";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource/figtree/latin-400.css";
+import "@fontsource/figtree/latin-500.css";
+import "@fontsource/figtree/latin-600.css";
+import "@fontsource/figtree/latin-700.css";
+import "@fontsource/figtree/latin-ext-400.css";
+import "@fontsource/figtree/latin-ext-600.css";
 import "./styles/globals.css";
 import { initJobEngine } from "./lib/jobEngine";
 import { initTray } from "./lib/tray";
 import { initUpdateCheck } from "./lib/updateCheck";
 import { initWhatsNew } from "./lib/whatsNew";
-import { initCounter } from "./lib/counter";
 import { initToolDownloads } from "./lib/toolDownloads";
 import { initRecorder } from "./lib/recorder";
 import { initSnip } from "./lib/snipActions";
@@ -17,11 +21,13 @@ import { initLogging } from "./lib/log";
 import { getAppVersion } from "./lib/tauri-api";
 import { installBrowserKeyGuard } from "./lib/browserKeys";
 import { initTheme } from "./lib/themeSync";
+import { initUiScale } from "./lib/uiScale";
 
 /** Ana pencere: iş olayları, tepsi, kayıt kısayolları ve arayüz. */
 export function start() {
   // Tema ilk çizimden önce uygulanır (açık temada koyu bir an görünmesin).
   initTheme();
+  initUiScale();
   installBrowserKeyGuard();
   // İş olaylarına uygulama başında bir kez abone olunur (StrictMode'un çift
   // çalıştırdığı efektlerin dışında), böylece sayfa değişse de hiçbir olay kaçmaz.
@@ -44,8 +50,6 @@ export function start() {
   }
   void initUpdateCheck();
   void initWhatsNew();
-  // Anonim kullanım sayacı (günde bir kez; sunucu kuruluysa ve ayardan kapatılmadıysa).
-  void initCounter();
   if (!(import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo"))) {
     void initToolDownloads();
   }

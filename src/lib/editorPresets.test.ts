@@ -27,3 +27,27 @@ describe("hazır ayarlar", () => {
     expect(parsePresets(JSON.parse(JSON.stringify(toPresetFile(presets))))).toEqual(presets);
   });
 });
+
+describe("kanal şablonu", () => {
+  it("dosyadan okunur; bozuk alanlar varsayılana döner", () => {
+    const [p] = parsePresets([
+      {
+        id: "k",
+        name: "Kanalım",
+        kind: "channel",
+        channel: {
+          frame: { aspect: "9:16", fit: true, blur: true, position: 9 },
+          text: { color: "#ffd43b", size: 0.09 },
+          logo: { path: "C:/logo.png", x: 0.9, y: 0.1, size: 0.2, opacity: 0.8 },
+        },
+      },
+      { id: "x", name: "Bozuk", kind: "channel", channel: null },
+    ]);
+    expect(p.kind).toBe("channel");
+    if (p.kind !== "channel") return;
+    expect(p.channel.frame).toEqual({ aspect: "9:16", fit: true, blur: true, position: 1 });
+    expect(p.channel.text?.color).toBe("#ffd43b");
+    expect(p.channel.logo?.opacity).toBe(0.8);
+    expect(p.channel.look).toBeUndefined();
+  });
+});

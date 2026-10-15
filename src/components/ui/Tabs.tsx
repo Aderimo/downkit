@@ -1,6 +1,9 @@
+import type { ReactNode } from "react";
+
 interface TabItem<T extends string> {
   value: T;
   label: string;
+  icon?: ReactNode;
 }
 
 interface TabsProps<T extends string> {
@@ -34,12 +37,13 @@ export function Tabs<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(item.value)}
-            className={`rounded-lg px-4 py-1.5 text-sm transition-colors ${stretch ? "flex-1" : ""} ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-sm transition-colors ${stretch ? "flex-1" : ""} ${
               active
                 ? "dk-gradient text-white shadow"
                 : "text-[var(--dk-text-muted)] hover:text-[var(--dk-text)]"
             }`}
           >
+            {item.icon}
             {item.label}
           </button>
         );

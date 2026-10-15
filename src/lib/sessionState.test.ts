@@ -3,7 +3,6 @@ import i18n from "../i18n";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./appSettings";
 import { restoreJobs } from "./jobPersistence";
 import { localizeError } from "./errors";
-import { hasPlaylistParam } from "./workspaceActions";
 import type { Job } from "../types/jobs";
 
 describe("normalizeSettings", () => {
@@ -12,46 +11,30 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings(null)).toEqual(DEFAULT_SETTINGS);
   });
 
-  test("eski sürümün kaydı yeni alanlarla tamamlanır", () => {
-    const old = {
+  test("eski DownKit kaydındaki indirme ayarları geri okunur", () => {
+    const s = normalizeSettings({
       concurrency: 3,
       filenameTemplate: "{uploader} - {title}",
-      clipboardSuggest: false,
-    };
-    const s = normalizeSettings(old);
-    expect(s).toMatchObject(old);
-    expect(s.subtitleLangs).toEqual(["tr", "en"]);
-    expect(s.autoUpdateYtdlp).toBe(true);
+      theme: "graphite",
+      notifyOnComplete: false,
+    });
+    expect(s.concurrency).toBe(3);
+    expect(s.filenameTemplate).toBe("{uploader} - {title}");
+    expect(normalizeSettings({ concurrency: 99 }).concurrency).toBe(DEFAULT_SETTINGS.concurrency);
+    expect(s.theme).toBe("graphite");
+    expect(s.notifyOnComplete).toBe(false);
   });
 
   test("bozuk ya da tanınmayan değerler varsayılana düşer", () => {
-    const s = normalizeSettings({
-      concurrency: 99,
-      filenameTemplate: "{rm -rf}",
-      defaultOutputFormat: "exe",
-      defaultMaxHeight: 1234,
-      rateLimitKbps: -5,
-      subtitleLangs: ["xx", 5, "de"],
-      keepHistory: "evet",
-    });
-    expect(s.concurrency).toBe(DEFAULT_SETTINGS.concurrency);
-    expect(s.filenameTemplate).toBe("{title}");
-    expect(s.defaultOutputFormat).toBe("mp4");
-    expect(s.defaultMaxHeight).toBeNull();
-    expect(s.rateLimitKbps).toBeNull();
-    expect(s.subtitleLangs).toEqual(["de"]);
-    expect(s.keepHistory).toBe(true);
+    const s = normalizeSettings({ notifyOnComplete: "evet", theme: "yok-boyle-tema" });
+    expect(s.notifyOnComplete).toBe(true);
+    expect(s.theme).toBe(DEFAULT_SETTINGS.theme);
   });
 
   test("pencere kapatma davranışı yalnızca bilinen değerleri kabul eder", () => {
     expect(normalizeSettings({ closeBehavior: "always" }).closeBehavior).toBe("always");
     expect(normalizeSettings({ closeBehavior: "patla" }).closeBehavior).toBe("whileBusy");
-    expect(normalizeSettings({}).groupByPlatform).toBe(true);
     expect(normalizeSettings({}).checkUpdates).toBe(true);
-  });
-
-  test("hiç geçerli altyazı dili kalmazsa varsayılanlar kullanılır", () => {
-    expect(normalizeSettings({ subtitleLangs: [] }).subtitleLangs).toEqual(["tr", "en"]);
   });
 
   test("ilk sürümün ayrı kaydettiği klasör okunur", () => {
@@ -66,7 +49,7 @@ describe("restoreJobs", () => {
   const job = (status: Job["status"], extra: Partial<Job> = {}): Job =>
     ({
       id: status,
-      kind: "download",
+      kind: "edit",
       status,
       title: "Video",
       backendJobId: "eski-kimlik",
@@ -74,12 +57,17 @@ describe("restoreJobs", () => {
       etaSeconds: 5,
       stageKey: "jobs.stageVideo",
       outputs: [],
-      pendingSteps: [],
-      request: { kind: "download", url: "https://youtu.be/a", destinationDir: "C:/x", options: {} },
+      request: {
+        kind: "edit",
+        inputPath: "C:/a.mp4",
+        url: null,
+        clips: [],
+        destinationDir: "C:/x",
+      },
       ...extra,
     }) as unknown as Job;
 
-  test("yarıda kalan indirme duraklatılmış olarak geri gelir", () => {
+  test("yarıda kalan dışa aktarım duraklatılmış olarak geri gelir", () => {
     const [restored] = restoreJobs([job("running")], "yarıda kaldı");
     expect(restored.status).toBe("paused");
     expect(restored.backendJobId).toBeNull();
@@ -91,14 +79,9 @@ describe("restoreJobs", () => {
     expect(restoreJobs([job("queued")], "")[0].status).toBe("paused");
   });
 
-  test("zincir adımı yarıda kalan iş başarısız sayılır", () => {
-    const [restored] = restoreJobs([job("postprocessing")], "yarıda kaldı");
-    expect(restored.status).toBe("error");
-    expect(restored.errorMessage).toBe("yarıda kaldı");
-  });
-
   test("biten işler olduğu gibi kalır, bozuk kayıtlar atılır", () => {
-    const restored = restoreJobs([job("done"), { id: 1 }, null, "metin"], "");
+    const oldDownload = { ...job("done"), kind: "download" };
+    const restored = restoreJobs([job("done"), oldDownload, { id: 1 }, null, "metin"], "");
     expect(restored).toHaveLength(1);
     expect(restored[0].status).toBe("done");
   });
@@ -143,23 +126,5 @@ describe("localizeError", () => {
     expect(localizeError({ message: "x", rawDetail: "iz" }, "error.downloadFailed").detail).toBe(
       "iz",
     );
-  });
-});
-
-describe("hasPlaylistParam", () => {
-  test("hem videoya hem listeye işaret eden YouTube linki tanınır", () => {
-    expect(hasPlaylistParam("https://www.youtube.com/watch?v=abc&list=PL123")).toBe(true);
-    expect(hasPlaylistParam("https://music.youtube.com/watch?v=abc&list=OLAK5")).toBe(true);
-  });
-
-  test("otomatik karışım listeleri (RD…) önerilmez", () => {
-    expect(hasPlaylistParam("https://www.youtube.com/watch?v=abc&list=RDabc")).toBe(false);
-  });
-
-  test("yalnızca video ya da yalnızca liste linki için false", () => {
-    expect(hasPlaylistParam("https://www.youtube.com/watch?v=abc")).toBe(false);
-    expect(hasPlaylistParam("https://www.youtube.com/playlist?list=PL123")).toBe(false);
-    expect(hasPlaylistParam("https://vimeo.com/123?list=PL1")).toBe(false);
-    expect(hasPlaylistParam("link değil")).toBe(false);
   });
 });

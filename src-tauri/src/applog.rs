@@ -1,4 +1,4 @@
-//! Hata günlüğü: %LOCALAPPDATA%\com.downkit.app\logs\downkit.log. Arayüz iş
+//! Hata günlüğü: %LOCALAPPDATA%\com.aderimo.downkit\logs\downkit.log. Arayüz iş
 //! hatalarını ve beklenmeyen hataları yazar; Rust paniği de buraya düşer.
 //! "Hatayı bildir" raporu son satırları ekler (yollardaki kullanıcı adı gizlenerek).
 //! Dosya 1 MB'ı geçince bir öncekinin üzerine `downkit.old.log` olur.

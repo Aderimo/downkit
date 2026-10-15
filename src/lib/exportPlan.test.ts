@@ -27,15 +27,6 @@ function localEntry(id: string, path: string): EditorSourceEntry {
     title: id,
     duration: 100,
     thumbnailUrl: null,
-    platform: "local",
-  };
-}
-
-function remoteEntry(id: string, url: string): EditorSourceEntry {
-  return {
-    ...localEntry(id, ""),
-    source: { kind: "remote", url, metadata: {} as never },
-    platform: "youtube",
   };
 }
 
@@ -50,11 +41,11 @@ const clip = (source?: number): EditClip => ({
 });
 
 describe("localizeGroupInputs", () => {
-  const inputs = [localEntry("s1", "C:/a.mp4"), remoteEntry("s2", "https://youtu.be/x")];
+  const inputs = [localEntry("s1", "C:/a.mp4"), localEntry("s2", "C:/b.mp4")];
 
   test("tek kaynaklı grup tek girdili istek olur", () => {
     const { clips, inputs: out } = localizeGroupInputs([clip(1)], inputs);
-    expect(out).toEqual([{ inputPath: null, url: "https://youtu.be/x" }]);
+    expect(out).toEqual([{ inputPath: "C:/b.mp4", url: null }]);
     expect(clips[0].source).toBe(0);
   });
 
@@ -66,7 +57,7 @@ describe("localizeGroupInputs", () => {
   test("birleştirilmiş grup kaynakları ilk geçtikleri sırayla korur", () => {
     const { clips, inputs: out } = localizeGroupInputs([clip(1), clip(0), clip(1)], inputs);
     expect(out).toHaveLength(2);
-    expect(out[0].url).toBe("https://youtu.be/x");
+    expect(out[0].inputPath).toBe("C:/b.mp4");
     expect(out[1].inputPath).toBe("C:/a.mp4");
     expect(clips.map((c) => c.source)).toEqual([0, 1, 0]);
   });

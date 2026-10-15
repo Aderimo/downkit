@@ -1,0 +1,46 @@
+{
+  "profiles": [
+    {
+      "id": "tiktok",
+      "patch": {
+        "frame": "9:16",
+        "frameFit": true,
+        "frameBlur": true,
+        "targetSizeMb": null,
+        "loudness": true
+      }
+    },
+    {
+      "id": "youtube",
+      "patch": {
+        "frame": "original",
+        "targetSizeMb": null,
+        "loudness": true
+      }
+    },
+    {
+      "id": "discord",
+      "patch": {
+        "frame": "original",
+        "targetSizeMb": 10
+      }
+    },
+    {
+      "id": "instagram",
+      "patch": {
+        "frame": "4:5",
+        "frameFit": true,
+        "frameBlur": true,
+        "targetSizeMb": null,
+        "loudness": true
+      }
+    },
+    {
+      "id": "whatsapp",
+      "patch": {
+        "frame": "original",
+        "targetSizeMb": 16
+      }
+    }
+  ]
+}

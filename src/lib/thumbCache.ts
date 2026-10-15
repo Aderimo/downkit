@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { create } from "zustand";
 import { getEditorWaveform, onEditorThumb, requestEditorThumbnails } from "./tauri-api";
 
@@ -177,14 +176,4 @@ export function ensureWaveform(token: string, duration: number) {
     })
     .catch(() => {})
     .finally(() => wavePending.delete(token));
-}
-
-/** Kaynağın dalga formunu ürettirir (varsa hiçbir şey yapmaz) ve önbellekteki
- * değeri döner. Zaman çizelgesi her klip için kendi kaynağınınkini çağırır. */
-export function useWaveform(token: string | null, duration: number): number[] | null {
-  const peaks = useWaveStore((s) => (token ? s.byToken[token] : undefined));
-  useEffect(() => {
-    if (token) ensureWaveform(token, duration);
-  }, [token, duration]);
-  return peaks ?? null;
 }

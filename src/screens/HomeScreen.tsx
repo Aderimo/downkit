@@ -16,14 +16,13 @@ import { changeDestination, ensureDestination } from "../lib/destination";
 import { enqueueDownload, enqueueMany } from "../lib/jobEngine";
 import { estimateDownloadSize, findDuplicateDownload } from "../lib/jobPlanning";
 import { SectionPicker } from "../components/SectionPicker";
-import { useEditorStore } from "../store/editorStore";
 import { useJobsStore } from "../store/jobsStore";
 import { analyzeLink, hasPlaylistParam, openPlaylist } from "../lib/workspaceActions";
 import { PlaylistCard } from "../components/PlaylistCard";
 import { Button } from "../components/ui/Button";
 import { openOriginalUrl, readClipboardText } from "../lib/tauri-api";
 import { useFileDrop } from "../lib/useFileDrop";
-import type { Route } from "../types/route";
+import type { ConvertTab } from "../types/route";
 import { UrlBar } from "../components/UrlBar";
 import { PlatformPills } from "../components/PlatformPills";
 import { MediaCard } from "../components/MediaCard";
@@ -48,35 +47,41 @@ interface StartFeedback {
   ok: boolean;
 }
 
-const LOCAL_TOOL: Record<Exclude<WorkspaceAction, "download">, Route> = {
+const LOCAL_TOOL: Record<Exclude<WorkspaceAction, "download">, ConvertTab> = {
   convert: "convert",
   compress: "compress",
   resize: "resize",
 };
 
 interface HomeScreenProps {
-  onNavigate: (route: Route) => void;
+  /** Dönüştür sayfasının bir sekmesini açar (bilgisayardaki dosyalar için). */
+  onOpenTool: (tab: ConvertTab) => void;
+  /** Sayfanın altındaki indirmeler / geçmiş bölümüne kaydırır. */
+  onShowDownloads: () => void;
   onOpenLocalFile: (path: string) => void;
 }
 
-export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
+export function HomeScreen({ onOpenTool, onShowDownloads, onOpenLocalFile }: HomeScreenProps) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
-  /** Analiz edilen linki Klip Düzenleyici'de açar. Aynı link zaten açıksa
-   * eklenen klipler korunur; Ana Sayfa'da bölüm seçildiyse giriş/çıkış olur. */
-  function openInEditor() {
+  /** Analiz edilen video (seçildiyse yalnızca o bölüm) indirilir; bitince Klip
+   * Düzenleyici'de açılır. İzlemek ve kesmek için önce dosya gerekir. */
+  async function openInEditor() {
     const { metadata, analyzedUrl, options } = useWorkspaceStore.getState();
     if (!metadata || !analyzedUrl) return;
-    const editor = useEditorStore.getState();
-    const alreadyOpen =
-      editor.phase === "ready" &&
-      editor.source?.kind === "remote" &&
-      editor.source.url === analyzedUrl;
-    // Ana Sayfa'da bölüm seçildiyse düzenleyici yalnızca o parçayla açılır.
-    if (!alreadyOpen) editor.openMetadata(analyzedUrl, metadata, options.section);
-    onNavigate("editor");
+    const dir = await ensureDestination();
+    if (!dir) return;
+    enqueueDownload({
+      url: analyzedUrl,
+      destinationDir: dir,
+      // Düzenlenecek dosya videodur: ses formatı seçiliyse MP4 inilir.
+      options: { ...options, outputFormat: "mp4", platformTargets: [], shrink: false },
+      metadata,
+      thenEdit: true,
+    });
+    flash(t("options.queuedThenEdit"), true);
   }
   const [feedback, setFeedback] = useState<StartFeedback | null>(null);
   const feedbackTimer = useRef<number | undefined>(undefined);
@@ -190,7 +195,7 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
     ws.setAction(action);
     if (!hasMedia) {
       if (action === "download") inputRef.current?.focus();
-      else onNavigate(LOCAL_TOOL[action]);
+      else onOpenTool(LOCAL_TOOL[action]);
     }
   }
 
@@ -310,7 +315,7 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
           onSelect={applyUrl}
           onViewAll={() => {
             useDownloadsView.getState().setView("history");
-            onNavigate("downloads");
+            onShowDownloads();
           }}
         />
 
@@ -363,7 +368,7 @@ export function HomeScreen({ onNavigate, onOpenLocalFile }: HomeScreenProps) {
         <div className="min-[1360px]:hidden">{presets}</div>
 
         <div data-tour="home-queue">
-          <JobQueue limit={4} onViewAll={() => onNavigate("downloads")} />
+          <JobQueue limit={4} onViewAll={onShowDownloads} />
         </div>
       </div>
 

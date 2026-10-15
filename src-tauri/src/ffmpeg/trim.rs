@@ -1,19 +1,3 @@
-/// Dosya adına eklenecek aralık etiketi: 65–150 sn → "01.05-02.30",
-/// bir saati aşınca "1.02.03-1.05.00". Windows dosya adında ":" olamadığı için nokta.
-pub fn range_label(start_seconds: f64, end_seconds: f64) -> String {
-    format!("{}-{}", clock(start_seconds), clock(end_seconds))
-}
-
-fn clock(seconds: f64) -> String {
-    let total = seconds.max(0.0).round() as u64;
-    let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60);
-    if h > 0 {
-        format!("{h}.{m:02}.{s:02}")
-    } else {
-        format!("{m:02}.{s:02}")
-    }
-}
-
 /// ffmpeg ve yt-dlp'ye verilecek saniye değeri ("65", "65.5"): gereksiz sıfırlar atılır.
 pub fn seconds_arg(value: f64) -> String {
     let text = format!("{:.3}", value.max(0.0));
@@ -87,13 +71,6 @@ pub fn build_args(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn aralik_etiketi_dosya_adina_uygundur() {
-        assert_eq!(range_label(65.0, 150.0), "01.05-02.30");
-        assert_eq!(range_label(3723.0, 3900.0), "1.02.03-1.05.00");
-        assert!(!range_label(0.0, 59.6).contains(':'));
-    }
 
     #[test]
     fn saniye_argumani_sade_yazilir() {

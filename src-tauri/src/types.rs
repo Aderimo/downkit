@@ -91,11 +91,6 @@ pub struct MediaMetadata {
     pub view_count: Option<u64>,
     /// yt-dlp biçimi: YYYYMMDD
     pub upload_date: Option<String>,
-    /// İndirmeden izlemek için yerel aktarıcı üzerinden oynatılabilir akış.
-    pub preview: Option<PreviewStream>,
-    /// Aktarıcıya kaydedilmeden önceki ham seçim; önyüze gönderilmez.
-    #[serde(skip)]
-    pub preview_source: Option<PreviewPick>,
     /// Zaman çizelgesindeki kare şeridi (yalnızca YouTube sağlıyor).
     pub storyboard: Option<Storyboard>,
     pub chapters: Vec<Chapter>,
@@ -103,34 +98,6 @@ pub struct MediaMetadata {
     pub audio_option: Option<AudioOption>,
     pub formats: Vec<FormatOption>,
     pub flac_eligible: bool,
-}
-
-/// Linkin önizlemesi için seçilen akış (bkz. `ytdlp::metadata::pick_preview`).
-#[derive(Debug, Clone)]
-pub struct PreviewPick {
-    /// "file" | "hls" | "split"
-    pub kind: &'static str,
-    pub url: String,
-    /// "split" türünde ayrı ses dosyası.
-    pub audio_url: Option<String>,
-    pub headers: Vec<(String, String)>,
-    /// Kare şeridi için FFmpeg'e verilecek düşük çözünürlüklü akış.
-    pub thumb_url: Option<String>,
-    /// Dalga formu için en düşük bit hızlı ses akışı (az veri insin).
-    pub wave_url: Option<String>,
-    pub has_video: bool,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreviewStream {
-    /// "file" | "hls" | "split"
-    pub kind: &'static str,
-    pub url: String,
-    pub audio_url: Option<String>,
-    /// Kare şeridi gibi sonraki istekler bu belirteçle kaynağı bulur.
-    pub token: String,
-    pub has_video: bool,
 }
 
 #[derive(Debug, Serialize)]

@@ -29,7 +29,6 @@ function entry(id: string): EditorSourceEntry {
     title: id,
     duration: 60,
     thumbnailUrl: null,
-    platform: "local",
   };
 }
 

@@ -34,6 +34,8 @@ pub struct AudioPlan {
     pub system: Option<(Option<String>, f32)>,
     /// Mikrofon: aygıt (yoksa varsayılan), kazanç ve gürültü engelleme.
     pub microphone: Option<(Option<String>, f32, bool)>,
+    /// Mikrofon ayrıca kendi ses izine de yazılsın.
+    pub separate_mic: bool,
 }
 
 impl AudioPlan {
@@ -89,6 +91,9 @@ impl Pipeline {
             }
             if let Some((device, gain, denoise)) = audio_plan.microphone.clone() {
                 let track = mixer.lock().unwrap().add_track(gain);
+                if audio_plan.separate_mic {
+                    mixer.lock().unwrap().isolate(track);
+                }
                 captures.push(audio::start(
                     Endpoint::Microphone(device),
                     mixer.clone(),

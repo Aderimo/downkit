@@ -13,28 +13,31 @@ test.describe("Uygulama kabuğu", () => {
   test("tema seçilince hemen uygulanır ve yenilemeden sonra korunur", async ({ page }) => {
     await page.goto("/?demo=home&lang=tr&route=settings");
     const html = page.locator("html");
-    await page.getByRole("button", { name: /Kar Beyazı/ }).click();
+    // Temalar koyu/açık sekmelerinde.
+    await page.getByRole("tab", { name: "Açık temalar" }).click();
+    await page.getByRole("radio", { name: /Kar Beyazı/ }).click();
     await expect(html).toHaveAttribute("data-mode", "light");
     await expect(html).toHaveAttribute("data-theme", "snow");
     await page.reload();
     await expect(html).toHaveAttribute("data-theme", "snow");
-    await page.getByRole("button", { name: /Grafit/ }).click();
+    await page.getByRole("tab", { name: "Koyu temalar" }).click();
+    await page.getByRole("radio", { name: /Grafit/ }).click();
     await expect(html).toHaveAttribute("data-mode", "dark");
-    await expect(page.getByRole("button", { name: /Grafit/ })).toHaveAttribute(
-      "aria-pressed",
+    await expect(page.getByRole("radio", { name: /Grafit/ })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
   });
 
   test("tanıtım turu açılır, adımlar ilerler ve kapatılır", async ({ page }) => {
     // Demo modunda tur kendiliğinden açılmaz; tur sahnesi doğrudan açar.
-    await page.goto("/?demo=tutorial&lang=tr&route=home");
+    await page.goto("/?demo=tutorial&lang=tr&route=download");
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Turu başlat" }).click();
-    await expect(dialog).toContainText("Adım 1 / 9");
+    await expect(dialog).toContainText("Adım 1 / 8");
     await dialog.getByRole("button", { name: "İleri" }).click();
-    await expect(dialog).toContainText("Adım 2 / 9");
+    await expect(dialog).toContainText("Adım 2 / 8");
     await dialog.getByRole("button", { name: "Turu kapat" }).first().click();
     await expect(dialog).toBeHidden();
   });
@@ -93,5 +96,17 @@ test.describe("Uygulama kabuğu", () => {
     await page.mouse.up();
     await expect(page.getByRole("button", { name: "Kırpmayı kaldır" })).toBeVisible();
     await expect(page.locator('[data-tour="snip-tools"]')).not.toContainText("1440 × 900");
+  });
+
+  test("kütüphanede birden çok kayıt seçilip montaj yapılır", async ({ page }) => {
+    await page.goto("/?demo=record&lang=tr&route=record");
+    await page.getByRole("button", { name: "Seç", exact: true }).click();
+    const cards = page.locator("[data-path]");
+    await cards.nth(0).click();
+    await cards.nth(1).click();
+    await expect(page.getByText("2 kayıt seçildi")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Montaj yap (2)" })).toBeEnabled();
+    await page.getByRole("button", { name: "Seçimi bitir" }).click();
+    await expect(page.getByText("2 kayıt seçildi")).toHaveCount(0);
   });
 });

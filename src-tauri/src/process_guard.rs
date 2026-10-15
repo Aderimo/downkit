@@ -1,10 +1,10 @@
-//! Uygulama kapanınca (çökse bile) başlattığı yt-dlp/ffmpeg süreçlerinin de
+//! Uygulama kapanınca (çökse bile) başlattığı ffmpeg süreçlerinin de
 //! kapanmasını sağlar. Aksi halde pencere kapansa bile indirme görünmez biçimde
 //! sürer; yeniden açılışta "Devam et" aynı yarım dosyaya ikinci bir süreç yazardı.
 //!
 //! Windows "iş nesnesi" (Job Object) `KILL_ON_JOB_CLOSE` ile oluşturulur; tutamaç
 //! yalnızca uygulama sürecinde açık kalır, süreç bitince işletim sistemi tutamacı
-//! kapatır ve iş nesnesine bağlı her süreci (yt-dlp'nin başlattığı ffmpeg dahil) sonlandırır.
+//! kapatır ve iş nesnesine bağlı her süreci (ffmpeg'in alt süreçleri dahil) sonlandırır.
 
 #[cfg(windows)]
 mod imp {

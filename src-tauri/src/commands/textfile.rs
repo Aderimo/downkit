@@ -1,13 +1,14 @@
-//! Düzenleyicinin küçük metin dosyaları: altyazı (.srt) içe aktarma ve hazır
-//! ayarları (.json) paylaşma. Yol kullanıcının dosya penceresinde seçtiği dosyadır;
+//! Düzenleyicinin küçük metin dosyaları: altyazı (.srt) içe aktarma, hazır
+//! ayarları (.json) paylaşma ve renk tablosu (.cube) önizlemesi. Yol kullanıcının dosya penceresinde seçtiği dosyadır;
 //! yine de yalnızca bu uzantılara ve küçük dosyalara izin verilir.
 
 use std::path::Path;
 
 use crate::error::AppError;
 
-const ALLOWED: [&str; 2] = ["srt", "json"];
-const MAX_BYTES: u64 = 2 * 1024 * 1024;
+const ALLOWED: [&str; 4] = ["srt", "vtt", "json", "cube"];
+/// Renk tabloları büyük olabilir (65³ satır ≈ 8 MB).
+const MAX_BYTES: u64 = 10 * 1024 * 1024;
 
 fn check(path: &Path) -> Result<(), AppError> {
     let ext = path
@@ -19,7 +20,7 @@ fn check(path: &Path) -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::new(
-            "Yalnızca .srt ve .json dosyaları açılabilir.",
+            "Yalnızca .srt, .vtt, .json ve .cube dosyaları açılabilir.",
             None,
         ))
     }
@@ -33,7 +34,7 @@ pub async fn text_file_read(path: String) -> Result<String, AppError> {
         .await
         .map_err(|e| AppError::new("Dosya bulunamadı.", Some(e.to_string())))?;
     if meta.len() > MAX_BYTES {
-        return Err(AppError::new("Dosya çok büyük (en fazla 2 MB).", None));
+        return Err(AppError::new("Dosya çok büyük (en fazla 10 MB).", None));
     }
     let bytes = tokio::fs::read(path)
         .await
@@ -49,7 +50,7 @@ pub async fn text_file_write(path: String, contents: String) -> Result<(), AppEr
     let path = Path::new(&path);
     check(path)?;
     if contents.len() as u64 > MAX_BYTES {
-        return Err(AppError::new("Dosya çok büyük (en fazla 2 MB).", None));
+        return Err(AppError::new("Dosya çok büyük (en fazla 10 MB).", None));
     }
     tokio::fs::write(path, contents)
         .await
@@ -64,6 +65,7 @@ mod tests {
     fn yalnizca_altyazi_ve_hazir_ayar_dosyalari() {
         assert!(check(Path::new("a.srt")).is_ok());
         assert!(check(Path::new("b.JSON")).is_ok());
+        assert!(check(Path::new("altyazi.vtt")).is_ok());
         assert!(check(Path::new("c.exe")).is_err());
         assert!(check(Path::new("d")).is_err());
     }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AlertTriangle, CircleCheck, Info, Rewind } from "lucide-react";
-import "@fontsource/nunito/latin-800.css";
+import "@fontsource-variable/bricolage-grotesque";
 import "../styles/globals.css";
 
 // Köşedeki bilgi penceresi: kısayolla yapılan kayıt işlemlerini (oyun oynarken

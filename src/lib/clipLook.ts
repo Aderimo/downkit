@@ -1,8 +1,27 @@
-// Klibin görünümü (Clipchamp'taki sağ araçlar): hazır filtre, renk ayarları ve
+import { normalizeFx, type LookFx } from "./lookFx";
+import { normalizeGrade, type ColorGrade } from "./colorGrade";
+
+// Klibin görünümü: hazır filtre, renk ayarları ve
 // efektler. Dışa aktarımda FFmpeg filtresine (Rust `ffmpeg::edit::Look`),
 // önizlemede CSS filtresine çevrilir; ikisi birbirine yakın görünür.
 
-export type FilterId = "none" | "bw" | "sepia" | "vivid" | "cool" | "warm" | "cinema" | "faded";
+export type FilterId =
+  | "none"
+  | "bw"
+  | "sepia"
+  | "vivid"
+  | "cool"
+  | "warm"
+  | "cinema"
+  | "faded"
+  | "tealOrange"
+  | "noir"
+  | "vintage"
+  | "neon"
+  | "pastel"
+  | "matrix"
+  | "golden"
+  | "moody";
 
 export interface ClipLook {
   filter: FilterId;
@@ -16,6 +35,10 @@ export interface ClipLook {
   blur: number;
   mirror: boolean;
   vignette: boolean;
+  /** Glitch, RGB ayrışma, flaş, gren, ışık sızması, VHS, keskinleştirme (lib/lookFx). */
+  fx?: LookFx;
+  /** Renk düzeltme: pozlama, ton, tekerlekler, seviyeler, eğri, LUT (lib/colorGrade). */
+  grade?: ColorGrade;
 }
 
 export const DEFAULT_LOOK: ClipLook = {
@@ -38,6 +61,14 @@ export const FILTERS: FilterId[] = [
   "warm",
   "cinema",
   "faded",
+  "tealOrange",
+  "noir",
+  "vintage",
+  "neon",
+  "pastel",
+  "matrix",
+  "golden",
+  "moody",
 ];
 
 /** Hazır filtrelerin önizlemedeki karşılığı (FFmpeg karşılığıyla aynı yönde). */
@@ -50,6 +81,14 @@ const FILTER_CSS: Record<FilterId, string> = {
   warm: "sepia(0.25) saturate(1.2)",
   cinema: "contrast(1.15) saturate(0.85)",
   faded: "contrast(0.85) brightness(1.08) saturate(0.8)",
+  tealOrange: "contrast(1.08) saturate(1.2) sepia(0.15) hue-rotate(-8deg)",
+  noir: "grayscale(1) contrast(1.35) brightness(0.97)",
+  vintage: "sepia(0.35) contrast(0.9) brightness(1.05) saturate(0.85)",
+  neon: "saturate(1.8) contrast(1.1) hue-rotate(-8deg)",
+  pastel: "saturate(0.7) brightness(1.06) contrast(0.9)",
+  matrix: "sepia(0.4) hue-rotate(60deg) saturate(1.4) contrast(1.1)",
+  golden: "sepia(0.3) saturate(1.3) brightness(1.03)",
+  moody: "contrast(1.15) saturate(0.75) brightness(0.95)",
 };
 
 export function filterCss(id: FilterId): string {
@@ -71,6 +110,8 @@ export function normalizeLook(raw: Partial<ClipLook> | undefined | null): ClipLo
     blur: clamp(r.blur ?? 0, 0, 1),
     mirror: r.mirror === true,
     vignette: r.vignette === true,
+    ...(normalizeFx(r.fx) ? { fx: normalizeFx(r.fx) } : {}),
+    ...(normalizeGrade(r.grade) ? { grade: normalizeGrade(r.grade) } : {}),
   };
 }
 
@@ -84,7 +125,9 @@ export function isDefaultLook(look: Partial<ClipLook> | undefined | null): boole
     Math.abs(l.temperature) < 1e-3 &&
     l.blur < 1e-3 &&
     !l.mirror &&
-    !l.vignette
+    !l.vignette &&
+    l.fx === undefined &&
+    l.grade === undefined
   );
 }
 

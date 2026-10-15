@@ -17,41 +17,16 @@ export interface TutorialStep {
 
 export type TourId =
   | "welcome"
-  | "home"
+  | "download"
+  | "convert"
   | "editorStart"
   | "editor"
-  | "convert"
-  | "compress"
-  | "resize"
-  | "downloads"
-  | "batch"
   | "record"
   | "screenshot"
   | "settings";
 
-const localTool: TutorialStep[] = [
-  { id: "intro", targets: [] },
-  { id: "drop", targets: ["local-drop"], optional: true },
-  { id: "file", targets: ["local-file"], optional: true },
-  { id: "options", targets: ["local-options"], optional: true },
-  { id: "start", targets: ["local-start"], optional: true },
-  { id: "result", targets: [] },
-];
-
 export const TOURS: Record<TourId, TutorialStep[]> = {
-  welcome: [
-    { id: "welcome", targets: [] },
-    { id: "link", targets: ["nav-home"] },
-    { id: "editor", targets: ["nav-editor"] },
-    { id: "record", targets: ["nav-record"] },
-    { id: "screenshot", targets: ["nav-screenshot"] },
-    { id: "local", targets: ["nav-convert", "nav-compress", "nav-resize"] },
-    { id: "queue", targets: ["nav-downloads"] },
-    { id: "settings", targets: ["nav-batch", "nav-settings"] },
-    { id: "help", targets: ["status-help", "sidebar-toggle"] },
-    { id: "support", targets: ["maker"] },
-  ],
-  home: [
+  download: [
     { id: "url", targets: ["home-url"] },
     { id: "platforms", targets: ["home-platforms"] },
     { id: "media", targets: ["home-media"], optional: true },
@@ -59,13 +34,30 @@ export const TOURS: Record<TourId, TutorialStep[]> = {
     { id: "actions", targets: ["home-actions"] },
     { id: "options", targets: ["home-options"] },
     { id: "start", targets: ["home-start"] },
-    { id: "presets", targets: ["home-presets"], optional: true },
     { id: "queue", targets: ["home-queue"] },
+  ],
+  convert: [
+    { id: "intro", targets: ["convert-tabs"] },
+    { id: "drop", targets: ["local-drop"], optional: true },
+    { id: "file", targets: ["local-file"], optional: true },
+    { id: "options", targets: ["local-options"], optional: true },
+    { id: "start", targets: ["local-start"], optional: true },
+    { id: "result", targets: [] },
+  ],
+  welcome: [
+    { id: "welcome", targets: [] },
+    { id: "link", targets: ["nav-download"] },
+    { id: "local", targets: ["nav-convert"] },
+    { id: "record", targets: ["nav-record"] },
+    { id: "editor", targets: ["nav-editor"] },
+    { id: "screenshot", targets: ["nav-screenshot"] },
+    { id: "settings", targets: ["nav-settings"] },
+    { id: "help", targets: ["status-help", "sidebar-toggle"] },
+    { id: "support", targets: ["maker"] },
   ],
   editorStart: [
     { id: "intro", targets: [] },
     { id: "resume", targets: ["editor-resume"], optional: true },
-    { id: "link", targets: ["editor-link"] },
     { id: "drop", targets: ["editor-drop"] },
   ],
   editor: [
@@ -79,23 +71,9 @@ export const TOURS: Record<TourId, TutorialStep[]> = {
     { id: "undo", targets: ["editor-undo", "editor-magnet"] },
     { id: "zoom", targets: ["editor-zoom"] },
     { id: "panel", targets: ["editor-panel"] },
+    { id: "workspace", targets: ["editor-workspace"] },
     { id: "export", targets: ["editor-export-open"] },
     { id: "shortcuts", targets: ["editor-shortcuts"] },
-  ],
-  convert: localTool,
-  compress: localTool,
-  resize: localTool,
-  downloads: [
-    { id: "view", targets: ["downloads-view"] },
-    { id: "list", targets: ["downloads-list"] },
-    { id: "filter", targets: ["downloads-filter"] },
-    { id: "actions", targets: ["downloads-list"] },
-    { id: "history", targets: ["downloads-view"] },
-  ],
-  batch: [
-    { id: "input", targets: ["batch-input"] },
-    { id: "options", targets: ["batch-options"] },
-    { id: "start", targets: ["batch-start"] },
   ],
   record: [
     { id: "main", targets: ["record-main"] },
@@ -116,15 +94,16 @@ export const TOURS: Record<TourId, TutorialStep[]> = {
     { id: "actions", targets: ["snip-actions"], optional: true },
   ],
   settings: [
-    { id: "general", targets: ["settings-general"] },
-    { id: "folders", targets: ["settings-folders"] },
     { id: "theme", targets: ["settings-theme"] },
+    { id: "folders", targets: ["settings-folders"] },
+    { id: "hotkeys", targets: ["settings-hotkeys"] },
+    { id: "general", targets: ["settings-general"] },
     { id: "downloads", targets: ["settings-downloads"] },
     { id: "subtitles", targets: ["settings-subtitles"] },
-    { id: "behavior", targets: ["settings-behavior"] },
-    { id: "browser", targets: ["settings-browser"] },
-    { id: "tools", targets: ["settings-tools"] },
     { id: "privacy", targets: ["settings-privacy"] },
+    { id: "behavior", targets: ["settings-behavior"] },
+    { id: "tools", targets: ["settings-tools"] },
+    { id: "notes", targets: ["settings-notes"] },
     { id: "about", targets: ["settings-about"] },
   ],
 };
@@ -200,7 +179,8 @@ export const useTutorialStore = create<TutorialState>((set, get) => {
   };
   return {
     // README ekran görüntüleri alınırken tur araya girmesin.
-    open: getSettings().showTutorial && !isDemo(),
+    // İlk açılışta önce kurulum sihirbazı gelir; tur onun sonunda başlar.
+    open: getSettings().showTutorial && getSettings().setupDone && !isDemo(),
     tour: "welcome",
     steps: TOURS.welcome,
     step: 0,

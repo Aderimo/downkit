@@ -383,3 +383,101 @@ mod tests {
         assert_eq!(clean_app_name("Discord"), "Discord");
     }
 }
+
+/// Tam ekranı kaplayan öndeki uygulama (oyun açılınca anlık tekrar kendiliğinden başlasın diye).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FullscreenApp {
+    /// Görünen ad (ör. "VALORANT").
+    pub name: String,
+    /// Program dosyası (ör. "VALORANT-Win64-Shipping.exe").
+    pub exe: String,
+}
+
+/// Tam ekran video da olabilen programlar: oyun sayılmaz.
+const NOT_GAMES: [&str; 14] = [
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "opera.exe",
+    "brave.exe",
+    "vivaldi.exe",
+    "vlc.exe",
+    "mpc-hc64.exe",
+    "mpc-be64.exe",
+    "potplayermini64.exe",
+    "wmplayer.exe",
+    "video.ui.exe",
+    "applicationframehost.exe",
+    "powerpnt.exe",
+];
+
+pub fn is_game_exe(exe: &str) -> bool {
+    !exe.is_empty() && !NOT_GAMES.iter().any(|n| n.eq_ignore_ascii_case(exe))
+}
+
+/// Öndeki pencere bulunduğu ekranı tamamen kaplıyorsa ve oyun olabilecek bir programsa o.
+pub fn fullscreen_app() -> Option<FullscreenApp> {
+    unsafe {
+        let front = GetForegroundWindow();
+        if front.is_invalid() {
+            return None;
+        }
+        let monitor = MonitorFromWindow(front, MONITOR_DEFAULTTONULL);
+        if monitor.is_invalid() {
+            return None;
+        }
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            return None;
+        }
+        let mut rect = RECT::default();
+        let _ = DwmGetWindowAttribute(
+            front,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut rect as *mut RECT as *mut _,
+            std::mem::size_of::<RECT>() as u32,
+        );
+        let area =
+            |r: &RECT| ((r.right - r.left).max(0) as i64) * ((r.bottom - r.top).max(0) as i64);
+        let m = info.rcMonitor;
+        let overlap = RECT {
+            left: rect.left.max(m.left),
+            top: rect.top.max(m.top),
+            right: rect.right.min(m.right),
+            bottom: rect.bottom.min(m.bottom),
+        };
+        if area(&m) == 0 || area(&overlap) * 1000 < area(&m) * 995 {
+            return None;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(front, Some(&mut pid));
+        let exe = exe_name(pid);
+        if !is_game_exe(&exe) {
+            return None;
+        }
+        let name = window_app(front)?;
+        Some(FullscreenApp { name, exe })
+    }
+}
+
+/// Bu programın açık bir penceresi var mı (oyun kapanınca anlık tekrar da kapansın diye).
+pub fn exe_has_window(exe: &str) -> bool {
+    list_windows()
+        .iter()
+        .any(|w| w.exe.eq_ignore_ascii_case(exe))
+}
+
+#[cfg(test)]
+mod game_tests {
+    #[test]
+    fn tarayici_ve_oynaticilar_oyun_sayilmaz() {
+        assert!(!super::is_game_exe("Chrome.exe"));
+        assert!(!super::is_game_exe("vlc.exe"));
+        assert!(!super::is_game_exe(""));
+        assert!(super::is_game_exe("VALORANT-Win64-Shipping.exe"));
+    }
+}

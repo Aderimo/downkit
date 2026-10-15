@@ -1,19 +1,16 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDownToLine,
   Camera,
   ExternalLink,
   Heart,
-  House,
-  Layers,
   PanelLeftClose,
   PanelLeftOpen,
-  Maximize2,
-  RefreshCw,
   Clapperboard,
+  RefreshCw,
   Video,
   Settings,
-  Shrink,
   type LucideIcon,
 } from "lucide-react";
 import type { Route } from "../types/route";
@@ -33,42 +30,41 @@ interface NavItem {
 }
 
 const MAIN_ITEMS: NavItem[] = [
-  { route: "home", icon: House, labelKey: "nav.home" },
-  { route: "downloads", icon: ArrowDownToLine, labelKey: "nav.downloads" },
+  { route: "download", icon: ArrowDownToLine, labelKey: "nav.download" },
   { route: "convert", icon: RefreshCw, labelKey: "nav.convert" },
-  { route: "compress", icon: Shrink, labelKey: "nav.compress" },
-  { route: "resize", icon: Maximize2, labelKey: "nav.resize" },
-];
-
-const TOOL_ITEMS: NavItem[] = [
-  { route: "batch", icon: Layers, labelKey: "nav.batch" },
   { route: "editor", icon: Clapperboard, labelKey: "nav.videoEditor" },
   { route: "record", icon: Video, labelKey: "nav.record" },
   { route: "screenshot", icon: Camera, labelKey: "nav.screenshot" },
-  { route: "settings", icon: Settings, labelKey: "nav.settings" },
 ];
+
+const TOOL_ITEMS: NavItem[] = [{ route: "settings", icon: Settings, labelKey: "nav.settings" }];
 
 interface SidebarProps {
   route: Route;
   onNavigate: (route: Route) => void;
+  /** Düzenleyici açık: yer kazanmak için dar (kullanıcı genişletebilir). */
+  compact?: boolean;
 }
 
-export function Sidebar({ route, onNavigate }: SidebarProps) {
+export function Sidebar({ route, onNavigate, compact = false }: SidebarProps) {
   const { t } = useTranslation();
-  const collapsed = useSettingsStore((s) => s.sidebarCollapsed);
+  const savedCollapsed = useSettingsStore((s) => s.sidebarCollapsed);
   const update = useSettingsStore((s) => s.update);
+  const [expandedInEditor, setExpandedInEditor] = useState(false);
+  const collapsed = compact ? !expandedInEditor : savedCollapsed;
   const activeJobs = useJobsStore(
     (s) => s.jobs.filter((j) => ACTIVE_STATUSES.includes(j.status) || j.status === "queued").length,
   );
   const recording = useRecorderStore((s) => s.status.recording !== null);
   const replayOn = useRecorderStore((s) => s.status.replay !== null);
-  const toggle = () => update({ sidebarCollapsed: !collapsed });
+  const toggle = () =>
+    compact ? setExpandedInEditor((v) => !v) : update({ sidebarCollapsed: !collapsed });
   const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
 
   return (
     <aside
       className={`dk-scroll flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-[var(--dk-border)] bg-[var(--dk-sidebar)] py-5 transition-[width] duration-200 short:py-3 ${
-        collapsed ? "w-[84px] px-2" : "w-60 px-4"
+        collapsed ? (compact ? "w-[64px] px-1.5" : "w-[84px] px-2") : "w-60 px-4"
       }`}
     >
       <div
@@ -76,7 +72,7 @@ export function Sidebar({ route, onNavigate }: SidebarProps) {
       >
         <button
           type="button"
-          onClick={() => onNavigate("home")}
+          onClick={() => onNavigate("record")}
           title={t("app.tagline")}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 text-left"
         >
@@ -111,17 +107,11 @@ export function Sidebar({ route, onNavigate }: SidebarProps) {
         items={MAIN_ITEMS}
         route={route}
         onNavigate={onNavigate}
-        badge={{ downloads: activeJobs }}
+        badge={{ editor: activeJobs }}
         collapsed={collapsed}
       />
 
-      {collapsed ? (
-        <span className="mx-auto my-4 h-px w-8 bg-[var(--dk-border)]" />
-      ) : (
-        <p className="mt-7 mb-2 px-3 text-xs font-medium text-[var(--dk-text-muted)] short:mt-4">
-          {t("nav.sectionTools")}
-        </p>
-      )}
+      <span className="mx-auto my-4 h-0.5 w-10 rounded-full bg-[var(--dk-border)]" />
       <NavList
         items={TOOL_ITEMS}
         route={route}
@@ -131,7 +121,7 @@ export function Sidebar({ route, onNavigate }: SidebarProps) {
       />
 
       <div className="mt-auto pt-6 short:pt-3">
-        {collapsed ? (
+        {compact && collapsed ? null : collapsed ? (
           <div
             data-tour="maker"
             className="flex flex-col items-center gap-2 rounded-2xl border border-[var(--dk-border)] bg-[var(--dk-surface)] p-2"
