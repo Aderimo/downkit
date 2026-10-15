@@ -189,6 +189,15 @@ pub fn build(spec: &MotionSpec) -> Result<Built, String> {
         c.layers
             .retain(|l| !l.name.to_ascii_lowercase().contains("background"));
     }
+    // Denetimi olmayan sabit yazılar (ör. 3B şablondaki "in three dimensions")
+    // değiştirilemez ve hep İngilizce kalır: atılır.
+    let editable: Vec<LayerId> = found
+        .iter()
+        .filter(|(_, _, m)| m.kind == ControlKind::Text)
+        .map(|(l, _, _)| *l)
+        .collect();
+    c.layers
+        .retain(|l| l.props.prop("text/sourceText").is_none() || editable.contains(&l.id));
     Ok(Built { project, comp })
 }
 
@@ -292,6 +301,21 @@ mod tests {
     }
 
     #[test]
+    fn denetimsiz_sabit_yazilar_atilir() {
+        let built = build(&spec("text-orbit-3d", &["DÖNÜŞ"], false)).unwrap();
+        let c = built.project.comp(built.comp).unwrap();
+        let texts: Vec<String> = c
+            .layers
+            .iter()
+            .filter_map(|l| match &l.props.prop("text/sourceText")?.value {
+                Value::Text(doc) => Some(doc.text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(texts, vec!["DÖNÜŞ".to_string()]);
+    }
+
+    #[test]
     fn arka_planli_kare_tamamen_doludur() {
         let built = build(&spec("title-card", &[], true)).unwrap();
         let (rgba, _, _) = built.frame(1.0, 0.1);
@@ -339,5 +363,61 @@ mod tests {
         let built = build(&spec("lower-third", &["A", "B", "kırmızı"], false)).unwrap();
         let list = controls(&built.project, built.comp);
         assert_eq!(list[2].2.value, templates()[0].controls[2].value);
+    }
+}
+
+/// README vitrini: her şablonun ortasındaki kare, verilen dildeki metinlerle.
+/// VITRIN_DIZIN=<klasör> VITRIN_DIL=tr cargo test --lib vitrin -- --ignored
+#[cfg(test)]
+mod vitrin {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn vitrin_kareleri_yazilir() {
+        let dir = std::env::var("VITRIN_DIZIN").expect("VITRIN_DIZIN");
+        let lang = std::env::var("VITRIN_DIL").unwrap_or_else(|_| "en".into());
+        let locale: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(format!("../src/locales/{lang}.json")).unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        for t in templates() {
+            let texts: Vec<String> = locale["motion"]["tpl"][&t.id]["values"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut k = 0;
+            let values = t
+                .controls
+                .iter()
+                .map(|c| match c.kind {
+                    ControlKind::Text => {
+                        k += 1;
+                        texts.get(k - 1).cloned().unwrap_or_else(|| c.value.clone())
+                    }
+                    ControlKind::Color => c.value.clone(),
+                })
+                .collect();
+            let built = build(&MotionSpec {
+                template: t.id.clone(),
+                values,
+                background: true,
+            })
+            .unwrap();
+            let (rgba, w, h) = built.frame(t.duration * 0.5, 0.5);
+            image::save_buffer(
+                format!("{dir}/{}.png", t.id),
+                &rgba,
+                w,
+                h,
+                image::ColorType::Rgba8,
+            )
+            .unwrap();
+        }
     }
 }
